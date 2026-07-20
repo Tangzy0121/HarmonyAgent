@@ -136,28 +136,31 @@ const ALL_DDL: string[] = [
 
 // ── 初始化 ──
 
-export function initDatabase(context: common.Context): void {
+export async function initDatabase(context: common.Context): Promise<void> {
   const STORE_CONFIG: relationalStore.StoreConfig = {
     name: 'HarmonyAgent.db',
     securityLevel: relationalStore.SecurityLevel.S3
   };
 
-  relationalStore.getRdbStore(context, STORE_CONFIG).then((store: relationalStore.RdbStore) => {
+  try {
+    let store: relationalStore.RdbStore = await relationalStore.getRdbStore(context, STORE_CONFIG);
     rdbStore = store;
     console.info(TAG + ' RdbStore opened');
 
     // 建表
     for (let i: number = 0; i < ALL_DDL.length; i++) {
       let sql: string = ALL_DDL[i];
-      store.executeSql(sql).then(() => {
+      try {
+        await store.executeSql(sql);
         console.info(TAG + ' Table created: ' + sql.substring(0, 40));
-      }).catch((err: BusinessError) => {
-        console.error(TAG + ' Create table failed: ' + err.message);
-      });
+      } catch (err) {
+        console.error(TAG + ' Create table failed: ' + (err as BusinessError).message);
+      }
     }
-  }).catch((err: BusinessError) => {
-    console.error(TAG + ' Get RdbStore failed: ' + err.message);
-  });
+  } catch (err) {
+    console.error(TAG + ' Get RdbStore failed: ' + (err as BusinessError).message);
+    throw err;
+  }
 }
 
 // ── 获取 store 实例（供其他模块用）──

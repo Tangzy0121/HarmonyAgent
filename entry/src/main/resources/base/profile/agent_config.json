@@ -13,7 +13,9 @@
       "capabilities": {
         "streaming": true,
         "pushNotifications": true,
-        "stateTransitionHistory": true
+        "stateTransitionHistory": true,
+        "extendedAgentCard": false,
+        "extension": ""
       },
       "defaultInputModes": ["text/plain"],
       "defaultOutputModes": ["text/plain"],
@@ -57,9 +59,10 @@
           "outputModes": ["text/plain"]
         }
       ],
-      "iconUrl": "resources/base/media/agent_icon.png",
+      "iconUrl": "resources/base/media/startIcon.png",
       "category": "productivity",
       "type": "APP",
+      "extension": "",
       "appInfo": {
         "deviceTypes": ["phone"],
         "minAppVersion": "1.0.0"

@@ -1,0 +1,3 @@
+# HarmonOS Obfuscation Rules
+# Obfuscation is currently disabled (enable: false in build-profile.json5).
+# Add rules here before enabling.

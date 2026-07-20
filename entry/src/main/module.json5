@@ -38,6 +38,8 @@
     "extensionAbilities": [
       {
         "name": "AgentExtAbility",
+        "icon": "$media:startIcon",
+        "description": "agent",
         "srcEntry": "./ets/agent/AgentExtAbility.ets",
         "type": "agent",
         "exported": true,
