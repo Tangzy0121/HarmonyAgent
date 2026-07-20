@@ -84,3 +84,20 @@ llmRouter.post('/chat/completions', async (req: Request, res: Response) => {
     res.status(502).json({ error: 'Failed to reach LLM provider' });
   }
 });
+
+
+// POST /embed — 批量 embedding 生成（占位，P0 用云端 embedding）
+llmRouter.post('/embed', async (_req: Request, res: Response) => {
+  res.status(501).json({
+    error: 'Embedding endpoint not yet implemented.',
+    plan: 'P0: cloud embedding via LLM proxy. P1: evaluate on-device embedding.'
+  });
+});
+
+// POST /parse — PPT/PDF 文本提取（占位，P0 用云端解析后即焚）
+llmRouter.post('/parse', async (_req: Request, res: Response) => {
+  res.status(501).json({
+    error: 'Document parse endpoint not yet implemented.',
+    plan: 'P0: cloud one-shot parse (burn-after-read). Files: PPTX, PDF, DOCX, Markdown.'
+  });
+});

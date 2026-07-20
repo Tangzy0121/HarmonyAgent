@@ -1,53 +1,53 @@
 // AgentExtensionAbility —— 端A2A 通信实现类
 // 生命周期：onCreate → onConnect → (onAuth) → onData → onDisconnect → onDestroy
 // 协议基线：小艺开放平台端A2A V0.6 | SDK since API 24
-// 从 CognitiveOS2 移植，适配 HarmonyAgent 个人知识管理场景
+// 对齐官方文档: developer.huawei.com/consumer/cn/doc/harmonyos-guides/agent-extension-ability
 
-import { AgentExtensionAbility, Want } from '@kit.AbilityKit';
+import { common, AgentExtensionAbility, Want } from '@kit.AbilityKit';
 import { parseRequest, A2ARequest, buildError } from './A2AProtocol';
 import { route } from './SkillRouter';
 
 const TAG: string = 'HarmonyAgent';
 
 export default class AgentExtAbility extends AgentExtensionAbility {
+  private comProxy: common.AgentHostProxy | null = null;
 
   onCreate(want: Want): void {
     console.info(TAG + ' onCreate');
   }
 
-  onConnect(want: Want, proxy: object): void {
+  onConnect(want: Want, proxy: common.AgentHostProxy): void {
     console.info(TAG + ' onConnect');
+    this.comProxy = proxy;
   }
 
-  onAuth(proxy: object, handshakeData: string): void {
+  onDisconnect(want: Want, proxy: common.AgentHostProxy): void {
+    console.info(TAG + ' onDisconnect');
+    this.comProxy = null;
+  }
+
+  onAuth(proxy: common.AgentHostProxy, handshakeData: string): void {
     // V1 跳过安全认证
     console.info(TAG + ' onAuth (skipped in V1)');
   }
 
-  onData(proxy: object, data: string): void {
+  onData(proxy: common.AgentHostProxy, data: string): void {
     console.info(TAG + ' onData received: ' + data.substring(0, 200));
 
     let req: A2ARequest | null = parseRequest(data);
     if (req === null) {
-      let p: Record<string, Function> = proxy as Record<string, Function>;
-      p['sendData'](buildError('', -32600, '无效的 JSON-RPC 2.0 请求'));
+      proxy.sendData(buildError('', -32600, 'Invalid JSON-RPC 2.0 request'));
       return;
     }
 
     // onData 签名是 void（非 async），用 then/catch 处理异步
     route(req).then((frames: string[]) => {
-      let p: Record<string, Function> = proxy as Record<string, Function>;
       for (let i: number = 0; i < frames.length; i++) {
-        p['sendData'](frames[i]);
-        console.info(TAG + ' sendData: ' + frames[i].substring(0, 120));
+        proxy.sendData(frames[i]);
       }
     }).catch((e: Error) => {
       console.error(TAG + ' handler error: ' + e.message);
     });
-  }
-
-  onDisconnect(want: Want, proxy: object): void {
-    console.info(TAG + ' onDisconnect');
   }
 
   onDestroy(): void {

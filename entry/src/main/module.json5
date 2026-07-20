@@ -43,7 +43,7 @@
         "exported": true,
         "metadata": [
           {
-            "name": "ohos.agent.agent_config",
+            "name": "ohos.extension.agent",
             "resource": "$profile:agent_config"
           }
         ]

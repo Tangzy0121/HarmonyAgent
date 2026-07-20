@@ -21,8 +21,9 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'harmony-agent-server' });
 });
 
-// LLM 代理路由
+// LLM 代理路由（挂载在两个前缀下，兼容 admin 代理 /api 和 鸿蒙端 /v1）
 app.use('/v1', llmRouter);
+app.use('/api', llmRouter);
 
 app.listen(PORT, () => {
   console.log(`[HarmonyAgent Server] running on http://localhost:${PORT}`);

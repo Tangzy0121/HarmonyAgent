@@ -4,17 +4,19 @@
       "agentId": "harmony-km-agent",
       "name": "知识学伴",
       "description": "AI驱动的个人知识管理Agent——摄入、理解、复习三位一体。支持保存笔记自动分块向量化、知识库语义检索问答、基于学习模型的主动复习提醒。知识不出端，数据全本地。",
+      "provider": {
+        "organization": "Tangzy",
+        "url": "https://github.com/Tangzy0121/HarmonyAgent"
+      },
       "version": "1.0.0",
+      "documentationUrl": "https://github.com/Tangzy0121/HarmonyAgent",
       "capabilities": {
-        "streaming": false,
-        "pushNotifications": false,
-        "stateTransitionHistory": false
+        "streaming": true,
+        "pushNotifications": true,
+        "stateTransitionHistory": true
       },
       "defaultInputModes": ["text/plain"],
       "defaultOutputModes": ["text/plain"],
-      "iconUrl": "",
-      "category": "productivity",
-      "type": 0,
       "skills": [
         {
           "id": "ingest_note",
@@ -54,7 +56,14 @@
           "inputModes": ["text/plain"],
           "outputModes": ["text/plain"]
         }
-      ]
+      ],
+      "iconUrl": "resources/base/media/agent_icon.png",
+      "category": "productivity",
+      "type": "APP",
+      "appInfo": {
+        "deviceTypes": ["phone"],
+        "minAppVersion": "1.0.0"
+      }
     }
   ]
 }
