@@ -1,0 +1,60 @@
+{
+  "agentCards": [
+    {
+      "agentId": "harmony-km-agent",
+      "name": "知识学伴",
+      "description": "AI驱动的个人知识管理Agent——摄入、理解、复习三位一体。支持保存笔记自动分块向量化、知识库语义检索问答、基于学习模型的主动复习提醒。知识不出端，数据全本地。",
+      "version": "1.0.0",
+      "capabilities": {
+        "streaming": false,
+        "pushNotifications": false,
+        "stateTransitionHistory": false
+      },
+      "defaultInputModes": ["text/plain"],
+      "defaultOutputModes": ["text/plain"],
+      "iconUrl": "",
+      "category": "productivity",
+      "type": 0,
+      "skills": [
+        {
+          "id": "ingest_note",
+          "name": "保存笔记",
+          "description": "保存一段文字或笔记到知识库。系统会自动分块、向量化并抽取知识点，更新复习计划。",
+          "tags": ["保存", "笔记", "收藏", "剪藏"],
+          "examples": [
+            "帮我保存这段内容",
+            "记一下：梯度下降是机器学习中最常用的优化算法"
+          ],
+          "inputModes": ["text/plain"],
+          "outputModes": ["text/plain"]
+        },
+        {
+          "id": "ask_knowledge",
+          "name": "知识问答",
+          "description": "基于你保存的知识库进行语义检索和问答。可追问细节、理解概念关联。",
+          "tags": ["问答", "搜索", "解释", "学习"],
+          "examples": [
+            "什么是梯度下降",
+            "PCA和LDA有什么区别",
+            "解释一下贝叶斯定理"
+          ],
+          "inputModes": ["text/plain"],
+          "outputModes": ["text/plain"]
+        },
+        {
+          "id": "get_review",
+          "name": "主动复习",
+          "description": "基于学习模型分析你的知识掌握情况，智能推荐需要复习的知识点。支持间隔重复和艾宾浩斯遗忘曲线调度。",
+          "tags": ["复习", "温习", "掌握", "进度"],
+          "examples": [
+            "我该复习什么了",
+            "看看我的学习进度",
+            "推荐今天要复习的内容"
+          ],
+          "inputModes": ["text/plain"],
+          "outputModes": ["text/plain"]
+        }
+      ]
+    }
+  ]
+}
