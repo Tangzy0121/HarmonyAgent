@@ -1,6 +1,6 @@
 // A2A 协议层 —— JSON-RPC 2.0 消息解析 / 帧构造
 // 基线：小艺开放平台端A2A V0.6（真机行为优先于文档）
-// 从 CognitiveOS2 移植，适配 HarmonyAgent 个人知识管理场景
+// 适配 HarmonyAgent 个人知识管理场景
 // ArkTS 严格模式 —— 所有 object literal 必须有显式类型
 
 // ── 显式接口 ──

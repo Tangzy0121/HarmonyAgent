@@ -1,9 +1,9 @@
 node_modules
-/oh_modules
+oh_modules
 /local.properties
-/.idea
+.idea
 **/build
-/.hvigor
+.hvigor
 .cxx
 /.clangd
 /.clang-format
@@ -11,3 +11,5 @@ node_modules
 **/.test
 /.appanalyzer
 .env
+dist
+**/dist

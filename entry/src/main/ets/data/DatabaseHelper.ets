@@ -1,5 +1,5 @@
 // DatabaseHelper —— SQLite 数据库初始化与管理
-// 实现技术实施计划 §2 数据层的 8 张表 DDL
+// 实现技术实施计划 §2 数据层的 10 张表 DDL
 // 使用 @ohos.data.relationalStore (RdbStore)
 //
 // 表清单：

@@ -38,6 +38,8 @@ export interface LLMChoice {
 
 // ── 配置（占位）──
 // 真 key 不提交到 git；队友开发时用自己的 .env / DevEco Studio Run Configuration
+// ⚠️ 真机调试：localhost 指向手机自身，需改为 PC 的局域网 IP（如 http://192.168.1.x:3456/v1/chat/completions）
+// ⚠️ 模拟器：localhost 通常可用（模拟器和 PC 共享网络栈）
 
 const PROXY_URL: string = 'http://localhost:3456/v1/chat/completions';
 
