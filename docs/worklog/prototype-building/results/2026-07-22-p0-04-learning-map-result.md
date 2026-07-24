@@ -23,10 +23,7 @@
 
 ## 证据
 
-- 默认移动端截图：`2026-07-22-p0-04-learning-map-mobile.png`
-- 节点聚焦与拖拽截图：`2026-07-22-p0-04-learning-map-drag.png`
-- 纠偏后学习页截图：`2026-07-22-rectification-learning-mobile.png`
-- 纠偏后节点信息面板截图：`2026-07-22-rectification-learning-node-panel.png`
+本页的 P0 基线与纠偏截图已由 V2 学习页和后续学习地图最终稿替代，清理后不再重复保留。
 
 ## 范围说明
 

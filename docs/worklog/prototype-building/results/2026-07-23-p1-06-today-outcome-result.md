@@ -51,11 +51,8 @@
 
 截图：
 
-- [下一次安排区域布局精修](./2026-07-23-p1-06-arrangement-refined.jpg)
-- [轨迹完成节点布局精修](./2026-07-23-p1-06-today-outcome-core-final.jpg)
 - [390 × 844 默认安排状态（布局精修）](./2026-07-23-p1-06-today-outcome-refined-mobile.jpg)
 - [390 × 844 暂不安排结束状态](./2026-07-23-p1-06-today-outcome-confirmed.png)
-- [360 × 800 小屏默认状态（布局精修）](./2026-07-23-p1-06-today-outcome-refined-small.jpg)
 
 ## 4. 交互验收
 

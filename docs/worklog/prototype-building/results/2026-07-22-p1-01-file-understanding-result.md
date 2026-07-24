@@ -37,7 +37,6 @@
 截图：
 
 - [390 × 844 文件理解结果页](./2026-07-22-p1-01-file-understanding-mobile.png)
-- [360 × 800 小屏结果页](./2026-07-22-p1-01-file-understanding-small.png)
 
 ## 4. 交互验收
 

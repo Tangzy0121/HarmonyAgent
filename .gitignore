@@ -14,3 +14,4 @@ oh_modules
 .env
 dist
 **/dist
+video/out/

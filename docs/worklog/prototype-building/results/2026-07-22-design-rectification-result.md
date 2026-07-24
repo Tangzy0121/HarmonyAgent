@@ -28,9 +28,7 @@
 
 ## 视觉证据
 
-- `2026-07-22-rectification-today-mobile.png`
-- `2026-07-22-rectification-learning-mobile.png`
-- `2026-07-22-rectification-learning-node-panel.png`
+本阶段截图已由同日的 V2 全页面结果与后续学习地图最终稿替代，清理后不再重复保留。
 
 ## 后续范围
 

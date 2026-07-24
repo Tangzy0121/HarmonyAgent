@@ -1,0 +1,12 @@
+.loci-canvas {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+  background: radial-gradient(
+    140% 100% at 80% 0%,
+    #ffffff 0%,
+    #f5f5f7 45%,
+    #eaeaed 100%
+  );
+  color: #1c1c1e;
+  -webkit-font-smoothing: antialiased;
+}

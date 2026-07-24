@@ -51,7 +51,6 @@
 
 - [390 × 844 判断初始态](./2026-07-23-p1-03-learning-verification-mobile.png)
 - [390 × 844 正确反馈态](./2026-07-23-p1-03-learning-verification-feedback.png)
-- [360 × 800 小屏判断页](./2026-07-23-p1-03-learning-verification-small.png)
 
 ## 5. 交互验收
 
