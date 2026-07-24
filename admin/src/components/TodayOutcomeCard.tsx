@@ -23,13 +23,13 @@ export function TodayOutcomeCard({
 
   return (
     <article className={isConfirmed ? 'today-outcome-card today-outcome-card--confirmed' : 'today-outcome-card'} aria-labelledby="today-outcome-title">
-      <div className="today-outcome-card__art" aria-hidden="true">
-        <span className="today-outcome-track today-outcome-track--outer" />
-        <span className="today-outcome-track today-outcome-track--middle" />
-        <span className="today-outcome-track today-outcome-track--inner" />
-        <span className="today-outcome-node today-outcome-node--start" />
-        <span className="today-outcome-node today-outcome-node--end" />
-        <span className="today-outcome-core"><i /></span>
+      <div className="task-focus-card__flower today-outcome-card__flower" aria-hidden="true">
+        <span className="task-flower__petal task-flower__petal--one" />
+        <span className="task-flower__petal task-flower__petal--two" />
+        <span className="task-flower__petal task-flower__petal--three" />
+        <span className="task-flower__petal task-flower__petal--four" />
+        <span className="task-flower__petal task-flower__petal--five" />
+        <span className="task-flower__center" />
       </div>
 
       <header className="today-outcome-card__lead">

@@ -184,7 +184,7 @@ export function AgentDrawer({
         {activeView === 'history' ? (
           <section className="agent-history" aria-labelledby="agent-history-title">
             <header>
-              <div className="agent-identity"><Icon name="agent" size={18} /><span>Knowledge Agent</span></div>
+              <div className="agent-identity"><Icon name="blossom" size={18} /><span>Knowledge Agent</span></div>
               <h2 id="agent-history-title">最近对话</h2>
               <p>选择一段对话，继续保留当时的知识上下文。</p>
             </header>
@@ -202,7 +202,7 @@ export function AgentDrawer({
         ) : (
           <>
             <header className="drawer-header">
-              <div className="agent-identity"><Icon name="agent" size={18} /><span>Knowledge Agent</span></div>
+              <div className="agent-identity"><Icon name="blossom" size={18} /><span>Knowledge Agent</span></div>
               <h2>{isFullScreen && messages.length ? agentConversation.title : '从当前内容开始'}</h2>
               <p>{isFullScreen && messages.length ? '围绕当前知识点继续追问，引用会保留来源位置。' : '我会结合页面上下文，帮你整理概念和下一步。'}</p>
             </header>
@@ -217,7 +217,7 @@ export function AgentDrawer({
                 {messages.map((message) => (
                   <article className={`agent-message agent-message--${message.role}`} key={message.id}>
                     <header>
-                      {message.role === 'agent' && <Icon name="agent" size={16} />}
+                      {message.role === 'agent' && <Icon name="blossom" size={16} />}
                       <span>{message.label}</span>
                     </header>
                     <p>{message.body}</p>
@@ -243,7 +243,7 @@ export function AgentDrawer({
                 <p>{messages.length ? '可以这样问' : '新对话可以从这里开始'}</p>
                 {agentPrompts.map((prompt) => (
                   <button key={prompt} type="button" onClick={() => onDraftChange(prompt)}>
-                    {prompt}
+                    <span>{prompt}</span><Icon name="arrow" size={16} />
                   </button>
                 ))}
               </div>
@@ -258,6 +258,7 @@ export function AgentDrawer({
         onSubmit={submitDraft}
       >
           <label className="sr-only" htmlFor="agent-question">向 Agent 提问</label>
+          <Icon name="compose" size={18} />
           <input
             id="agent-question"
             ref={inputRef}

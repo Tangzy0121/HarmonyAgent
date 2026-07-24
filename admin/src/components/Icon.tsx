@@ -1,5 +1,5 @@
 interface IconProps {
-  name: 'today' | 'map' | 'library' | 'agent' | 'blossom' | 'search' | 'add' | 'more' | 'minus' | 'plus' | 'locate' | 'close' | 'expand' | 'arrow' | 'back' | 'chevron' | 'check' | 'link' | 'document' | 'spark' | 'history' | 'compose'
+  name: 'today' | 'map' | 'library' | 'agent' | 'blossom' | 'user' | 'search' | 'add' | 'more' | 'minus' | 'plus' | 'locate' | 'close' | 'expand' | 'arrow' | 'back' | 'chevron' | 'check' | 'link' | 'document' | 'spark' | 'history' | 'compose'
   size?: number
   strokeWidth?: number
 }
@@ -19,13 +19,14 @@ export function Icon({ name, size = 22, strokeWidth = 1.8 }: IconProps) {
     library: <><path d="M5.5 4.5h10a3 3 0 0 1 3 3v12h-10a3 3 0 0 1-3-3z" {...common} /><path d="M8.5 4.5v12a3 3 0 0 0 3 3M11.5 8h4M11.5 11h4" {...common} /></>,
     agent: <><path d="M12 3.5c.7 4.9 3.6 7.8 8.5 8.5-4.9.7-7.8 3.6-8.5 8.5-.7-4.9-3.6-7.8-8.5-8.5 4.9-.7 7.8-3.6 8.5-8.5Z" {...common} /><path d="M19 3v3M20.5 4.5h-3" {...common} /></>,
     blossom: <g fill="currentColor">
-      <path d="M12 12.1c-2.7-1.3-3.8-4.7-2.2-7 1-1.5 3.4-1.5 4.4 0 1.6 2.3.5 5.7-2.2 7Z" />
-      <path d="M12 12.1c.4-3 3.2-5.2 5.9-4.4 1.8.5 2.5 2.8 1.4 4.2-1.8 2.2-5.4 2.3-7.3.2Z" />
-      <path d="M12 12.1c2.9-.6 5.9 1.3 6.1 4.1.1 1.8-1.8 3.2-3.5 2.5-2.6-1-3.8-4.4-2.6-6.6Z" />
-      <path d="M12 12.1c1.5 2.6.5 6-2.2 6.8-1.7.5-3.7-.9-3.6-2.7.2-2.8 3-4.8 5.8-4.1Z" />
-      <path d="M12 12.1c-2 2.2-5.6 2.1-7.3-.2-1.1-1.4-.3-3.7 1.4-4.2 2.7-.8 5.5 1.4 5.9 4.4Z" />
-      <circle cx="12" cy="12" r="1.7" />
+      <path d="M12 12c-1.2-1.8-2.6-3.6-2.9-5.8C8.7 3.7 9.9 1.8 12 1.8s3.3 1.9 2.9 4.4C14.6 8.4 13.2 10.2 12 12Z" />
+      <path d="M12 12c-1.2-1.8-2.6-3.6-2.9-5.8C8.7 3.7 9.9 1.8 12 1.8s3.3 1.9 2.9 4.4C14.6 8.4 13.2 10.2 12 12Z" transform="rotate(72 12 12)" />
+      <path d="M12 12c-1.2-1.8-2.6-3.6-2.9-5.8C8.7 3.7 9.9 1.8 12 1.8s3.3 1.9 2.9 4.4C14.6 8.4 13.2 10.2 12 12Z" transform="rotate(144 12 12)" />
+      <path d="M12 12c-1.2-1.8-2.6-3.6-2.9-5.8C8.7 3.7 9.9 1.8 12 1.8s3.3 1.9 2.9 4.4C14.6 8.4 13.2 10.2 12 12Z" transform="rotate(216 12 12)" />
+      <path d="M12 12c-1.2-1.8-2.6-3.6-2.9-5.8C8.7 3.7 9.9 1.8 12 1.8s3.3 1.9 2.9 4.4C14.6 8.4 13.2 10.2 12 12Z" transform="rotate(288 12 12)" />
+      <circle cx="12" cy="12" r="1.35" />
     </g>,
+    user: <><circle cx="12" cy="8" r="3.3" {...common} /><path d="M5.5 20c.5-4 2.9-6 6.5-6s6 2 6.5 6" {...common} /></>,
     search: <><circle cx="10.5" cy="10.5" r="6.5" {...common} /><path d="m15.4 15.4 4.1 4.1" {...common} /></>,
     add: <path d="M12 5v14M5 12h14" {...common} />,
     more: <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>,

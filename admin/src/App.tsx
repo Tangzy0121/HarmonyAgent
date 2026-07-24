@@ -284,21 +284,6 @@ function App() {
     })
   }
 
-  const closeLearningMapChange = () => {
-    if (window.history.state?.screen === 'learning-map-change') {
-      window.history.back()
-      return
-    }
-    window.history.replaceState({ screen: 'learning-completion', learningId: 'supervised-learning' }, '', learningCompletionHash)
-    updateWithViewTransition(() => {
-      setIsMapChangeFocus(false)
-      setIsTodayOutcome(false)
-      setActiveLearningId('supervised-learning')
-      setActiveLearningStage('completion')
-      setActiveDestination('library')
-    })
-  }
-
   const selectDestination = (destination: Destination) => {
     window.history.pushState({ destination }, '', `#${destination}`)
     updateWithViewTransition(() => {
@@ -342,7 +327,6 @@ function App() {
           viewport={mapViewport}
           onViewportChange={setMapViewport}
           isChangeFocus={isMapChangeFocus}
-          onExitChange={closeLearningMapChange}
           onScheduleNext={openTodayOutcome}
         />
         <KnowledgeLibraryPage

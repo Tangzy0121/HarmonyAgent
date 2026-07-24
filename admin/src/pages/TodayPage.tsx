@@ -43,7 +43,7 @@ export function TodayPage({ isActive, isOutcomeMode = false }: PageProps) {
 
         <ChangeRail
           changes={isOutcomeMode ? todayLearningOutcome.recentChanges : todaySnapshot.recentChanges}
-          textOnly={!isOutcomeMode}
+          textOnly
         />
       </section>
     </section>

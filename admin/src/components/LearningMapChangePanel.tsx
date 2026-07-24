@@ -4,11 +4,10 @@ import { Icon } from './Icon'
 
 interface LearningMapChangePanelProps {
   node: KnowledgeNode
-  onClose: () => void
   onScheduleNext: () => void
 }
 
-export function LearningMapChangePanel({ node, onClose, onScheduleNext }: LearningMapChangePanelProps) {
+export function LearningMapChangePanel({ node, onScheduleNext }: LearningMapChangePanelProps) {
   const record = learningCompletion.record
 
   return (
@@ -19,9 +18,6 @@ export function LearningMapChangePanel({ node, onClose, onScheduleNext }: Learni
           <p><span aria-hidden="true" />方法 · {node.learningState}</p>
           <h2>{node.label}</h2>
         </div>
-        <button type="button" aria-label="关闭学习变化面板" onClick={onClose}>
-          <Icon name="close" size={18} />
-        </button>
       </header>
 
       <section className="map-change-evidence" aria-label="新增学习证据">

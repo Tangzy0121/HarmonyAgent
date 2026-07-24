@@ -20,7 +20,6 @@ interface LearningMapPageProps {
   viewport: MapViewport
   onViewportChange: (viewport: MapViewport) => void
   isChangeFocus?: boolean
-  onExitChange?: () => void
   onScheduleNext?: () => void
 }
 
@@ -56,7 +55,7 @@ function buildRelationshipPath(from: KnowledgeNode, to: KnowledgeNode) {
   ].join(' ')
 }
 
-export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onExitChange, onScheduleNext }: LearningMapPageProps) {
+export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onScheduleNext }: LearningMapPageProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const previousViewportRef = useRef<MapViewport | null>(null)
   const hasAutoFocusedRef = useRef(false)
@@ -125,10 +124,6 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
     <section className={isChangeFocus ? 'destination-page learning-page learning-page--change-focus' : 'destination-page learning-page'} hidden={!isActive} aria-labelledby="learning-title">
       {isChangeFocus ? (
         <header className="map-change-header">
-          <button type="button" className="map-change-header__back" onClick={onExitChange} aria-label="返回学习完成页">
-            <Icon name="back" size={21} />
-            <span>完成</span>
-          </button>
           <div>
             <span>地图变化</span>
             <h1 id="learning-title">监督学习已更新</h1>
@@ -160,6 +155,11 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
         }}
         {...gestureProps}
       >
+        <div className="learning-map__blossom-bg learning-map__blossom-bg--large" aria-hidden="true">
+          {Array.from({ length: 5 }, (_, index) => <i key={index} />)}
+          <b />
+        </div>
+
         <div
           className="map-world"
           style={{
@@ -235,7 +235,7 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
       </div>
 
       {selectedNode && isChangeFocus && selectedNode.id === 'supervised-learning' ? (
-        <LearningMapChangePanel node={selectedNode} onClose={closeNodePanel} onScheduleNext={onScheduleNext ?? (() => undefined)} />
+        <LearningMapChangePanel node={selectedNode} onScheduleNext={onScheduleNext ?? (() => undefined)} />
       ) : selectedNode && <NodeDetailPanel
         node={selectedNode}
         relatedCount={knowledgeRelationships.filter((relationship) => relationship.from === selectedNode.id || relationship.to === selectedNode.id).length}

@@ -45,7 +45,10 @@ export function FileUnderstandingPage({ isActive, onAskAgent, onBack, onStartLea
           <p className="document-section-label">Agent 阅读结果</p>
           <h2 id="understanding-title">这一章在回答什么？</h2>
           <p className="document-understanding__summary">{document.summary}</p>
-          <blockquote>{document.insight}</blockquote>
+          <blockquote>
+            <span>关键判断</span>
+            <p>{document.insight}</p>
+          </blockquote>
         </section>
 
         <section className="document-concepts" aria-labelledby="concepts-title">
@@ -61,7 +64,10 @@ export function FileUnderstandingPage({ isActive, onAskAgent, onBack, onStartLea
               <article className={concept.title === document.learningTarget ? 'document-concept document-concept--focus' : 'document-concept'} key={concept.index}>
                 <span>{concept.index}</span>
                 <div>
-                  <h3>{concept.title}</h3>
+                  <div className="document-concept__title">
+                    <h3>{concept.title}</h3>
+                    {concept.title === document.learningTarget && <small>下一步</small>}
+                  </div>
                   <p>{concept.detail}</p>
                 </div>
               </article>
