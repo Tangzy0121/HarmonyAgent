@@ -16,6 +16,7 @@ export interface KnowledgeNode {
 export interface KnowledgeRelationship {
   from: string
   to: string
+  recentChange?: boolean
 }
 
 export const learningMapSize = {
@@ -121,7 +122,7 @@ export const knowledgeRelationships: KnowledgeRelationship[] = [
   { from: 'machine-learning', to: 'model-evaluation' },
   { from: 'supervised-learning', to: 'classification' },
   { from: 'unsupervised-learning', to: 'clustering' },
-  { from: 'training-data', to: 'supervised-learning' },
+  { from: 'training-data', to: 'supervised-learning', recentChange: true },
   { from: 'features', to: 'model-evaluation' },
 ]
 

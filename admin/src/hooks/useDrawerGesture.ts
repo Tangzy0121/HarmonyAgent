@@ -127,6 +127,10 @@ export function useDrawerGesture({ snap, onSnapChange }: UseDrawerGestureOptions
 
   return {
     isDragging,
+    dragOffset,
+    materialProgress: snap === 'full'
+      ? Math.max(0, 1 - Math.max(dragOffset, 0) / (viewportHeight() * 0.25))
+      : Math.min(1, Math.max(-dragOffset, 0) / (viewportHeight() * 0.25)),
     transform: dragOffset ? `translate3d(0, ${dragOffset}px, 0)` : undefined,
     grabAreaProps: {
       onPointerDown,

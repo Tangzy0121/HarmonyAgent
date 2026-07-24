@@ -1,5 +1,5 @@
 interface IconProps {
-  name: 'today' | 'map' | 'library' | 'agent' | 'search' | 'add' | 'more' | 'minus' | 'plus' | 'locate' | 'close' | 'expand' | 'arrow' | 'link' | 'document' | 'spark'
+  name: 'today' | 'map' | 'library' | 'agent' | 'search' | 'add' | 'more' | 'minus' | 'plus' | 'locate' | 'close' | 'expand' | 'arrow' | 'back' | 'chevron' | 'check' | 'link' | 'document' | 'spark' | 'history' | 'compose'
   size?: number
   strokeWidth?: number
 }
@@ -27,9 +27,14 @@ export function Icon({ name, size = 22, strokeWidth = 1.8 }: IconProps) {
     close: <path d="m6 6 12 12M18 6 6 18" {...common} />,
     expand: <><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" {...common} /></>,
     arrow: <path d="M5 12h14M14 7l5 5-5 5" {...common} />,
+    back: <path d="m14.5 5-7 7 7 7" {...common} />,
+    chevron: <path d="m7 9.5 5 5 5-5" {...common} />,
+    check: <path d="m5 12.5 4.2 4.2L19 7" {...common} />,
     link: <><path d="M10.5 13.5 13.5 10" {...common} /><path d="M8.4 16.6 6.8 18.2a3.5 3.5 0 0 1-5-5l3.4-3.4a3.5 3.5 0 0 1 5 0" {...common} /><path d="m15.6 7.4 1.6-1.6a3.5 3.5 0 1 1 5 5l-3.4 3.4a3.5 3.5 0 0 1-5 0" {...common} /></>,
     document: <><path d="M6 3.5h8l4 4v13H6z" {...common} /><path d="M14 3.5v4h4M9 12h6M9 16h6" {...common} /></>,
     spark: <><path d="M12 3.5c.6 4.8 3.2 7.4 8 8-4.8.6-7.4 3.2-8 8-.6-4.8-3.2-7.4-8-8 4.8-.6 7.4-3.2 8-8Z" {...common} /></>,
+    history: <><path d="M4.5 8.5V4.5h4" {...common} /><path d="M5 5a8.5 8.5 0 1 1-1.4 9.4" {...common} /><path d="M12 7.5V12l3 2" {...common} /></>,
+    compose: <><path d="M13.5 5.5H6a2 2 0 0 0-2 2V18a2 2 0 0 0 2 2h10.5a2 2 0 0 0 2-2v-7.5" {...common} /><path d="m12 13 1-3.5L18.5 4a1.4 1.4 0 0 1 2 2L15 11.5Z" {...common} /></>,
   }
 
   return <svg aria-hidden="true" className="app-icon" height={size} viewBox="0 0 24 24" width={size}>{paths[name]}</svg>

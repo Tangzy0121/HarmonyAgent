@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 const [, , targetLabel, outputPath] = process.argv
 
 if (!targetLabel || !outputPath) {
-  throw new Error('Usage: node scripts/capture-v2.mjs <today|learning|library|agent> <output>')
+  throw new Error('Usage: node scripts/capture-v2.mjs <today|learning|library|file|explanation|verification|completion|change|outcome|agent|agent-full> <output>')
 }
 
 const pages = await fetch('http://127.0.0.1:9223/json').then((response) => response.json())
@@ -58,10 +58,43 @@ const expressions = {
   agent: `document.querySelector('.agent-launcher')?.click()`,
 }
 
-const expression = expressions[targetLabel]
-if (!expression) throw new Error(`Unknown capture target: ${targetLabel}`)
-
-await send('Runtime.evaluate', { expression, awaitPromise: true })
+if (targetLabel === 'file' || targetLabel === 'explanation' || targetLabel === 'verification' || targetLabel === 'completion' || targetLabel === 'change' || targetLabel === 'outcome') {
+  await send('Runtime.evaluate', { expression: expressions.library, awaitPromise: true })
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  await send('Runtime.evaluate', { expression: `document.querySelector('.library-feature')?.click()`, awaitPromise: true })
+  if (targetLabel === 'explanation' || targetLabel === 'verification' || targetLabel === 'completion' || targetLabel === 'change' || targetLabel === 'outcome') {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await send('Runtime.evaluate', { expression: `document.querySelector('.document-primary-action__button')?.click()`, awaitPromise: true })
+  }
+  if (targetLabel === 'verification' || targetLabel === 'completion' || targetLabel === 'change' || targetLabel === 'outcome') {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await send('Runtime.evaluate', { expression: `document.querySelector('.learning-reader__primary-action .document-primary-action__button')?.click()`, awaitPromise: true })
+  }
+  if (targetLabel === 'completion' || targetLabel === 'change' || targetLabel === 'outcome') {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('.learning-validation__answer')).find((item) => item.textContent.includes('不属于'))?.click()`, awaitPromise: true })
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await send('Runtime.evaluate', { expression: `document.querySelector('.learning-validation__primary-action .document-primary-action__button')?.click()`, awaitPromise: true })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await send('Runtime.evaluate', { expression: `document.querySelector('.learning-validation__primary-action .document-primary-action__button')?.click()`, awaitPromise: true })
+  }
+  if (targetLabel === 'change' || targetLabel === 'outcome') {
+    await new Promise((resolve) => setTimeout(resolve, 650))
+    await send('Runtime.evaluate', { expression: `document.querySelector('.learning-completion__primary-action .document-primary-action__button')?.click()`, awaitPromise: true })
+  }
+  if (targetLabel === 'outcome') {
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    await send('Runtime.evaluate', { expression: `document.querySelector('.map-change-panel__primary')?.click()`, awaitPromise: true })
+  }
+} else if (targetLabel === 'agent-full') {
+  await send('Runtime.evaluate', { expression: expressions.agent, awaitPromise: true })
+  await new Promise((resolve) => setTimeout(resolve, 600))
+  await send('Runtime.evaluate', { expression: `document.querySelector('.drawer-size-control')?.click()`, awaitPromise: true })
+} else {
+  const expression = expressions[targetLabel]
+  if (!expression) throw new Error(`Unknown capture target: ${targetLabel}`)
+  await send('Runtime.evaluate', { expression, awaitPromise: true })
+}
 await new Promise((resolve) => setTimeout(resolve, 900))
 
 const screenshot = await send('Page.captureScreenshot', {

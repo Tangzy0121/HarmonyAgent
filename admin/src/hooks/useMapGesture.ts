@@ -352,9 +352,14 @@ export function useMapGesture({
     snapScale()
   }, [commitViewport, constrainViewport, getBounds, snapScale])
 
-  const focusOnPoint = useCallback((point: Point, nodeId: string) => {
+  const focusOnPoint = useCallback((
+    point: Point,
+    nodeId: string,
+    targetScale = viewportRef.current.scale,
+    anchor = { x: 0.5, y: 0.34 },
+  ) => {
     stopInertia()
-    const bounds = getBounds(viewportRef.current.scale)
+    const bounds = getBounds(targetScale)
 
     if (!bounds) {
       return
@@ -362,8 +367,9 @@ export function useMapGesture({
 
     const focusedViewport = constrainViewport({
       ...viewportRef.current,
-      x: bounds.rect.width / 2 - point.x * viewportRef.current.scale,
-      y: bounds.rect.height * 0.34 - point.y * viewportRef.current.scale,
+      scale: targetScale,
+      x: bounds.rect.width * anchor.x - point.x * targetScale,
+      y: bounds.rect.height * anchor.y - point.y * targetScale,
       focusedNodeId: nodeId,
     }, false)
 

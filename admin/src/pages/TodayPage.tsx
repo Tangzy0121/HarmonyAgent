@@ -1,14 +1,22 @@
-import { todaySnapshot } from '../data/prototype'
+import { useState } from 'react'
+import { todayLearningOutcome, todaySnapshot } from '../data/prototype'
 import { ChangeRail } from '../components/ChangeRail'
 import { TaskFocusCard } from '../components/TaskFocusCard'
+import { TodayOutcomeCard } from '../components/TodayOutcomeCard'
 
 interface PageProps {
   isActive: boolean
+  isOutcomeMode?: boolean
 }
 
-export function TodayPage({ isActive }: PageProps) {
+type OutcomeOptionId = typeof todayLearningOutcome.options[number]['id']
+
+export function TodayPage({ isActive, isOutcomeMode = false }: PageProps) {
+  const [outcomeSelection, setOutcomeSelection] = useState<OutcomeOptionId>('tomorrow')
+  const [isOutcomeConfirmed, setIsOutcomeConfirmed] = useState(false)
+
   return (
-    <section className="destination-page today-page" hidden={!isActive} aria-labelledby="today-title">
+    <section className={isOutcomeMode ? 'destination-page today-page today-page--outcome' : 'destination-page today-page'} hidden={!isActive} aria-labelledby="today-title">
       <header className="today-page__header">
         <div>
           <p className="eyebrow">{todaySnapshot.dateLabel}</p>
@@ -19,17 +27,28 @@ export function TodayPage({ isActive }: PageProps) {
         </button>
       </header>
 
-      <TaskFocusCard task={todaySnapshot.primaryAction} />
+      {isOutcomeMode ? (
+        <TodayOutcomeCard
+          selection={outcomeSelection}
+          isConfirmed={isOutcomeConfirmed}
+          onSelectionChange={(selection) => {
+            setOutcomeSelection(selection)
+            setIsOutcomeConfirmed(false)
+          }}
+          onConfirm={() => setIsOutcomeConfirmed(true)}
+          onAdjust={() => setIsOutcomeConfirmed(false)}
+        />
+      ) : <TaskFocusCard task={todaySnapshot.primaryAction} />}
 
       <section className="today-status" aria-labelledby="today-status-title">
         <div className="section-heading">
           <p className="section-label" id="today-status-title">
-            继续你的进度
+            {isOutcomeMode ? '今天的成果' : '继续你的进度'}
           </p>
           <button className="inline-text-button" type="button">查看全部</button>
         </div>
 
-        <ChangeRail changes={todaySnapshot.recentChanges} />
+        <ChangeRail changes={isOutcomeMode ? todayLearningOutcome.recentChanges : todaySnapshot.recentChanges} />
       </section>
     </section>
   )

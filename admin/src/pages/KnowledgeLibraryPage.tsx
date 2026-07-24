@@ -5,9 +5,10 @@ import { knowledgeLibraryItems } from '../data/prototype'
 
 interface PageProps {
   isActive: boolean
+  onOpenDocument: (documentId: string) => void
 }
 
-export function KnowledgeLibraryPage({ isActive }: PageProps) {
+export function KnowledgeLibraryPage({ isActive, onOpenDocument }: PageProps) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'全部' | '资料' | '笔记'>('全部')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -35,7 +36,7 @@ export function KnowledgeLibraryPage({ isActive }: PageProps) {
         <button type="button" onClick={() => setQuery('')}>清除</button>
       </label>}
 
-      <article className="library-feature" aria-label="本周重点资料">
+      <button className="library-feature" type="button" aria-label="打开本周重点资料：机器学习第三章" onClick={() => onOpenDocument('ml-chapter-03')}>
         <div className="library-feature__art" aria-hidden="true">
           <span className="library-feature__sheet library-feature__sheet--back" />
           <span className="library-feature__sheet library-feature__sheet--front"><Icon name="document" size={28} /></span>
@@ -45,7 +46,7 @@ export function KnowledgeLibraryPage({ isActive }: PageProps) {
           <h2>机器学习<br />第三章</h2>
           <span>24 页 · 已建立 8 个知识节点</span>
         </div>
-      </article>
+      </button>
 
       <div className="library-filters" role="group" aria-label="资料类型筛选">
         {(['全部', '资料', '笔记'] as const).map((item) => (
@@ -59,7 +60,7 @@ export function KnowledgeLibraryPage({ isActive }: PageProps) {
           <span>{visibleItems.length} 项</span>
         </div>
         {visibleItems.map((item) => (
-          <button className="library-row" key={item.id} type="button">
+          <button className="library-row" key={item.id} type="button" onClick={() => onOpenDocument(item.id)}>
             <span className={`library-row__type library-row__type--${item.kind}`}><Icon name={item.kind === '笔记' ? 'link' : 'document'} size={20} /><small>{item.type}</small></span>
             <span className="library-row__content">
               <strong>{item.name}</strong>
