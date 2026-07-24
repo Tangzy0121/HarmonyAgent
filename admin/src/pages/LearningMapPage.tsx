@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { LearningMapChangePanel } from '../components/LearningMapChangePanel'
 import { NodeDetailPanel } from '../components/NodeDetailPanel'
 import { MapFilterBar } from '../components/MapFilterBar'
-import { MapToolbar } from '../components/MapToolbar'
 import { MobileTopBar } from '../components/MobileTopBar'
 import { Icon } from '../components/Icon'
 import {
@@ -25,14 +24,45 @@ interface LearningMapPageProps {
   onScheduleNext?: () => void
 }
 
+const learningStateStyle: Record<KnowledgeNode['learningState'], {
+  className: 'active' | 'review' | 'mastered' | 'unseen'
+  icon: 'arrow' | 'history' | 'check' | 'document'
+}> = {
+  学习中: { className: 'active', icon: 'arrow' },
+  待复习: { className: 'review', icon: 'history' },
+  已掌握: { className: 'mastered', icon: 'check' },
+  暂无学习记录: { className: 'unseen', icon: 'document' },
+}
+
+function buildRelationshipPath(from: KnowledgeNode, to: KnowledgeNode) {
+  const deltaX = to.x - from.x
+  const deltaY = to.y - from.y
+  const directionX = Math.sign(deltaX)
+  const directionY = Math.sign(deltaY)
+  const midpointX = (from.x + to.x) / 2
+  const radius = Math.min(26, Math.abs(deltaX) / 4, Math.abs(deltaY) / 3)
+
+  if (radius === 0) {
+    return `M ${from.x} ${from.y} L ${to.x} ${to.y}`
+  }
+
+  return [
+    `M ${from.x} ${from.y}`,
+    `H ${midpointX - directionX * radius}`,
+    `Q ${midpointX} ${from.y} ${midpointX} ${from.y + directionY * radius}`,
+    `V ${to.y - directionY * radius}`,
+    `Q ${midpointX} ${to.y} ${midpointX + directionX * radius} ${to.y}`,
+    `H ${to.x}`,
+  ].join(' ')
+}
+
 export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onExitChange, onScheduleNext }: LearningMapPageProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const previousViewportRef = useRef<MapViewport | null>(null)
   const hasAutoFocusedRef = useRef(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'全部' | '学习中' | '待复习' | '已掌握'>('全部')
-  const [isLegendOpen, setIsLegendOpen] = useState(false)
-  const { focusOnPoint, gestureProps, isInteracting, reset, zoomBy } = useMapGesture({
+  const { didDrag, focusOnPoint, gestureProps, isInteracting, reset } = useMapGesture({
     containerRef: canvasRef,
     viewport,
     initialViewport: initialMapViewport,
@@ -47,6 +77,11 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
   const changeTarget = nodeById.get('supervised-learning')
 
   const selectNode = (node: KnowledgeNode) => {
+    if (!isChangeFocus) {
+      setSelectedNodeId(node.id)
+      return
+    }
+
     if (!previousViewportRef.current) {
       previousViewportRef.current = { ...viewport, focusedNodeId: null }
     }
@@ -102,30 +137,29 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
         </header>
       ) : (
         <div className="learning-page__header">
-          <MobileTopBar title="学习地图" titleId="learning-title" subtitle={`${knowledgeNodes.length} 个主题 · ${reviewCount} 个待复习`} actions={
-          <div className="learning-page__tools">
-            <button type="button" aria-label="搜索主题"><Icon name="search" size={20} /></button>
-            <button type="button" aria-label="更多地图操作"><Icon name="more" size={20} /></button>
-          </div>
-          } />
+          <MobileTopBar title="学习地图" titleId="learning-title" subtitle={`${knowledgeNodes.length} 个主题 · ${reviewCount} 个待复习`} />
         </div>
       )}
 
-      {!isChangeFocus && <MapFilterBar value={filter} onChange={setFilter} />}
+      {!isChangeFocus && <div className="map-filter-row">
+        <MapFilterBar value={filter} onChange={setFilter} />
+        <div className="page-inline-actions" aria-label="学习地图操作">
+          <button type="button" aria-label="搜索主题"><Icon name="search" size={20} /></button>
+          <button type="button" aria-label="定位到地图中心" onClick={reset}><Icon name="locate" size={20} /></button>
+        </div>
+      </div>}
 
       <div
         ref={canvasRef}
         className={isInteracting ? 'learning-map learning-map--interacting' : 'learning-map'}
         aria-label="机器学习第三章知识地图"
         onClick={(event) => {
-          if (event.target === event.currentTarget && !isChangeFocus) {
+          if (event.target === event.currentTarget && !isChangeFocus && !didDrag()) {
             closeNodePanel()
           }
         }}
         {...gestureProps}
       >
-        {!isChangeFocus && <MapToolbar onZoomOut={() => zoomBy(-1)} onReset={reset} onZoomIn={() => zoomBy(1)} />}
-
         <div
           className="map-world"
           style={{
@@ -134,10 +168,6 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
             transform: `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.scale})`,
           }}
         >
-          <span className="map-cluster map-cluster--method" aria-hidden="true" />
-          <span className="map-cluster map-cluster--theory" aria-hidden="true" />
-          <span className="map-cluster map-cluster--application" aria-hidden="true" />
-
           <svg className="map-relationships" viewBox={`0 0 ${learningMapSize.width} ${learningMapSize.height}`} aria-hidden="true">
             {knowledgeRelationships.map((relationship) => {
               const from = nodeById.get(relationship.from)
@@ -156,13 +186,10 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
               ].filter(Boolean).join(' ')
 
               return (
-                <line
+                <path
                   key={`${relationship.from}-${relationship.to}`}
                   className={relationshipClasses}
-                  x1={from.x}
-                  y1={from.y}
-                  x2={to.x}
-                  y2={to.y}
+                  d={buildRelationshipPath(from, to)}
                 />
               )
             })}
@@ -171,6 +198,8 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
           {knowledgeNodes.map((node) => {
             const isFocused = activeNodeId === node.id
             const isRecentChange = isChangeFocus && node.id === 'supervised-learning'
+            const categoryLabel = categoryLegend.find((item) => item.category === node.category)?.label
+            const stateStyle = learningStateStyle[node.learningState]
             const isDimmed = (!isChangeFocus && filter !== '全部' && node.learningState !== filter) || (Boolean(activeNodeId) && !isFocused && !knowledgeRelationships.some((relationship) => (
               (relationship.from === activeNodeId && relationship.to === node.id)
               || (relationship.to === activeNodeId && relationship.from === node.id)
@@ -179,32 +208,30 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
             return (
               <button
                 key={node.id}
-                className={`map-node map-node--${node.category} map-node--${node.size}${isFocused ? ' map-node--focused' : ''}${isDimmed ? ' map-node--dimmed' : ''}${isRecentChange ? ' map-node--recent-change' : ''}`}
+                className={`map-node map-node--state-${stateStyle.className}${node.x >= 700 ? ' map-node--label-left' : ''}${isFocused ? ' map-node--focused' : ''}${isDimmed ? ' map-node--dimmed' : ''}${isRecentChange ? ' map-node--recent-change' : ''}`}
                 type="button"
                 style={{ left: node.x, top: node.y }}
-                aria-label={`${node.label}，类别：${categoryLegend.find((item) => item.category === node.category)?.label}，学习状态：${node.learningState}`}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => selectNode(node)}
+                aria-label={`${node.label}，类别：${categoryLabel}，学习状态：${node.learningState}`}
+                onClick={(event) => {
+                  if (didDrag()) {
+                    event.preventDefault()
+                    return
+                  }
+
+                  selectNode(node)
+                }}
               >
-                <span>{node.label}</span>
-                {node.learningState !== '暂无学习记录' && <i className={`map-node__state map-node__state--${node.learningState}`} aria-label={node.learningState} />}
+                <span className="map-node__form" aria-hidden="true">
+                  <Icon name={stateStyle.icon} size={22} strokeWidth={1.65} />
+                </span>
+                <span className="map-node__label">{node.label}</span>
+                <small className="map-node__category">{categoryLabel} · {node.learningState}</small>
                 {isRecentChange && <em className="map-node__mastery">已掌握</em>}
               </button>
             )
           })}
         </div>
 
-        {!isChangeFocus && <div className="map-legend-control">
-          <button type="button" aria-expanded={isLegendOpen} onClick={() => setIsLegendOpen((current) => !current)}><span className="legend-symbol" aria-hidden="true" />图例</button>
-          {isLegendOpen && <div className="map-legend" aria-label="知识类别图例">
-            {categoryLegend.map((item) => (
-              <span key={item.category}>
-                <i className={`legend-dot legend-dot--${item.category}`} aria-hidden="true" />
-                {item.label}
-              </span>
-            ))}
-          </div>}
-        </div>}
       </div>
 
       {selectedNode && isChangeFocus && selectedNode.id === 'supervised-learning' ? (
@@ -214,6 +241,14 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
         relatedCount={knowledgeRelationships.filter((relationship) => relationship.from === selectedNode.id || relationship.to === selectedNode.id).length}
         onClose={closeNodePanel}
       />}
+      {selectedNode && !isChangeFocus && (
+        <button
+          type="button"
+          className="node-detail-scrim"
+          aria-label="关闭节点详情弹窗"
+          onClick={closeNodePanel}
+        />
+      )}
     </section>
   )
 }

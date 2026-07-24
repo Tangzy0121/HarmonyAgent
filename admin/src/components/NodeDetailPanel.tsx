@@ -16,12 +16,12 @@ const categoryLabels = {
 
 export function NodeDetailPanel({ node, relatedCount, onClose }: NodeDetailPanelProps) {
   return (
-    <aside className="node-detail-panel" aria-label={`${node.label}详情`}>
+    <aside className="node-detail-panel" role="dialog" aria-modal="true" aria-labelledby="node-detail-title">
       <div className="node-detail-panel__grip" aria-hidden="true" />
       <div className="node-detail-panel__heading">
         <div>
           <p>{categoryLabels[node.category]} · {node.learningState}</p>
-          <h2>{node.label}</h2>
+          <h2 id="node-detail-title">{node.label}</h2>
         </div>
         <button type="button" aria-label="关闭节点详情" onClick={onClose}><Icon name="close" size={18} /></button>
       </div>

@@ -1,3 +1,5 @@
+import { Icon } from './Icon'
+
 interface AgentLauncherProps {
   isOpen: boolean
   onOpen: () => void
@@ -13,8 +15,7 @@ export function AgentLauncher({ isOpen, onOpen }: AgentLauncherProps) {
       onClick={onOpen}
     >
       <span className="agent-launcher__halo" aria-hidden="true" />
-      <Icon name="agent" size={24} strokeWidth={1.65} />
+      <Icon name="blossom" size={26} />
     </button>
   )
 }
-import { Icon } from './Icon'

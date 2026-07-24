@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { todayLearningOutcome, todaySnapshot } from '../data/prototype'
 import { ChangeRail } from '../components/ChangeRail'
+import { MobileTopBar } from '../components/MobileTopBar'
 import { TaskFocusCard } from '../components/TaskFocusCard'
 import { TodayOutcomeCard } from '../components/TodayOutcomeCard'
 
@@ -17,15 +18,7 @@ export function TodayPage({ isActive, isOutcomeMode = false }: PageProps) {
 
   return (
     <section className={isOutcomeMode ? 'destination-page today-page today-page--outcome' : 'destination-page today-page'} hidden={!isActive} aria-labelledby="today-title">
-      <header className="today-page__header">
-        <div>
-          <p className="eyebrow">{todaySnapshot.dateLabel}</p>
-          <h1 id="today-title">今天</h1>
-        </div>
-        <button className="profile-control" type="button" aria-label="打开个人中心">
-          <span aria-hidden="true">知</span>
-        </button>
-      </header>
+      <MobileTopBar title="今日" titleId="today-title" subtitle={todaySnapshot.dateLabel} />
 
       {isOutcomeMode ? (
         <TodayOutcomeCard
@@ -48,7 +41,10 @@ export function TodayPage({ isActive, isOutcomeMode = false }: PageProps) {
           <button className="inline-text-button" type="button">查看全部</button>
         </div>
 
-        <ChangeRail changes={isOutcomeMode ? todayLearningOutcome.recentChanges : todaySnapshot.recentChanges} />
+        <ChangeRail
+          changes={isOutcomeMode ? todayLearningOutcome.recentChanges : todaySnapshot.recentChanges}
+          textOnly={!isOutcomeMode}
+        />
       </section>
     </section>
   )

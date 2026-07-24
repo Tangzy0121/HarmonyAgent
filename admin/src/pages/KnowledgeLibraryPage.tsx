@@ -22,19 +22,7 @@ export function KnowledgeLibraryPage({ isActive, onOpenDocument }: PageProps) {
         title="知识库"
         titleId="library-title"
         subtitle="机器学习基础 · 4 项资料"
-        actions={
-          <>
-            <button type="button" aria-label="搜索资料" onClick={() => setIsSearchOpen((current) => !current)}><Icon name="search" size={20} /></button>
-            <button type="button" className="library-import" aria-label="导入资料"><Icon name="add" size={20} /></button>
-          </>
-        }
       />
-
-      {isSearchOpen && <label className="library-search">
-        <span className="sr-only">搜索资料</span>
-        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料、笔记或主题" />
-        <button type="button" onClick={() => setQuery('')}>清除</button>
-      </label>}
 
       <button className="library-feature" type="button" aria-label="打开本周重点资料：机器学习第三章" onClick={() => onOpenDocument('ml-chapter-03')}>
         <div className="library-feature__art" aria-hidden="true">
@@ -48,11 +36,23 @@ export function KnowledgeLibraryPage({ isActive, onOpenDocument }: PageProps) {
         </div>
       </button>
 
-      <div className="library-filters" role="group" aria-label="资料类型筛选">
-        {(['全部', '资料', '笔记'] as const).map((item) => (
-          <button key={item} className={kind === item ? 'library-filter library-filter--active' : 'library-filter'} type="button" onClick={() => setKind(item)}>{item}</button>
-        ))}
+      <div className="library-toolbar">
+        <div className="library-filters" role="group" aria-label="资料类型筛选">
+          {(['全部', '资料', '笔记'] as const).map((item) => (
+            <button key={item} className={kind === item ? 'library-filter library-filter--active' : 'library-filter'} type="button" onClick={() => setKind(item)}>{item}</button>
+          ))}
+        </div>
+        <div className="page-inline-actions" aria-label="知识库操作">
+          <button type="button" aria-label="搜索资料" aria-expanded={isSearchOpen} onClick={() => setIsSearchOpen((current) => !current)}><Icon name="search" size={20} /></button>
+          <button type="button" className="library-import" aria-label="导入资料"><Icon name="add" size={20} /></button>
+        </div>
       </div>
+
+      {isSearchOpen && <label className="library-search">
+        <span className="sr-only">搜索资料</span>
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料、笔记或主题" />
+        <button type="button" onClick={() => setQuery('')}>清除</button>
+      </label>}
 
       <section className="library-list" aria-label="资料列表">
         <div className="library-list__heading">

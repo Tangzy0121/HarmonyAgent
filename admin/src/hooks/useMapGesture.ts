@@ -17,10 +17,11 @@ interface UseMapGestureOptions {
 
 const minimumScale = 0.62
 const maximumScale = 1.48
-const snapScales = [0.68, 0.9, 1.14, 1.38]
-const resistance = 0.28
+const resistance = 0.56
 const viewportPadding = 72
-const maximumInertiaVelocity = 0.72
+const minimumInertiaVelocity = 0.22
+const maximumInertiaVelocity = 1.05
+const dragThreshold = 6
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum)
@@ -41,6 +42,7 @@ export function useMapGesture({
   const lastMoveRef = useRef<{ point: Point; time: number } | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const wheelTimerRef = useRef<number | null>(null)
+  const didDragRef = useRef(false)
   const [isInteracting, setIsInteracting] = useState(false)
 
   useEffect(() => {
@@ -55,11 +57,23 @@ export function useMapGesture({
         return null
       }
 
+      const horizontalSpace = rect.width - worldSize.width * scale
+      const verticalSpace = rect.height - worldSize.height * scale
+
+      const axisBounds = (space: number) => (
+        space >= viewportPadding * 2
+          ? { minimum: viewportPadding, maximum: space - viewportPadding }
+          : { minimum: space - viewportPadding, maximum: viewportPadding }
+      )
+
+      const horizontalBounds = axisBounds(horizontalSpace)
+      const verticalBounds = axisBounds(verticalSpace)
+
       return {
-        minimumX: Math.min(viewportPadding, rect.width - worldSize.width * scale - viewportPadding),
-        maximumX: viewportPadding,
-        minimumY: Math.min(viewportPadding, rect.height - worldSize.height * scale - viewportPadding),
-        maximumY: viewportPadding,
+        minimumX: horizontalBounds.minimum,
+        maximumX: horizontalBounds.maximum,
+        minimumY: verticalBounds.minimum,
+        maximumY: verticalBounds.maximum,
         rect,
       }
     },
@@ -124,39 +138,10 @@ export function useMapGesture({
     }
   }, [])
 
-  const snapScale = useCallback(() => {
-    const current = viewportRef.current
-    const nearestScale = snapScales.reduce((nearest, scale) => (
-      Math.abs(scale - current.scale) < Math.abs(nearest - current.scale) ? scale : nearest
-    ))
-
-    if (Math.abs(nearestScale - current.scale) > 0.09) {
-      return
-    }
-
-    const bounds = getBounds(current.scale)
-
-    if (!bounds) {
-      return
-    }
-
-    const centerX = (bounds.rect.width / 2 - current.x) / current.scale
-    const centerY = (bounds.rect.height / 2 - current.y) / current.scale
-    const snapped = constrainViewport({
-      ...current,
-      scale: nearestScale,
-      x: bounds.rect.width / 2 - centerX * nearestScale,
-      y: bounds.rect.height / 2 - centerY * nearestScale,
-    }, false)
-
-    commitViewport(snapped)
-  }, [commitViewport, constrainViewport, getBounds])
-
   const startInertia = useCallback(() => {
     const initialVelocity = velocityRef.current
 
-    if (Math.hypot(initialVelocity.x, initialVelocity.y) < 0.34) {
-      snapScale()
+    if (Math.hypot(initialVelocity.x, initialVelocity.y) < minimumInertiaVelocity) {
       return
     }
 
@@ -175,20 +160,19 @@ export function useMapGesture({
 
       commitViewport(candidate)
       velocity = {
-        x: (hitHorizontalEdge ? 0 : velocity.x) * 0.9,
-        y: (hitVerticalEdge ? 0 : velocity.y) * 0.9,
+        x: (hitHorizontalEdge ? 0 : velocity.x) * 0.92,
+        y: (hitVerticalEdge ? 0 : velocity.y) * 0.92,
       }
 
       if (Math.hypot(velocity.x, velocity.y) > 0.02) {
         animationFrameRef.current = requestAnimationFrame(step)
       } else {
         animationFrameRef.current = null
-        snapScale()
       }
     }
 
     animationFrameRef.current = requestAnimationFrame(step)
-  }, [commitViewport, constrainViewport, snapScale])
+  }, [commitViewport, constrainViewport])
 
   const beginPan = useCallback((point: Point) => {
     panStartRef.current = { point, viewport: viewportRef.current }
@@ -215,15 +199,17 @@ export function useMapGesture({
   }, [])
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId)
     stopInertia()
     const point = pointForEvent(event)
     pointersRef.current.set(event.pointerId, point)
     setIsInteracting(true)
 
     if (pointersRef.current.size === 1) {
+      didDragRef.current = false
       beginPan(point)
     } else {
+      didDragRef.current = true
+      event.currentTarget.setPointerCapture(event.pointerId)
       beginPinch()
     }
   }, [beginPan, beginPinch, pointForEvent, stopInertia])
@@ -259,6 +245,11 @@ export function useMapGesture({
 
     if (!panStart) {
       return
+    }
+
+    if (!didDragRef.current && Math.hypot(point.x - panStart.point.x, point.y - panStart.point.y) > dragThreshold) {
+      didDragRef.current = true
+      event.currentTarget.setPointerCapture(event.pointerId)
     }
 
     const now = performance.now()
@@ -326,31 +317,10 @@ export function useMapGesture({
 
     wheelTimerRef.current = window.setTimeout(() => {
       setIsInteracting(false)
-      snapScale()
     }, 140)
-  }, [commitViewport, constrainViewport, pointForEvent, snapScale, stopInertia])
+  }, [commitViewport, constrainViewport, pointForEvent, stopInertia])
 
-  const zoomBy = useCallback((direction: 1 | -1) => {
-    const current = viewportRef.current
-    const bounds = getBounds(current.scale)
-
-    if (!bounds) {
-      return
-    }
-
-    const scale = clamp(current.scale + direction * 0.14, minimumScale, maximumScale)
-    const centerX = (bounds.rect.width / 2 - current.x) / current.scale
-    const centerY = (bounds.rect.height / 2 - current.y) / current.scale
-
-    commitViewport(constrainViewport({
-      ...current,
-      scale,
-      x: bounds.rect.width / 2 - centerX * scale,
-      y: bounds.rect.height / 2 - centerY * scale,
-      focusedNodeId: null,
-    }, false))
-    snapScale()
-  }, [commitViewport, constrainViewport, getBounds, snapScale])
+  const didDrag = useCallback(() => didDragRef.current, [])
 
   const focusOnPoint = useCallback((
     point: Point,
@@ -391,9 +361,9 @@ export function useMapGesture({
 
   return {
     isInteracting,
+    didDrag,
     focusOnPoint,
     reset,
-    zoomBy,
     gestureProps: {
       onPointerDown,
       onPointerMove,
