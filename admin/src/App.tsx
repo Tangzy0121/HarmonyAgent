@@ -1,54 +1,365 @@
-// App —— 知识学伴管理后台（占位，队友写前端）
-//
-// 功能规划：
-//   左侧导航：知识库浏览 / 笔记管理 / 知识点 / 学习曲线 / 设置
-//   主区域：根据导航切换内容
-//
-// 接手指南：
-//   1. npm install → npm run dev (http://localhost:5173)
-//   2. API 通过 /api/ 代理到 server (localhost:3456)
-//   3. Tailwind CSS 已配好，直接用 className 写样式
+import { useCallback, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { AppShell } from './components/AppShell'
+import { AgentDrawer } from './components/AgentDrawer'
+import { AgentLauncher } from './components/AgentLauncher'
+import { BottomNavigation } from './components/BottomNavigation'
+import { initialMapViewport } from './data/learningMap'
+import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
+import { FileUnderstandingPage } from './pages/FileUnderstandingPage'
+import { LearningExplanationPage } from './pages/LearningExplanationPage'
+import { LearningVerificationPage } from './pages/LearningVerificationPage'
+import { LearningCompletionPage } from './pages/LearningCompletionPage'
+import { LearningMapPage } from './pages/LearningMapPage'
+import { TodayPage } from './pages/TodayPage'
+import { GlassLabPage } from './pages/GlassLabPage'
+import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
+
+const documentHash = '#library/ml-chapter-03'
+const learningExplanationHash = '#learn/supervised-learning/explanation'
+const learningVerificationHash = '#learn/supervised-learning/verification'
+const learningCompletionHash = '#learn/supervised-learning/completion'
+const learningMapChangeHash = '#learning/supervised-learning/change'
+const todayOutcomeHash = '#today/learning-result'
+const glassLabHash = '#glass-lab'
+
+type LearningStage = 'explanation' | 'verification' | 'completion'
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => unknown
+}
+
+function updateWithViewTransition(update: () => void) {
+  const viewTransitionDocument = document as ViewTransitionDocument
+  if (!viewTransitionDocument.startViewTransition) {
+    update()
+    return
+  }
+
+  viewTransitionDocument.startViewTransition(() => flushSync(update))
+}
 
 function App() {
+  const [activeDestination, setActiveDestination] = useState<Destination>(() => window.location.hash === learningMapChangeHash || window.location.hash === '#learning' ? 'learning' : window.location.hash === '#library' || window.location.hash === documentHash || window.location.hash === learningExplanationHash || window.location.hash === learningVerificationHash || window.location.hash === learningCompletionHash ? 'library' : 'today')
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(() => window.location.hash === documentHash ? 'ml-chapter-03' : null)
+  const [activeLearningId, setActiveLearningId] = useState<string | null>(() => window.location.hash === learningExplanationHash || window.location.hash === learningVerificationHash || window.location.hash === learningCompletionHash ? 'supervised-learning' : null)
+  const [activeLearningStage, setActiveLearningStage] = useState<LearningStage | null>(() => window.location.hash === learningCompletionHash ? 'completion' : window.location.hash === learningVerificationHash ? 'verification' : window.location.hash === learningExplanationHash ? 'explanation' : null)
+  const [isMapChangeFocus, setIsMapChangeFocus] = useState(() => window.location.hash === learningMapChangeHash)
+  const [isTodayOutcome, setIsTodayOutcome] = useState(() => window.location.hash === todayOutcomeHash)
+  const [isGlassLab, setIsGlassLab] = useState(() => window.location.hash === glassLabHash)
+  const [drawerSnap, setDrawerSnap] = useState<DrawerSnap>(() => window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed')
+  const [agentDraft, setAgentDraft] = useState('')
+  const [mapViewport, setMapViewport] = useState<MapViewport>(initialMapViewport)
+
+  useEffect(() => {
+    const syncHistoryState = () => {
+      updateWithViewTransition(() => {
+        const nextDocumentId = window.location.hash === documentHash ? 'ml-chapter-03' : null
+        const nextLearningId = window.location.hash === learningExplanationHash || window.location.hash === learningVerificationHash || window.location.hash === learningCompletionHash ? 'supervised-learning' : null
+        const nextLearningStage = window.location.hash === learningCompletionHash ? 'completion' : window.location.hash === learningVerificationHash ? 'verification' : window.location.hash === learningExplanationHash ? 'explanation' : null
+        const nextMapChangeFocus = window.location.hash === learningMapChangeHash
+        const nextTodayOutcome = window.location.hash === todayOutcomeHash
+        const nextGlassLab = window.location.hash === glassLabHash
+        const nextDrawerSnap: DrawerSnap = window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed'
+        setActiveDocumentId(nextDocumentId)
+        setActiveLearningId(nextLearningId)
+        setActiveLearningStage(nextLearningStage)
+        setIsMapChangeFocus(nextMapChangeFocus)
+        setIsTodayOutcome(nextTodayOutcome)
+        setIsGlassLab(nextGlassLab)
+        setDrawerSnap(nextDrawerSnap)
+        if (nextDocumentId || nextLearningId) setActiveDestination('library')
+        if (window.location.hash === '#learning' || nextMapChangeFocus) setActiveDestination('learning')
+        if (window.location.hash === '#library') setActiveDestination('library')
+        if (window.location.hash === '#today' || nextTodayOutcome) setActiveDestination('today')
+      })
+    }
+
+    window.addEventListener('popstate', syncHistoryState)
+    return () => window.removeEventListener('popstate', syncHistoryState)
+  }, [])
+
+  useEffect(() => {
+    if (drawerSnap === 'full') {
+      document.title = 'Knowledge Agent · 对话'
+      return
+    }
+    if (isGlassLab) {
+      document.title = 'loci · Liquid Glass Lab'
+      return
+    }
+    if (isTodayOutcome) {
+      document.title = '今天 · 学习成果'
+      return
+    }
+    if (isMapChangeFocus) {
+      document.title = '监督学习 · 地图变化'
+      return
+    }
+    if (activeLearningId) {
+      document.title = activeLearningStage === 'completion' ? '监督学习 · 学习完成' : activeLearningStage === 'verification' ? '监督学习 · 验证' : '监督学习 · 深入学习'
+      return
+    }
+    document.title = activeDocumentId ? '机器学习 · 第三章' : '知序 · 个人知识 Agent'
+  }, [activeDocumentId, activeLearningId, activeLearningStage, drawerSnap, isGlassLab, isMapChangeFocus, isTodayOutcome])
+
+  const openAgent = useCallback(() => {
+    if (window.history.state?.overlay === 'agent') {
+      setDrawerSnap(window.history.state.agentSnap ?? 'default')
+      return
+    }
+    window.history.pushState({ ...window.history.state, overlay: 'agent', agentSnap: 'default' }, '', window.location.href)
+    setDrawerSnap('default')
+  }, [])
+
+  const changeDrawerSnap = useCallback((nextSnap: DrawerSnap) => {
+    if (nextSnap === drawerSnap) return
+
+    if (nextSnap === 'full') {
+      if (window.history.state?.overlay === 'agent' && window.history.state.agentSnap === 'default') {
+        window.history.pushState({ ...window.history.state, agentSnap: 'full' }, '', window.location.href)
+      }
+      setDrawerSnap('full')
+      return
+    }
+
+    if (nextSnap === 'default') {
+      if (drawerSnap === 'full' && window.history.state?.overlay === 'agent' && window.history.state.agentSnap === 'full') {
+        window.history.back()
+        return
+      }
+      if (drawerSnap === 'closed') {
+        openAgent()
+        return
+      }
+      setDrawerSnap('default')
+      return
+    }
+
+    if (window.history.state?.overlay === 'agent') {
+      window.history.go(drawerSnap === 'full' && window.history.state.agentSnap === 'full' ? -2 : -1)
+      return
+    }
+    setDrawerSnap('closed')
+  }, [drawerSnap, openAgent])
+
+  useEffect(() => {
+    if (drawerSnap === 'closed') return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [drawerSnap])
+
+  useEffect(() => {
+    if (drawerSnap === 'closed') return
+    const closeWithKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      changeDrawerSnap(drawerSnap === 'full' ? 'default' : 'closed')
+    }
+    window.addEventListener('keydown', closeWithKeyboard)
+    return () => window.removeEventListener('keydown', closeWithKeyboard)
+  }, [changeDrawerSnap, drawerSnap])
+
+  const openDocument = (documentId: string) => {
+    if (documentId !== 'ml-chapter-03') return
+    window.history.pushState({ screen: 'file-understanding', documentId }, '', documentHash)
+    updateWithViewTransition(() => {
+      setActiveDestination('library')
+      setActiveDocumentId(documentId)
+      setActiveLearningId(null)
+      setActiveLearningStage(null)
+      setIsTodayOutcome(false)
+    })
+  }
+
+  const closeDocument = () => {
+    if (window.location.hash === documentHash) {
+      window.history.back()
+      return
+    }
+    updateWithViewTransition(() => setActiveDocumentId(null))
+  }
+
+  const startLearning = () => {
+    window.history.pushState({ screen: 'learning-explanation', learningId: 'supervised-learning' }, '', learningExplanationHash)
+    updateWithViewTransition(() => {
+      setActiveDocumentId(null)
+      setActiveLearningId('supervised-learning')
+      setActiveLearningStage('explanation')
+      setIsTodayOutcome(false)
+    })
+  }
+
+  const closeLearning = () => {
+    if (window.history.state?.screen === 'learning-explanation') {
+      window.history.back()
+      return
+    }
+    window.history.replaceState({ screen: 'file-understanding', documentId: 'ml-chapter-03' }, '', documentHash)
+    updateWithViewTransition(() => {
+      setActiveLearningId(null)
+      setActiveLearningStage(null)
+      setActiveDocumentId('ml-chapter-03')
+      setActiveDestination('library')
+    })
+  }
+
+  const startVerification = () => {
+    window.history.pushState({ screen: 'learning-verification', learningId: 'supervised-learning' }, '', learningVerificationHash)
+    updateWithViewTransition(() => {
+      setActiveLearningId('supervised-learning')
+      setActiveLearningStage('verification')
+    })
+  }
+
+  const closeVerification = () => {
+    if (window.history.state?.screen === 'learning-verification') {
+      window.history.back()
+      return
+    }
+    window.history.replaceState({ screen: 'learning-explanation', learningId: 'supervised-learning' }, '', learningExplanationHash)
+    updateWithViewTransition(() => {
+      setActiveLearningId('supervised-learning')
+      setActiveLearningStage('explanation')
+    })
+  }
+
+  const completeLearning = () => {
+    window.history.pushState({ screen: 'learning-completion', learningId: 'supervised-learning' }, '', learningCompletionHash)
+    updateWithViewTransition(() => {
+      setActiveLearningId('supervised-learning')
+      setActiveLearningStage('completion')
+      setIsTodayOutcome(false)
+    })
+  }
+
+  const closeCompletion = () => {
+    if (window.history.state?.screen === 'learning-completion') {
+      window.history.back()
+      return
+    }
+    window.history.replaceState({ screen: 'learning-verification', learningId: 'supervised-learning' }, '', learningVerificationHash)
+    updateWithViewTransition(() => {
+      setActiveLearningId('supervised-learning')
+      setActiveLearningStage('verification')
+    })
+  }
+
+  const openTodayOutcome = () => {
+    window.history.pushState({ screen: 'today-learning-result', learningId: 'supervised-learning' }, '', todayOutcomeHash)
+    updateWithViewTransition(() => {
+      setActiveDocumentId(null)
+      setActiveLearningId(null)
+      setActiveLearningStage(null)
+      setIsMapChangeFocus(false)
+      setIsTodayOutcome(true)
+      setActiveDestination('today')
+    })
+  }
+
+  const viewDocumentOnMap = () => {
+    window.history.pushState({ destination: 'learning' }, '', '#learning')
+    updateWithViewTransition(() => {
+      setActiveDocumentId(null)
+      setActiveLearningId(null)
+      setActiveLearningStage(null)
+      setIsMapChangeFocus(false)
+      setIsTodayOutcome(false)
+      setActiveDestination('learning')
+    })
+  }
+
+  const viewLearningMapChange = () => {
+    window.history.pushState({ screen: 'learning-map-change', learningId: 'supervised-learning' }, '', learningMapChangeHash)
+    updateWithViewTransition(() => {
+      setActiveDocumentId(null)
+      setActiveLearningId(null)
+      setActiveLearningStage(null)
+      setIsMapChangeFocus(true)
+      setIsTodayOutcome(false)
+      setActiveDestination('learning')
+    })
+  }
+
+  const selectDestination = (destination: Destination) => {
+    window.history.pushState({ destination }, '', `#${destination}`)
+    updateWithViewTransition(() => {
+      setActiveDocumentId(null)
+      setActiveLearningId(null)
+      setActiveLearningStage(null)
+      setIsMapChangeFocus(false)
+      setIsTodayOutcome(false)
+      setActiveDestination(destination)
+    })
+  }
+
+  if (isGlassLab) return <GlassLabPage />
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">📚 知识学伴</h1>
-          <span className="text-sm text-gray-500">管理后台 v1.0</span>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Placeholder card */}
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <div className="text-6xl mb-4">🚧</div>
-          <h2 className="text-2xl font-semibold text-gray-700 mb-2">
-            前端开发中
-          </h2>
-          <p className="text-gray-500">
-            队友正在构建管理后台界面。功能包括知识库浏览、笔记管理、知识点管理、学习曲线等。
-          </p>
-        </div>
-
-        {/* Quick links */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-          <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
-            <h3 className="font-semibold text-lg mb-2">📝 笔记管理</h3>
-            <p className="text-gray-500 text-sm">查看和管理已保存的笔记和文件</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
-            <h3 className="font-semibold text-lg mb-2">🧠 知识点</h3>
-            <p className="text-gray-500 text-sm">浏览和编辑自动抽取的知识点</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
-            <h3 className="font-semibold text-lg mb-2">📊 学习曲线</h3>
-            <p className="text-gray-500 text-sm">可视化知识掌握度变化和复习进度</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AppShell
+      className="prototype-app--lighting-pilot"
+      controls={
+        activeDocumentId || activeLearningId || isMapChangeFocus ? null : <>
+          <BottomNavigation activeDestination={activeDestination} onSelect={selectDestination} />
+          <AgentLauncher isOpen={drawerSnap !== 'closed'} onOpen={openAgent} />
+        </>
+      }
+      overlay={
+        <AgentDrawer
+          snap={drawerSnap}
+          activeDestination={activeDestination}
+          contextLabel={isTodayOutcome ? '今日成果 · 下一次安排' : isMapChangeFocus ? '监督学习 · 地图变化' : activeLearningStage === 'completion' ? '监督学习 · 学习证据' : activeLearningStage === 'verification' ? '监督学习 · 验证阶段' : activeLearningId ? '监督学习 · 解释阶段' : activeDocumentId ? '机器学习 · 第三章.pdf' : undefined}
+          draft={agentDraft}
+          onDraftChange={setAgentDraft}
+          onSnapChange={changeDrawerSnap}
+        />
+      }
+    >
+        <TodayPage
+          isActive={!activeDocumentId && !activeLearningId && activeDestination === 'today'}
+          isOutcomeMode={isTodayOutcome}
+        />
+        <LearningMapPage
+          isActive={!activeDocumentId && !activeLearningId && activeDestination === 'learning'}
+          viewport={mapViewport}
+          onViewportChange={setMapViewport}
+          isChangeFocus={isMapChangeFocus}
+          onScheduleNext={openTodayOutcome}
+        />
+        <KnowledgeLibraryPage
+          isActive={!activeDocumentId && !activeLearningId && activeDestination === 'library'}
+          onOpenDocument={openDocument}
+        />
+        <FileUnderstandingPage
+          isActive={activeDocumentId === 'ml-chapter-03'}
+          onAskAgent={openAgent}
+          onBack={closeDocument}
+          onStartLearning={startLearning}
+          onViewMap={viewDocumentOnMap}
+        />
+        <LearningExplanationPage
+          isActive={activeLearningId === 'supervised-learning' && activeLearningStage === 'explanation'}
+          onAskAgent={openAgent}
+          onBack={closeLearning}
+          onStartVerification={startVerification}
+        />
+        <LearningVerificationPage
+          isActive={activeLearningId === 'supervised-learning' && activeLearningStage === 'verification'}
+          onAskAgent={openAgent}
+          onBack={closeVerification}
+          onCompleteLearning={completeLearning}
+        />
+        <LearningCompletionPage
+          isActive={activeLearningId === 'supervised-learning' && activeLearningStage === 'completion'}
+          onAskAgent={openAgent}
+          onBack={closeCompletion}
+          onReturnToday={openTodayOutcome}
+          onViewMapChange={viewLearningMapChange}
+        />
+    </AppShell>
   )
 }
 
