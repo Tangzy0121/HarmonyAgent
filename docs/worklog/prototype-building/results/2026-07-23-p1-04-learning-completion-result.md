@@ -41,7 +41,6 @@
 截图：
 
 - [390 × 844 学习完成页](./2026-07-23-p1-04-learning-completion-mobile.png)
-- [360 × 800 小屏学习完成页](./2026-07-23-p1-04-learning-completion-small.png)
 
 ## 4. 交互验收
 

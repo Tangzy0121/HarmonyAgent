@@ -4,8 +4,6 @@
 
 - Source visual truth: `C:\Users\LENOVO\AppData\Local\Temp\codex-clipboard-ffdfe830-334c-4ca8-814f-71b38e01afdb.png`
 - Rendered implementation: `D:\Codex-workplace\HUAWEI-knowledge-management\docs\worklog\prototype-building\results\2026-07-24-learning-map-clean-final.png`
-- Full-view comparison: `D:\Codex-workplace\HUAWEI-knowledge-management\docs\worklog\prototype-building\results\2026-07-24-learning-map-clean-comparison.png`
-- Focused node/connector comparison: `D:\Codex-workplace\HUAWEI-knowledge-management\docs\worklog\prototype-building\results\2026-07-24-learning-map-clean-focus-comparison.png`
 - State: learning page, all filters selected, no node modal open, map reset to its initial viewport.
 
 ## Viewport And Normalization
@@ -40,17 +38,9 @@
 
 ## Comparison History
 
-1. Initial clean-node pass: `2026-07-24-learning-map-clean-v1.png`
-   - P1: right-side node labels and circles were clipped because all labels extended to the right.
-   - P2: the initial graph occupied too little vertical space and the curved links felt less like the supplied structured reference.
-2. Fix pass: `2026-07-24-learning-map-clean-v3.png`
-   - Moved labels to the inside edge for right-track nodes.
-   - Increased vertical graph span and reset scale to 0.72.
-   - Verified primary nodes were readable and drag/reset behavior remained intact.
-3. Final pass: `2026-07-24-learning-map-clean-final.png`
-   - Replaced free curves with thin rounded orthogonal connectors.
-   - Re-captured full and focused comparisons.
-   - Earlier P1/P2 findings are no longer present.
+1. 初稿曾出现右侧节点被裁切、图谱纵向跨度不足和曲线结构松散的问题。
+2. 修正稿将右侧标签移至内侧，增加图谱纵向跨度，并将初始缩放重置为 `0.72`。
+3. 最终稿改用细线圆角正交连接，早期 P1/P2 问题均已消除。中间稿与比较拼图已按 worklog 保留规则清理。
 
 ## Follow-up Polish
 

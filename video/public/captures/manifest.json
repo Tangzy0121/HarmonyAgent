@@ -1,0 +1,92 @@
+[
+  {
+    "name": "today-default",
+    "file": "today-default.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "library-default",
+    "file": "library-default.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "file-understanding",
+    "file": "file-understanding.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "learning-explanation",
+    "file": "learning-explanation.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "verification-default",
+    "file": "verification-default.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "verification-selected",
+    "file": "verification-selected.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "verification-feedback",
+    "file": "verification-feedback.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "learning-completion",
+    "file": "learning-completion.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "map-change-focus",
+    "file": "map-change-focus.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "today-outcome",
+    "file": "today-outcome.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "learning-map-default",
+    "file": "learning-map-default.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "learning-map-node-focus",
+    "file": "learning-map-node-focus.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "agent-default",
+    "file": "agent-default.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "agent-full",
+    "file": "agent-full.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  },
+  {
+    "name": "agent-qa",
+    "file": "agent-qa.png",
+    "expectedWidth": 780,
+    "expectedHeight": 1688
+  }
+]
