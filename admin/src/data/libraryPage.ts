@@ -1,0 +1,43 @@
+export const libraryPageContent = {
+  title: '知识库',
+  subtitle: '机器学习基础',
+  filters: ['全部', '资料', '笔记'] as const,
+  items: [
+    {
+      id: 'ml-chapter-03',
+      name: '机器学习 · 第三章.pdf',
+      type: 'PDF',
+      kind: '资料',
+      detail: '24 页 · 今天更新',
+      status: '已理解',
+      icon: 'document',
+    },
+    {
+      id: 'supervised-note',
+      name: '监督学习判断依据',
+      type: '笔记',
+      kind: '笔记',
+      detail: '6 个关联节点 · 今天',
+      status: '已同步',
+      icon: 'note',
+    },
+    {
+      id: 'exercise-collection',
+      name: '分类与聚类练习',
+      type: 'DOCX',
+      kind: '资料',
+      detail: '12 题 · 昨天',
+      status: '待处理',
+      icon: 'document',
+    },
+    {
+      id: 'evaluation-note',
+      name: '模型评估摘要',
+      type: '笔记',
+      kind: '笔记',
+      detail: '3 个关联节点 · 7 月 24 日',
+      status: '待复习',
+      icon: 'note',
+    },
+  ],
+} as const

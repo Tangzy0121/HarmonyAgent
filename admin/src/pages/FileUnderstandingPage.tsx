@@ -28,10 +28,28 @@ export function FileUnderstandingPage({ isActive, onAskAgent, onBack, onStartLea
         <section className="document-detail__identity" aria-label="资料信息">
           <div className="document-detail__cover" aria-hidden="true">
             <span className="document-detail__cover-index">03</span>
-            <span className="document-detail__cover-orbit document-detail__cover-orbit--outer" />
-            <span className="document-detail__cover-orbit document-detail__cover-orbit--inner" />
-            <span className="document-detail__cover-node document-detail__cover-node--a" />
-            <span className="document-detail__cover-node document-detail__cover-node--b" />
+            <svg className="document-detail__cover-network" viewBox="0 0 180 116" focusable="false">
+              <g className="document-detail__cover-network-lines">
+                <path d="M31 24 L68 50" />
+                <path d="M31 58 L68 58" />
+                <path d="M31 92 L68 66" />
+                <path d="M116 58 L148 58" />
+              </g>
+              <g className="document-detail__cover-network-inputs">
+                <circle cx="25" cy="24" r="7" />
+                <circle cx="25" cy="58" r="7" />
+                <circle cx="25" cy="92" r="7" />
+              </g>
+              <rect className="document-detail__cover-network-model" x="68" y="34" width="48" height="48" rx="12" />
+              <text className="document-detail__cover-network-mark" x="92" y="63" textAnchor="middle">ML</text>
+              <circle className="document-detail__cover-network-output" cx="155" cy="58" r="13" />
+              <path className="document-detail__cover-network-check" d="M149 58 L153 62 L161 53" />
+              <g className="document-detail__cover-network-labels">
+                <text x="25" y="112" textAnchor="middle">数据</text>
+                <text x="92" y="112" textAnchor="middle">模型</text>
+                <text x="155" y="112" textAnchor="middle">结果</text>
+              </g>
+            </svg>
             <span className="document-detail__cover-label">Machine learning</span>
           </div>
           <div className="document-detail__identity-copy">

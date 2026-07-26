@@ -1,6 +1,7 @@
 import { destinations } from '../data/prototype'
-import { GlassSurface } from './GlassSurface'
 import { Icon } from './Icon'
+import { LociGlass } from './LociGlass'
+import { lociGlassPresets } from '../types/materials'
 import type { Destination } from '../types/prototype'
 
 interface BottomNavigationProps {
@@ -10,7 +11,12 @@ interface BottomNavigationProps {
 
 export function BottomNavigation({ activeDestination, onSelect }: BottomNavigationProps) {
   return (
-    <GlassSurface className="bottom-navigation-surface" role="presentation">
+    <LociGlass
+      className="loci-glass--smoke-reference bottom-navigation-surface"
+      interactive={false}
+      spec={lociGlassPresets.refractive}
+      role="presentation"
+    >
       <nav className="bottom-navigation" aria-label="主导航">
         {destinations.map((destination) => {
         const isActive = destination.id === activeDestination
@@ -29,6 +35,6 @@ export function BottomNavigation({ activeDestination, onSelect }: BottomNavigati
         )
         })}
       </nav>
-    </GlassSurface>
+    </LociGlass>
   )
 }

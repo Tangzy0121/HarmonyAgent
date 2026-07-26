@@ -26,7 +26,7 @@ export const learningMapSize = {
 
 export const initialMapViewport: MapViewport = {
   x: -150,
-  y: 62,
+  y: 132,
   scale: 0.72,
   focusedNodeId: null,
 }
