@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { AppShell } from './components/AppShell'
+import { AppIdentityBar } from './components/AppIdentityBar'
 import { AgentDrawer } from './components/AgentDrawer'
 import { AgentLauncher } from './components/AgentLauncher'
 import { BottomNavigation } from './components/BottomNavigation'
@@ -25,8 +26,14 @@ const glassLabHash = '#glass-lab'
 
 type LearningStage = 'explanation' | 'verification' | 'completion'
 
+type ViewTransitionLike = {
+  ready?: Promise<unknown>
+  finished?: Promise<unknown>
+  updateCallbackDone?: Promise<unknown>
+}
+
 type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => unknown
+  startViewTransition?: (update: () => void) => ViewTransitionLike
 }
 
 function updateWithViewTransition(update: () => void) {
@@ -36,7 +43,18 @@ function updateWithViewTransition(update: () => void) {
     return
   }
 
-  viewTransitionDocument.startViewTransition(() => flushSync(update))
+  try {
+    const transition = viewTransitionDocument.startViewTransition(() => flushSync(update))
+    transition.ready?.catch(() => undefined)
+    transition.finished?.catch(() => undefined)
+    transition.updateCallbackDone?.catch(() => undefined)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'InvalidStateError') {
+      update()
+      return
+    }
+    throw error
+  }
 }
 
 function App() {
@@ -50,6 +68,12 @@ function App() {
   const [drawerSnap, setDrawerSnap] = useState<DrawerSnap>(() => window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed')
   const [agentDraft, setAgentDraft] = useState('')
   const [mapViewport, setMapViewport] = useState<MapViewport>(initialMapViewport)
+  const isPrimaryShell = !activeDocumentId
+    && !activeLearningId
+    && !isMapChangeFocus
+  const isThirdBatchToday = isPrimaryShell
+    && !isTodayOutcome
+    && activeDestination === 'today'
 
   useEffect(() => {
     const syncHistoryState = () => {
@@ -100,7 +124,7 @@ function App() {
       document.title = activeLearningStage === 'completion' ? '监督学习 · 学习完成' : activeLearningStage === 'verification' ? '监督学习 · 验证' : '监督学习 · 深入学习'
       return
     }
-    document.title = activeDocumentId ? '机器学习 · 第三章' : '知序 · 个人知识 Agent'
+    document.title = activeDocumentId ? '机器学习 · 第三章' : 'loci · 个人知识 Agent'
   }, [activeDocumentId, activeLearningId, activeLearningStage, drawerSnap, isGlassLab, isMapChangeFocus, isTodayOutcome])
 
   const openAgent = useCallback(() => {
@@ -300,7 +324,8 @@ function App() {
 
   return (
     <AppShell
-      className="prototype-app--lighting-pilot"
+      className={`prototype-app--lighting-pilot prototype-app--third-batch-shell ${isPrimaryShell ? '' : 'prototype-app--third-batch-deep'} ${isThirdBatchToday ? 'prototype-app--third-batch-today' : ''}`}
+      identity={<AppIdentityBar />}
       controls={
         activeDocumentId || activeLearningId || isMapChangeFocus ? null : <>
           <BottomNavigation activeDestination={activeDestination} onSelect={selectDestination} />
@@ -321,6 +346,7 @@ function App() {
         <TodayPage
           isActive={!activeDocumentId && !activeLearningId && activeDestination === 'today'}
           isOutcomeMode={isTodayOutcome}
+          onContinue={startLearning}
         />
         <LearningMapPage
           isActive={!activeDocumentId && !activeLearningId && activeDestination === 'learning'}

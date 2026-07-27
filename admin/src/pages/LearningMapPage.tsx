@@ -4,6 +4,7 @@ import { NodeDetailPanel } from '../components/NodeDetailPanel'
 import { MapFilterBar } from '../components/MapFilterBar'
 import { MobileTopBar } from '../components/MobileTopBar'
 import { Icon } from '../components/Icon'
+import { LociGlass } from '../components/LociGlass'
 import {
   categoryLegend,
   initialMapViewport,
@@ -13,6 +14,7 @@ import {
   type KnowledgeNode,
 } from '../data/learningMap'
 import { useMapGesture } from '../hooks/useMapGesture'
+import { lociGlassPresets } from '../types/materials'
 import type { MapViewport } from '../types/prototype'
 
 interface LearningMapPageProps {
@@ -131,18 +133,23 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
           <span className="map-change-header__summary"><i aria-hidden="true" />1 条关系</span>
         </header>
       ) : (
-        <div className="learning-page__header">
-          <MobileTopBar title="学习地图" titleId="learning-title" subtitle={`${knowledgeNodes.length} 个主题 · ${reviewCount} 个待复习`} />
-        </div>
+        <LociGlass
+          className="loci-glass--smoke-reference learning-map-command"
+          interactive={false}
+          spec={{ ...lociGlassPresets.refractive, cornerRadius: 24, interactionStrength: 0 }}
+        >
+          <div className="learning-page__header">
+            <MobileTopBar title="学习地图" titleId="learning-title" subtitle={`${knowledgeNodes.length} 个主题 · ${reviewCount} 个待复习`} showProfile={false} />
+          </div>
+          <div className="map-filter-row">
+            <MapFilterBar value={filter} onChange={setFilter} />
+            <div className="page-inline-actions" aria-label="学习地图操作">
+              <button type="button" aria-label="搜索主题"><Icon name="search" size={18} /></button>
+              <button type="button" aria-label="定位到地图中心" onClick={reset}><Icon name="locate" size={18} /></button>
+            </div>
+          </div>
+        </LociGlass>
       )}
-
-      {!isChangeFocus && <div className="map-filter-row">
-        <MapFilterBar value={filter} onChange={setFilter} />
-        <div className="page-inline-actions" aria-label="学习地图操作">
-          <button type="button" aria-label="搜索主题"><Icon name="search" size={20} /></button>
-          <button type="button" aria-label="定位到地图中心" onClick={reset}><Icon name="locate" size={20} /></button>
-        </div>
-      </div>}
 
       <div
         ref={canvasRef}
