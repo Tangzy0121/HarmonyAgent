@@ -13,7 +13,6 @@ import { LearningVerificationPage } from './pages/LearningVerificationPage'
 import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
 import { TodayPage } from './pages/TodayPage'
-import { GlassLabPage } from './pages/GlassLabPage'
 import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
 
 const documentHash = '#library/ml-chapter-03'
@@ -22,7 +21,6 @@ const learningVerificationHash = '#learn/supervised-learning/verification'
 const learningCompletionHash = '#learn/supervised-learning/completion'
 const learningMapChangeHash = '#learning/supervised-learning/change'
 const todayOutcomeHash = '#today/learning-result'
-const glassLabHash = '#glass-lab'
 
 type LearningStage = 'explanation' | 'verification' | 'completion'
 
@@ -64,7 +62,6 @@ function App() {
   const [activeLearningStage, setActiveLearningStage] = useState<LearningStage | null>(() => window.location.hash === learningCompletionHash ? 'completion' : window.location.hash === learningVerificationHash ? 'verification' : window.location.hash === learningExplanationHash ? 'explanation' : null)
   const [isMapChangeFocus, setIsMapChangeFocus] = useState(() => window.location.hash === learningMapChangeHash)
   const [isTodayOutcome, setIsTodayOutcome] = useState(() => window.location.hash === todayOutcomeHash)
-  const [isGlassLab, setIsGlassLab] = useState(() => window.location.hash === glassLabHash)
   const [drawerSnap, setDrawerSnap] = useState<DrawerSnap>(() => window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed')
   const [agentDraft, setAgentDraft] = useState('')
   const [mapViewport, setMapViewport] = useState<MapViewport>(initialMapViewport)
@@ -83,14 +80,12 @@ function App() {
         const nextLearningStage = window.location.hash === learningCompletionHash ? 'completion' : window.location.hash === learningVerificationHash ? 'verification' : window.location.hash === learningExplanationHash ? 'explanation' : null
         const nextMapChangeFocus = window.location.hash === learningMapChangeHash
         const nextTodayOutcome = window.location.hash === todayOutcomeHash
-        const nextGlassLab = window.location.hash === glassLabHash
         const nextDrawerSnap: DrawerSnap = window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed'
         setActiveDocumentId(nextDocumentId)
         setActiveLearningId(nextLearningId)
         setActiveLearningStage(nextLearningStage)
         setIsMapChangeFocus(nextMapChangeFocus)
         setIsTodayOutcome(nextTodayOutcome)
-        setIsGlassLab(nextGlassLab)
         setDrawerSnap(nextDrawerSnap)
         if (nextDocumentId || nextLearningId) setActiveDestination('library')
         if (window.location.hash === '#learning' || nextMapChangeFocus) setActiveDestination('learning')
@@ -108,10 +103,6 @@ function App() {
       document.title = 'Knowledge Agent · 对话'
       return
     }
-    if (isGlassLab) {
-      document.title = 'loci · Liquid Glass Lab'
-      return
-    }
     if (isTodayOutcome) {
       document.title = '今天 · 学习成果'
       return
@@ -125,7 +116,7 @@ function App() {
       return
     }
     document.title = activeDocumentId ? '机器学习 · 第三章' : 'loci · 个人知识 Agent'
-  }, [activeDocumentId, activeLearningId, activeLearningStage, drawerSnap, isGlassLab, isMapChangeFocus, isTodayOutcome])
+  }, [activeDocumentId, activeLearningId, activeLearningStage, drawerSnap, isMapChangeFocus, isTodayOutcome])
 
   const openAgent = useCallback(() => {
     if (window.history.state?.overlay === 'agent') {
@@ -319,8 +310,6 @@ function App() {
       setActiveDestination(destination)
     })
   }
-
-  if (isGlassLab) return <GlassLabPage />
 
   return (
     <AppShell

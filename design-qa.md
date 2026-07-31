@@ -1,5 +1,7 @@
 # Learning Map Design QA
 
+> **状态：历史记录，已被 2026-07-31 第三批雾银烟灰视觉基线取代。** 本文只用于追溯 2026-07-24 地图清理过程，不再定义当前颜色、材质或组件样式。当前视觉事实源为根目录 `DESIGN.md` 与 `docs/design-system/视觉设计规范.md`。
+
 ## Comparison Target
 
 - Source visual truth: `C:\Users\LENOVO\AppData\Local\Temp\codex-clipboard-ffdfe830-334c-4ca8-814f-71b38e01afdb.png`

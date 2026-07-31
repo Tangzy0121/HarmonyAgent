@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Icon } from '../components/Icon'
-import { LociGlass } from '../components/LociGlass'
-import { destinations } from '../data/prototype'
-import { lociGlassPresets, type LociGlassPreset, type LociGlassSpec } from '../types/materials'
-import type { Destination } from '../types/prototype'
+import { Icon } from '../../src/components/Icon'
+import { LociGlass } from './LociGlass'
+import { destinations } from '../../src/data/prototype'
+import { lociGlassPresets, type LociGlassPreset, type LociGlassSpec } from './materials'
+import type { Destination } from '../../src/types/prototype'
 
 const presetLabels: Record<LociGlassPreset, string> = {
   balanced: '柔雾',
