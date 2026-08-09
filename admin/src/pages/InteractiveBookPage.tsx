@@ -12,7 +12,7 @@ interface InteractiveBookPageProps {
   onBookChange: (book: LearningBook) => void
   onChapterChange: (chapterId: string) => void
   onContextScopeChange: (scope: AgentContextScope) => void
-  onAskAgent: () => void
+  onAskAgent: (focusBlockId?: string) => void
   onBack: () => void
   onStartDeepLearning: (blockId: string) => void
 }
@@ -72,6 +72,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                   onSubmitQuiz={(blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
                   onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
                   onStartDeepLearning={onStartDeepLearning}
+                  onAskAgent={onAskAgent}
                 />
               ))}
             </div>

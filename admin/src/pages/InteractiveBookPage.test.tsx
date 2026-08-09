@@ -1,8 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { learningBookFixture } from '../data/learningBook'
 import { advanceGeneration } from '../domain/learningBook'
+import { BookBlockRenderer } from '../components/book/BookBlockRenderer'
+import { BookContextBar } from '../components/book/BookContextBar'
 import { InteractiveBookPage } from './InteractiveBookPage'
+
+function findElement(root: ReactNode, type: ReactElement['type']): ReactElement | undefined {
+  if (!isValidElement(root)) return undefined
+  if (root.type === type) return root
+  let match: ReactElement | undefined
+  Children.forEach((root.props as { children?: ReactNode }).children, (child) => {
+    match ??= findElement(child, type)
+  })
+  return match
+}
 
 describe('InteractiveBookPage', () => {
   it('renders a ready chapter with typed blocks and chapter-scoped Agent context', () => {
@@ -26,6 +39,38 @@ describe('InteractiveBookPage', () => {
     expect(html).toContain('快速验证')
     expect(html).toContain('第 4–6 页 · 3.1.1 监督学习')
     expect(html).toContain('继续生成下一章')
+    expect(html).toContain('向 Agent 提问')
+  })
+
+  it('propagates chapter and block focus separately when asking Agent', () => {
+    const onAskAgent = vi.fn()
+    const book = advanceGeneration(learningBookFixture)
+
+    const tree = InteractiveBookPage({
+      book,
+      activeChapterId: 'ch-1',
+      contextScope: 'chapter',
+      onAskAgent,
+      onBack: () => undefined,
+      onBookChange: () => undefined,
+      onChapterChange: () => undefined,
+      onContextScopeChange: () => undefined,
+      onStartDeepLearning: () => undefined,
+    })
+    const contextBar = findElement(tree, BookContextBar)
+    const firstBlock = findElement(tree, BookBlockRenderer)
+
+    expect(contextBar).toBeDefined()
+    expect(firstBlock).toBeDefined()
+    const renderedContextBar = BookContextBar(contextBar!.props as Parameters<typeof BookContextBar>[0])
+    const contextAskButton = (renderedContextBar.props as { children: ReactElement[] }).children[1]
+    ;(contextAskButton.props as { onClick: () => void }).onClick()
+    ;(firstBlock!.props as { onAskAgent: (blockId: string) => void; block: { id: string } }).onAskAgent(
+      (firstBlock!.props as { block: { id: string } }).block.id,
+    )
+
+    expect(onAskAgent).toHaveBeenNthCalledWith(1, undefined)
+    expect(onAskAgent).toHaveBeenNthCalledWith(2, 'blk-explanation-1')
   })
 
   it('shows an honest generation state instead of empty chapter content', () => {

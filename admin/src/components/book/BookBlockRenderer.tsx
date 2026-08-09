@@ -10,9 +10,10 @@ interface BookBlockRendererProps {
   onSubmitQuiz: (blockId: string, answerId: string) => void
   onUpdateNote: (noteId: string, body: string) => void
   onStartDeepLearning: (blockId: string) => void
+  onAskAgent: (blockId: string) => void
 }
 
-export function BookBlockRenderer({ block, note, attempt, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning }: BookBlockRendererProps) {
+export function BookBlockRenderer({ block, note, attempt, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent }: BookBlockRendererProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(attempt?.answerId ?? '')
   const canRegenerate = block.type !== 'citation' && block.type !== 'user_note'
 
@@ -77,7 +78,7 @@ export function BookBlockRenderer({ block, note, attempt, onRegenerate, onSubmit
   })()
 
   return (
-    <article className={`book-block book-block--${block.type}`}>
+    <article id={block.id} className={`book-block book-block--${block.type}`}>
       <header>
         <div><span className="book-block__type">{blockTypeLabel[block.type]}</span><h2>{block.title}</h2></div>
         {canRegenerate && <button type="button" onClick={() => onRegenerate(block.id)} aria-label={`重新生成${block.title}`}><Icon name="refresh" size={16} />重生成</button>}
@@ -86,6 +87,7 @@ export function BookBlockRenderer({ block, note, attempt, onRegenerate, onSubmit
       {block.type !== 'quiz' && block.type !== 'user_note' && (
         <footer>
           <button type="button" onClick={() => onStartDeepLearning(block.id)}>深入学习这一段 <Icon name="arrow" size={15} /></button>
+          <button type="button" className="book-block__ask-agent" onClick={() => onAskAgent(block.id)}>向 Agent 提问 <Icon name="agent" size={15} /></button>
         </footer>
       )}
     </article>

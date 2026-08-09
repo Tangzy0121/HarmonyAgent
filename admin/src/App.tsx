@@ -9,6 +9,7 @@ import { learningBookFixture } from './data/learningBook'
 import { initialMapViewport } from './data/learningMap'
 import { orchestrateAgentRequest } from './domain/agentOrchestration'
 import { recordDeepLearningEvidence, resolveAgentContext, startBookGeneration } from './domain/learningBook'
+import { useBookAgentSessions } from './hooks/useBookAgentSessions'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -18,6 +19,7 @@ import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
 import { TodayPage } from './pages/TodayPage'
 import type { AgentContextScope } from './types/learningBook'
+import type { BookAgentSource } from './types/bookAgent'
 import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
 
 const documentHash = '#library/ml-chapter-03'
@@ -72,6 +74,7 @@ function App() {
   const [learningBook, setLearningBook] = useState(learningBookFixture)
   const [activeBookChapterId, setActiveBookChapterId] = useState(() => bookChapterIdFromHash(window.location.hash) ?? learningBookFixture.activeChapterId)
   const [bookContextScope, setBookContextScope] = useState<AgentContextScope>('chapter')
+  const [bookContextEnabled, setBookContextEnabled] = useState(true)
   const [activeLearningBlockId, setActiveLearningBlockId] = useState<string | null>(null)
   const [agentModeLabel, setAgentModeLabel] = useState<string | undefined>(undefined)
   const [activeLearningId, setActiveLearningId] = useState<string | null>(() => window.location.hash === learningExplanationHash || window.location.hash === learningVerificationHash || window.location.hash === learningCompletionHash ? 'supervised-learning' : null)
@@ -81,6 +84,12 @@ function App() {
   const [drawerSnap, setDrawerSnap] = useState<DrawerSnap>(() => window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed')
   const [agentDraft, setAgentDraft] = useState('')
   const [mapViewport, setMapViewport] = useState<MapViewport>(initialMapViewport)
+  const bookAgent = useBookAgentSessions({
+    book: learningBook,
+    activeChapterId: activeBookChapterId,
+    scope: bookContextScope,
+    contextEnabled: bookContextEnabled,
+  })
   const isPrimaryShell = !activeDocumentId
     && !isInteractiveBook
     && !activeLearningId
@@ -96,6 +105,12 @@ function App() {
       : learningBook.status === 'partial'
         ? '部分可读'
         : `生成中 ${readyBookChapterCount}/${learningBook.chapters.length}`
+  const bookAgentContextLabel = (() => {
+    const base = resolveAgentContext(learningBook, activeBookChapterId, bookContextScope).label
+    if (!bookAgent.focusBlockId) return base
+    const focusBlock = learningBook.chapters.flatMap((chapter) => chapter.blocks).find((block) => block.id === bookAgent.focusBlockId)
+    return focusBlock ? `${base} · 聚焦：${focusBlock.title}` : base
+  })()
 
   useEffect(() => {
     const syncHistoryState = () => {
@@ -248,15 +263,34 @@ function App() {
     setActiveBookChapterId(chapterId)
   }
 
-  const askBookAgent = () => {
+  const askBookAgent = (focusBlockId?: string) => {
     const executionPlan = orchestrateAgentRequest({
       intent: 'ask_question',
       bookId: learningBook.id,
       chapterId: activeBookChapterId,
       contextScope: bookContextScope,
     })
+    bookAgent.setFocusBlockId(focusBlockId)
     setAgentModeLabel(executionPlan.workflow === 'free_qa' ? '自由问答工作流 · 只读学习状态' : undefined)
     openAgent()
+  }
+
+  const openBookAgentSource = (source: BookAgentSource) => {
+    const revealSource = () => {
+      changeBookChapter(source.chapterId)
+      setDrawerSnap('closed')
+      window.setTimeout(() => {
+        const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
+        document.getElementById(source.blockId)?.scrollIntoView({ behavior, block: 'center' })
+      }, 180)
+    }
+
+    if (window.history.state?.overlay === 'agent') {
+      window.addEventListener('popstate', revealSource, { once: true })
+      window.history.go(drawerSnap === 'full' && window.history.state.agentSnap === 'full' ? -2 : -1)
+      return
+    }
+    revealSource()
   }
 
   const closeInteractiveBook = () => {
@@ -421,11 +455,19 @@ function App() {
         <AgentDrawer
           snap={drawerSnap}
           activeDestination={activeDestination}
-          contextLabel={isTodayOutcome ? '今日成果 · 下一次安排' : isMapChangeFocus ? '监督学习 · 地图变化' : activeLearningStage === 'completion' ? '监督学习 · 学习证据' : activeLearningStage === 'verification' ? '监督学习 · 验证阶段' : activeLearningId ? `深入学习 · ${activeLearningBlockId ?? '监督学习'}` : isInteractiveBook ? resolveAgentContext(learningBook, activeBookChapterId, bookContextScope).label : activeDocumentId ? '目录提案 · 机器学习第三章' : undefined}
+          contextLabel={isTodayOutcome ? '今日成果 · 下一次安排' : isMapChangeFocus ? '监督学习 · 地图变化' : activeLearningStage === 'completion' ? '监督学习 · 学习证据' : activeLearningStage === 'verification' ? '监督学习 · 验证阶段' : activeLearningId ? `深入学习 · ${activeLearningBlockId ?? '监督学习'}` : isInteractiveBook ? bookAgentContextLabel : activeDocumentId ? '目录提案 · 机器学习第三章' : undefined}
           modeLabel={agentModeLabel}
+          contextEnabled={isInteractiveBook ? bookContextEnabled : undefined}
           draft={agentDraft}
+          bookSession={isInteractiveBook ? bookAgent.session : undefined}
           onDraftChange={setAgentDraft}
           onSnapChange={changeDrawerSnap}
+          onSubmitQuestion={isInteractiveBook ? bookAgent.submit : undefined}
+          onStop={isInteractiveBook ? bookAgent.stop : undefined}
+          onRetry={isInteractiveBook ? bookAgent.retry : undefined}
+          onNewConversation={isInteractiveBook ? bookAgent.newConversation : undefined}
+          onContextEnabledChange={isInteractiveBook ? setBookContextEnabled : undefined}
+          onSourceOpen={isInteractiveBook ? openBookAgentSource : undefined}
         />
       }
     >
