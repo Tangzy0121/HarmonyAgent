@@ -87,7 +87,7 @@ Add scripts:
 
 - [ ] **Step 3: Run the test and observe the expected default mismatch**
 
-Run: `npm test -- tests/config.test.ts`  
+Run: `npm test -- tests/config.test.ts`
 Expected: FAIL because the restored `.env.example` still contains the temporary Kimi defaults.
 
 - [ ] **Step 4: Restore the public example to safe DeepSeek values**
@@ -103,7 +103,7 @@ LLM_MODEL=deepseek-v4-flash
 
 - [ ] **Step 5: Verify the task**
 
-Run: `npm test -- tests/config.test.ts && npm run build`  
+Run: `npm test -- tests/config.test.ts && npm run build`
 Expected: one passing test and TypeScript build exit code 0.
 
 - [ ] **Step 6: Commit**
@@ -182,7 +182,7 @@ For whole-book scope, mark chapters 2–4 ready in the fixture before expecting 
 
 - [ ] **Step 3: Run the tests and observe the missing-module failure**
 
-Run: `npm test -- src/domain/bookAgentContext.test.ts`  
+Run: `npm test -- src/domain/bookAgentContext.test.ts`
 Expected: FAIL because `bookAgentContext.ts` and `bookAgent.ts` do not exist.
 
 - [ ] **Step 4: Implement deterministic serialization and budgeting**
@@ -207,7 +207,7 @@ Only ready/partial chapters and ready blocks enter context. Stable-sort the focu
 
 - [ ] **Step 5: Verify the task**
 
-Run: `npm test -- src/domain/bookAgentContext.test.ts && npm run build`  
+Run: `npm test -- src/domain/bookAgentContext.test.ts && npm run build`
 Expected: all context tests pass and admin production build succeeds.
 
 - [ ] **Step 6: Commit**
@@ -246,7 +246,7 @@ Reject invalid history roles, duplicate source IDs, blocks referencing unknown s
 
 - [ ] **Step 2: Run the contract test and observe failure**
 
-Run: `npm test -- tests/bookAgentContract.test.ts`  
+Run: `npm test -- tests/bookAgentContract.test.ts`
 Expected: FAIL because the module does not exist.
 
 - [ ] **Step 3: Implement the contract as a pure dependency-free module**
@@ -272,7 +272,7 @@ Order messages as system rules → serialized context → six recent user/assist
 
 - [ ] **Step 6: Verify the task**
 
-Run: `npm test -- tests/bookAgentContract.test.ts tests/bookAgentPrompt.test.ts && npm run build`  
+Run: `npm test -- tests/bookAgentContract.test.ts tests/bookAgentPrompt.test.ts && npm run build`
 Expected: contract/prompt tests pass and server build succeeds.
 
 - [ ] **Step 7: Commit**
@@ -308,7 +308,7 @@ expect(events).toEqual([{ type: 'delta', text: '监督' }, { type: 'done' }])
 
 - [ ] **Step 2: Run the parser test and observe failure**
 
-Run: `npm test -- tests/openAIStream.test.ts`  
+Run: `npm test -- tests/openAIStream.test.ts`
 Expected: FAIL because `openAIStream.ts` does not exist.
 
 - [ ] **Step 3: Implement incremental OpenAI SSE parsing**
@@ -358,7 +358,7 @@ Keep the legacy `/api/chat/completions` route for ArkTS compatibility, but the l
 
 - [ ] **Step 7: Verify the task**
 
-Run: `npm test -- tests/openAIStream.test.ts tests/bookAgentRoute.test.ts && npm run build`  
+Run: `npm test -- tests/openAIStream.test.ts tests/bookAgentRoute.test.ts && npm run build`
 Expected: all stream/route tests pass and server build succeeds.
 
 - [ ] **Step 8: Commit**
@@ -389,7 +389,7 @@ Mock `fetch` with a `ReadableStream`. Test event names split across chunks, mult
 
 - [ ] **Step 2: Run and observe the missing client failure**
 
-Run: `npm test -- src/services/bookAgentClient.test.ts`  
+Run: `npm test -- src/services/bookAgentClient.test.ts`
 Expected: FAIL because `bookAgentClient.ts` does not exist.
 
 - [ ] **Step 3: Implement the cancellable internal SSE client**
@@ -413,7 +413,7 @@ The hook builds context at submit time, sends only the last six complete user/as
 
 - [ ] **Step 6: Verify the task**
 
-Run: `npm test -- src/services/bookAgentClient.test.ts src/hooks/bookAgentSessionReducer.test.ts && npm run build`  
+Run: `npm test -- src/services/bookAgentClient.test.ts src/hooks/bookAgentSessionReducer.test.ts && npm run build`
 Expected: all client/session tests pass and admin build succeeds.
 
 - [ ] **Step 7: Commit**
@@ -460,7 +460,7 @@ Update `InteractiveBookPage.test.tsx` so the context-bar button calls `onAskAgen
 
 - [ ] **Step 3: Run and observe the expected prop/UI failures**
 
-Run: `npm test -- src/components/AgentDrawer.test.tsx src/pages/InteractiveBookPage.test.tsx`  
+Run: `npm test -- src/components/AgentDrawer.test.tsx src/pages/InteractiveBookPage.test.tsx`
 Expected: FAIL because controlled session props and block focus actions do not exist.
 
 - [ ] **Step 4: Add a distinct block-level Agent action**
@@ -499,7 +499,7 @@ Reuse existing typography and smoke-crystal controls. Add no new glass content c
 
 - [ ] **Step 8: Verify the task**
 
-Run: `npm test && npm run build` from `admin`.  
+Run: `npm test && npm run build` from `admin`.
 Expected: all admin tests pass and production build succeeds.
 
 - [ ] **Step 9: Commit**
