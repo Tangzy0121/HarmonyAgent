@@ -1,9 +1,145 @@
+import { flushSync } from 'react-dom'
+import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { Simulate } from 'react-dom/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { BookAgentSessionState } from '../hooks/bookAgentSessionReducer'
 import type { BookAgentSource } from '../types/bookAgent'
 import { AgentDrawer } from './AgentDrawer'
+import { BookBlockRenderer } from './book/BookBlockRenderer'
+import { learningBookFixture } from '../data/learningBook'
+import { advanceGeneration } from '../domain/learningBook'
+
+class FakeText {
+  nodeType = 3
+  nodeName = '#text'
+  parentNode: FakeElement | null = null
+
+  constructor(public nodeValue: string, public ownerDocument: FakeDocument) {}
+
+  get textContent() { return this.nodeValue }
+  set textContent(value: string) { this.nodeValue = value }
+}
+
+class FakeElement {
+  nodeType = 1
+  nodeName: string
+  tagName: string
+  namespaceURI = 'http://www.w3.org/1999/xhtml'
+  parentNode: FakeElement | null = null
+  childNodes: Array<FakeElement | FakeText> = []
+  attributes = new Map<string, string>()
+  style: Record<string, string> & { setProperty: (name: string, value: string) => void }
+
+  constructor(tagName: string, public ownerDocument: FakeDocument) {
+    this.tagName = tagName.toUpperCase()
+    this.nodeName = this.tagName
+    const style = Object.create(null) as FakeElement['style']
+    style.setProperty = (name: string, value: string) => { style[name] = value }
+    this.style = style
+  }
+
+  addEventListener(): void {}
+  removeEventListener(): void {}
+  setAttribute(name: string, value: string): void { this.attributes.set(name, value) }
+  removeAttribute(name: string): void { this.attributes.delete(name) }
+  getAttribute(name: string): string | null { return this.attributes.get(name) ?? null }
+  focus(): void { this.ownerDocument.activeElement = this }
+  closest(selector: string): FakeElement | null { return selector === 'button' && this.tagName === 'BUTTON' ? this : this.parentNode?.closest(selector) ?? null }
+  scrollIntoView(): void {}
+
+  appendChild(child: FakeElement | FakeText) {
+    child.parentNode = this
+    this.childNodes.push(child)
+    return child
+  }
+
+  insertBefore(child: FakeElement | FakeText, before: FakeElement | FakeText | null) {
+    child.parentNode = this
+    const index = before ? this.childNodes.indexOf(before) : -1
+    if (index < 0) this.childNodes.push(child)
+    else this.childNodes.splice(index, 0, child)
+    return child
+  }
+
+  removeChild(child: FakeElement | FakeText) {
+    this.childNodes = this.childNodes.filter((candidate) => candidate !== child)
+    child.parentNode = null
+    return child
+  }
+
+  get firstChild() { return this.childNodes[0] ?? null }
+  get lastChild() { return this.childNodes[this.childNodes.length - 1] ?? null }
+  get className() { return this.getAttribute('class') ?? '' }
+  set className(value: string) { this.setAttribute('class', value) }
+  get textContent(): string { return this.childNodes.map((child) => child.textContent).join('') }
+  set textContent(value: string) {
+    this.childNodes = value ? [new FakeText(value, this.ownerDocument)] : []
+    if (this.childNodes[0]) this.childNodes[0].parentNode = this
+  }
+}
+
+class FakeDocument {
+  nodeType = 9
+  nodeName = '#document'
+  documentElement = new FakeElement('html', this)
+  body = new FakeElement('body', this)
+  activeElement: FakeElement = this.body
+  defaultView: Record<string, unknown> = {}
+
+  addEventListener(): void {}
+  removeEventListener(): void {}
+  createElement(tagName: string) { return new FakeElement(tagName, this) }
+  createElementNS(namespace: string, tagName: string) {
+    const element = this.createElement(tagName)
+    element.namespaceURI = namespace
+    return element
+  }
+  createTextNode(value: string) { return new FakeText(value, this) }
+}
+
+let mountedRoot: Root | undefined
+
+afterEach(() => {
+  if (mountedRoot) flushSync(() => mountedRoot?.unmount())
+  mountedRoot = undefined
+  vi.unstubAllGlobals()
+})
+
+function descendants(root: FakeElement): FakeElement[] {
+  return root.childNodes.flatMap((child) => child instanceof FakeElement ? [child, ...descendants(child)] : [])
+}
+
+function invokeReactClick(element: FakeElement): void {
+  flushSync(() => Simulate.click(element as unknown as Element))
+}
+
+function mountEnvironment(): FakeElement {
+  const documentStub = new FakeDocument()
+  const windowStub = {
+    document: documentStub,
+    innerHeight: 844,
+    setTimeout,
+    clearTimeout,
+    addEventListener() {},
+    removeEventListener() {},
+    matchMedia: () => ({ matches: false }),
+    HTMLIFrameElement: class {},
+    HTMLElement: FakeElement,
+    Element: FakeElement,
+    Node: FakeElement,
+  }
+  documentStub.defaultView = windowStub
+  vi.stubGlobal('document', documentStub)
+  vi.stubGlobal('window', windowStub)
+  vi.stubGlobal('Element', FakeElement)
+  vi.stubGlobal('HTMLElement', FakeElement)
+  vi.stubGlobal('Node', FakeElement)
+  const container = new FakeElement('div', documentStub)
+  mountedRoot = createRoot(container as unknown as Element)
+  return container
+}
 
 const knownSource: BookAgentSource = {
   id: 'S1',
@@ -65,6 +201,28 @@ function session(overrides: Partial<BookAgentSessionState> = {}): BookAgentSessi
 }
 
 describe('AgentDrawer controlled learning-book mode', () => {
+  it('shows the book conversation input after legacy history was open before a surface switch', () => {
+    const container = mountEnvironment()
+    const common = {
+      activeDestination: 'library' as const,
+      draft: '',
+      onDraftChange: () => undefined,
+      onSnapChange: () => undefined,
+    }
+    flushSync(() => mountedRoot?.render(<AgentDrawer {...common} snap="full" />))
+    const historyButton = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent === '历史')
+    expect(historyButton).toBeDefined()
+    invokeReactClick(historyButton!)
+    expect(container.textContent).toContain('最近对话')
+
+    flushSync(() => mountedRoot?.render(<AgentDrawer {...common} snap="closed" />))
+    flushSync(() => mountedRoot?.render(<AgentDrawer {...common} snap="full" bookSession={session()} />))
+
+    expect(container.textContent).toContain('从当前章节开始')
+    expect(descendants(container).some((element) => element.tagName === 'FORM')).toBe(true)
+    expect(descendants(container).some((element) => element.tagName === 'INPUT')).toBe(true)
+  })
+
   it('renders streaming, error, and cancelled states with explicit actions', () => {
     const streamingHtml = renderControlled(session({
       status: 'streaming',
@@ -113,22 +271,45 @@ describe('AgentDrawer controlled learning-book mode', () => {
 
   it('keeps source cards actionable in controlled mode', () => {
     const onSourceOpen = vi.fn()
-    const html = renderToStaticMarkup(
-      <AgentDrawer
-        snap="full"
-        activeDestination="library"
-        contextEnabled
-        draft=""
-        bookSession={session({
-          messages: [{ id: 'assistant-5', role: 'assistant', content: '依据见 [S1]。', status: 'complete', createdAt: '2026-08-09', sources: [knownSource] }],
-        })}
-        onDraftChange={() => undefined}
-        onSnapChange={() => undefined}
-        onSourceOpen={onSourceOpen}
-      />,
-    )
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(<AgentDrawer
+      snap="full"
+      activeDestination="library"
+      contextEnabled
+      draft=""
+      bookSession={session({
+        messages: [{ id: 'assistant-5', role: 'assistant', content: '依据见 [S1]。', status: 'complete', createdAt: '2026-08-09', sources: [knownSource] }],
+      })}
+      onDraftChange={() => undefined}
+      onSnapChange={() => undefined}
+      onSourceOpen={onSourceOpen}
+    />))
+    const sourceButton = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes('证据 S1'))
 
-    expect(html).toContain('查看原文位置')
+    expect(sourceButton).toBeDefined()
+    invokeReactClick(sourceButton!)
+    expect(onSourceOpen).toHaveBeenCalledTimes(1)
+    expect(onSourceOpen).toHaveBeenCalledWith(knownSource)
+  })
+
+  it('clicks the rendered block Agent action with the exact block id', () => {
+    const onAskAgent = vi.fn()
+    const container = mountEnvironment()
+    const block = advanceGeneration(learningBookFixture).chapters[0].blocks.find((candidate) => candidate.id === 'blk-explanation-1')!
+    flushSync(() => mountedRoot?.render(<BookBlockRenderer
+      block={block}
+      onRegenerate={() => undefined}
+      onSubmitQuiz={() => undefined}
+      onUpdateNote={() => undefined}
+      onStartDeepLearning={() => undefined}
+      onAskAgent={onAskAgent}
+    />))
+    const askButton = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes('向 Agent 提问'))
+
+    expect(askButton).toBeDefined()
+    invokeReactClick(askButton!)
+    expect(onAskAgent).toHaveBeenCalledTimes(1)
+    expect(onAskAgent).toHaveBeenCalledWith('blk-explanation-1')
   })
 
   it('states explicitly when learning-book context is detached', () => {

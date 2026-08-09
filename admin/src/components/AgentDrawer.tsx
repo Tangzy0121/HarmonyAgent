@@ -94,15 +94,16 @@ export function AgentDrawer({
 
   const isFullScreen = snap === 'full'
   const isBookMode = bookSession !== undefined
+  const effectiveActiveView = isBookMode ? 'conversation' : activeView
   const visibleMessageCount = isBookMode ? bookSession.messages.length : messages.length
   const isStreaming = isBookMode && bookSession.status === 'streaming'
 
   useEffect(() => {
     const previousCount = previousMessageCountRef.current
     previousMessageCountRef.current = visibleMessageCount
-    if (!isFullScreen || activeView !== 'conversation' || visibleMessageCount <= previousCount) return
+    if (!isFullScreen || effectiveActiveView !== 'conversation' || visibleMessageCount <= previousCount) return
     conversationEndRef.current?.scrollIntoView({ block: 'end', behavior: preferredScrollBehavior() })
-  }, [activeView, isFullScreen, visibleMessageCount])
+  }, [effectiveActiveView, isFullScreen, visibleMessageCount])
 
   if (snap === 'closed') {
     return null
@@ -235,7 +236,7 @@ export function AgentDrawer({
           </button>}
         </nav>}
 
-        {!isBookMode && activeView === 'history' ? (
+        {effectiveActiveView === 'history' ? (
           <section className="agent-history" aria-labelledby="agent-history-title">
             <header>
               <div className="agent-identity"><Icon name="blossom" size={18} /><span>Knowledge Agent</span></div>
@@ -348,7 +349,7 @@ export function AgentDrawer({
         )}
 
       </GlassSurface>
-      {activeView === 'conversation' && <form
+      {effectiveActiveView === 'conversation' && <form
         className={`agent-input${isFullScreen ? ' agent-input--full' : ''}`}
         style={inputStyle}
         onSubmit={submitDraft}

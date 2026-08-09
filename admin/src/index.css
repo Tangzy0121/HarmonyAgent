@@ -4456,7 +4456,7 @@ button:disabled {
 
 .context-row button,
 .context-add {
-  min-height: 38px;
+  min-height: 44px;
   border: 0;
   color: var(--ink-38);
   background: transparent;
