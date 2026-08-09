@@ -46,7 +46,11 @@ function validBody() {
   }
 }
 
-function appWith(fetchImpl: typeof fetch, apiKey = API_KEY) {
+function appWith(
+  fetchImpl: typeof fetch,
+  apiKey = API_KEY,
+  createTurnId: () => string = () => 'turn-test-1',
+) {
   const app = express()
   app.use(express.json())
   app.use('/api/agent', createBookAgentRouter({
@@ -55,6 +59,20 @@ function appWith(fetchImpl: typeof fetch, apiKey = API_KEY) {
       LLM_API_KEY: apiKey,
       LLM_BASE_URL: 'https://api.deepseek.example/',
       LLM_MODEL: '',
+    },
+    createTurnId,
+  }))
+  return app
+}
+
+function routeOwnedJsonApp(fetchImpl: typeof fetch) {
+  const app = express()
+  app.use('/api/agent', createBookAgentRouter({
+    fetchImpl,
+    env: {
+      LLM_API_KEY: API_KEY,
+      LLM_BASE_URL: 'https://api.deepseek.example/',
+      LLM_MODEL: 'deepseek-v4-flash',
     },
     createTurnId: () => 'turn-test-1',
   }))
@@ -85,6 +103,18 @@ function eventsFrom(responseText: string): Array<{ event: string; data: unknown 
 }
 
 describe('POST /api/agent/book-chat', () => {
+  it('returns stable JSON for malformed JSON without exposing parser internals', async () => {
+    const response = await request(routeOwnedJsonApp(vi.fn<typeof fetch>()))
+      .post('/api/agent/book-chat')
+      .set('Content-Type', 'application/json')
+      .send('{"question":')
+
+    expect(response.status).toBe(400)
+    expect(response.type).toMatch(/json/u)
+    expect(response.body).toEqual({ error: 'invalid_json' })
+    expect(response.text).not.toMatch(/SyntaxError|node_modules|bookAgentRoute\.test|Unexpected token/iu)
+  })
+
   it('rejects an invalid request before opening an SSE response', async () => {
     const fetchImpl = vi.fn<typeof fetch>()
 
@@ -179,6 +209,25 @@ describe('POST /api/agent/book-chat', () => {
       message: '学习助手生成失败，请稍后重试。',
     })
     expect(response.text).not.toContain(API_KEY)
+  })
+
+  it('returns a safe SSE error and cleans up when turn ID creation fails', async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+
+    const response = await request(appWith(fetchImpl, API_KEY, () => {
+      throw new Error(`turn-id-private-${API_KEY}`)
+    }))
+      .post('/api/agent/book-chat')
+      .send(validBody())
+      .timeout({ response: 300 })
+
+    expect(response.status).toBe(200)
+    expect(eventsFrom(response.text)).toEqual([{
+      event: 'error',
+      data: { code: 'upstream_unavailable', message: '学习助手生成失败，请稍后重试。' },
+    }])
+    expect(response.text).not.toContain(API_KEY)
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it('aborts a pending upstream request after the 60-second timeout', async () => {

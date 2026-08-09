@@ -15,6 +15,7 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 
 // Middleware
 app.use(cors());
+app.use('/api/agent', createBookAgentRouter());
 app.use(express.json({ limit: '10mb' }));
 
 // Health check
@@ -25,7 +26,6 @@ app.get('/health', (_req, res) => {
 // LLM 代理路由（挂载在两个前缀下，兼容 admin 代理 /api 和 鸿蒙端 /v1）
 app.use('/v1', llmRouter);
 app.use('/api', llmRouter);
-app.use('/api/agent', createBookAgentRouter());
 
 app.listen(PORT, () => {
   console.log(`[HarmonyAgent Server] running on http://localhost:${PORT}`);

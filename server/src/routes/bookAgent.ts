@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Router, type Response } from 'express'
+import { json, Router, type ErrorRequestHandler, type Response } from 'express'
 
 import {
   BookAgentValidationError,
@@ -55,6 +55,8 @@ export function createBookAgentRouter(
   const env = dependencies.env ?? process.env
   const createTurnId = dependencies.createTurnId ?? randomUUID
 
+  router.use(json({ limit: '10mb' }))
+
   router.post('/book-chat', async (req, res) => {
     let request
     try {
@@ -95,10 +97,10 @@ export function createBookAgentRouter(
     }, 60_000)
     timeout.unref()
 
-    writeEvent(res, 'start', { turnId: createTurnId() })
-    writeEvent(res, 'sources', { sources: request.context?.sources ?? [] })
-
     try {
+      writeEvent(res, 'start', { turnId: createTurnId() })
+      writeEvent(res, 'sources', { sources: request.context?.sources ?? [] })
+
       const baseUrl = (env.LLM_BASE_URL?.trim() || 'https://api.deepseek.com').replace(/\/$/u, '')
       const upstream = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
@@ -144,6 +146,20 @@ export function createBookAgentRouter(
       res.removeListener('close', onResponseClose)
     }
   })
+
+  const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
+    const candidate = error as SyntaxError & { status?: unknown; type?: unknown }
+    if (
+      error instanceof SyntaxError &&
+      candidate.status === 400 &&
+      candidate.type === 'entity.parse.failed'
+    ) {
+      res.status(400).json({ error: 'invalid_json' })
+      return
+    }
+    next(error)
+  }
+  router.use(jsonErrorHandler)
 
   return router
 }

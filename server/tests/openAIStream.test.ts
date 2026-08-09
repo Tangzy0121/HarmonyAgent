@@ -53,7 +53,7 @@ describe('parseOpenAIStream', () => {
   it('ignores blank, comment, non-data, and empty data lines', async () => {
     const frames: OpenAIStreamFrame[] = []
     const upstream = streamFromByteChunks([
-      bytes('\n: ping\nevent: message\ndata:\n\ndata: {"choices":[{"delta":{}}]}\n\ndata: [DONE]\n'),
+      bytes('\n: ping\nevent: message\ndata:\n\ndata: {"choices":[{"delta":{}}]}\n\ndata: [DONE]\n\n'),
     ])
 
     await parseOpenAIStream(upstream, (frame) => frames.push(frame))
@@ -74,7 +74,44 @@ describe('parseOpenAIStream', () => {
     expect(frames).toEqual([{ type: 'done' }])
   })
 
-  it('stops reading immediately after DONE without cancelling the provider stream', async () => {
+  it('joins every data field in one SSE event before parsing its JSON payload', async () => {
+    const frames: OpenAIStreamFrame[] = []
+    const upstream = streamFromByteChunks([bytes(
+      ': provider comment\n' +
+      'event: ignored-provider-event\n' +
+      'data: {"choices":[{"delta":\n' +
+      'data: {"content":"多行事件"}}]}\n\n' +
+      'data: [DONE]\n\n',
+    )])
+
+    await parseOpenAIStream(upstream, (frame) => frames.push(frame))
+
+    expect(frames).toEqual([
+      { type: 'delta', text: '多行事件' },
+      { type: 'done' },
+    ])
+  })
+
+  it('recognizes lone carriage returns as SSE line endings across chunks', async () => {
+    const frames: OpenAIStreamFrame[] = []
+    const payload = bytes(
+      'data: {"choices":[{"delta":{"content":"回车"}}]}\r\r' +
+      'data: [DONE]\r\r',
+    )
+    const upstream = streamFromByteChunks([
+      payload.slice(0, payload.length - 2),
+      payload.slice(payload.length - 2),
+    ])
+
+    await parseOpenAIStream(upstream, (frame) => frames.push(frame))
+
+    expect(frames).toEqual([
+      { type: 'delta', text: '回车' },
+      { type: 'done' },
+    ])
+  })
+
+  it('stops reading and safely cancels after DONE even when cancellation rejects', async () => {
     let pullCount = 0
     let cancelCount = 0
     const upstream = new ReadableStream<Uint8Array>({
@@ -88,6 +125,7 @@ describe('parseOpenAIStream', () => {
       },
       cancel() {
         cancelCount += 1
+        return Promise.reject(new Error('provider cancel failed'))
       },
     }, { highWaterMark: 0 })
     const frames: OpenAIStreamFrame[] = []
@@ -96,7 +134,26 @@ describe('parseOpenAIStream', () => {
 
     expect(frames).toEqual([{ type: 'done' }])
     expect(pullCount).toBe(1)
-    expect(cancelCount).toBe(0)
+    expect(cancelCount).toBe(1)
+  })
+
+  it('cancels after a parser error without masking that primary error', async () => {
+    let cancelCount = 0
+    const upstream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(bytes('data: {private-provider-body}\n\n'))
+      },
+      cancel() {
+        cancelCount += 1
+        return Promise.reject(new Error('provider cancel failed'))
+      },
+    }, { highWaterMark: 0 })
+
+    await expect(parseOpenAIStream(upstream, vi.fn())).rejects.toMatchObject({
+      code: 'invalid_upstream_stream',
+      message: 'invalid_upstream_stream',
+    })
+    expect(cancelCount).toBe(1)
   })
 
   it('rejects a malformed provider data frame without exposing its contents', async () => {
@@ -130,5 +187,15 @@ describe('parseOpenAIStream', () => {
     await expect(parseOpenAIStream(upstream, vi.fn())).rejects.toMatchObject({
       code: 'incomplete_upstream_stream',
     })
+  })
+
+  it('does not dispatch a pending data event that lacks the SSE blank-line terminator at EOF', async () => {
+    const frames: OpenAIStreamFrame[] = []
+    const upstream = streamFromByteChunks([bytes('data: [DONE]\n')])
+
+    await expect(parseOpenAIStream(upstream, (frame) => frames.push(frame))).rejects.toMatchObject({
+      code: 'incomplete_upstream_stream',
+    })
+    expect(frames).toEqual([])
   })
 })
