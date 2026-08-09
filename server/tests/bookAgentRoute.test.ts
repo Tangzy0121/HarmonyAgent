@@ -50,6 +50,7 @@ function appWith(
   fetchImpl: typeof fetch,
   apiKey = API_KEY,
   createTurnId: () => string = () => 'turn-test-1',
+  logger: (event: unknown) => void = vi.fn(),
 ) {
   const app = express()
   app.use(express.json())
@@ -61,6 +62,7 @@ function appWith(
       LLM_MODEL: '',
     },
     createTurnId,
+    logger,
   }))
   return app
 }
@@ -178,11 +180,30 @@ describe('POST /api/agent/book-chat', () => {
     expect(response.text).not.toContain(API_KEY)
   })
 
-  it.each([401, 429, 500])('maps upstream HTTP %s to a safe internal error event', async (status) => {
-    const providerBody = `provider-private-${status}-${API_KEY}`
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(providerBody, { status }))
+  it.each([
+    [401, 'invalid_api_key', 'authentication_error', 'authorization'],
+    [429, 'rate_limit', 'rate_limit_error', 'requests'],
+    [503, 'server_error', 'service_unavailable', 'upstream'],
+  ])('logs only safe provider identifiers for upstream HTTP %s', async (status, code, type, param) => {
+    const privateMessage = `provider-message-${API_KEY}-C:\\Users\\private\\server.ts-https://provider.example/?token=${API_KEY}`
+    const providerBody = JSON.stringify({
+      error: {
+        code,
+        type,
+        param,
+        message: privateMessage,
+        request: validBody(),
+      },
+    })
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(providerBody, {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    const logger = vi.fn()
 
-    const response = await request(appWith(fetchImpl)).post('/api/agent/book-chat').send(validBody())
+    const response = await request(appWith(fetchImpl, API_KEY, undefined, logger))
+      .post('/api/agent/book-chat')
+      .send(validBody())
 
     expect(response.status).toBe(200)
     const events = eventsFrom(response.text)
@@ -193,6 +214,91 @@ describe('POST /api/agent/book-chat', () => {
     })
     expect(response.text).not.toContain(providerBody)
     expect(response.text).not.toContain(API_KEY)
+    expect(logger).toHaveBeenCalledOnce()
+    expect(logger).toHaveBeenCalledWith({
+      category: 'upstream_http_error',
+      status,
+      provider: { code, type, param },
+    })
+    const serializedLogs = JSON.stringify(logger.mock.calls)
+    expect(serializedLogs).not.toContain(API_KEY)
+    expect(serializedLogs).not.toContain('provider-message')
+    expect(serializedLogs).not.toContain('C:\\Users')
+    expect(serializedLogs).not.toContain('?token=')
+  })
+
+  it('drops unsafe provider identifier values instead of logging them', async () => {
+    const logger = vi.fn()
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: `sk-${API_KEY}`,
+        type: 'provider_error',
+        param: 'C:\\private\\secret.txt',
+        message: `https://provider.example/?token=${API_KEY}`,
+      },
+    }), { status: 502, headers: { 'Content-Type': 'application/json' } }))
+
+    await request(appWith(fetchImpl, API_KEY, undefined, logger))
+      .post('/api/agent/book-chat')
+      .send(validBody())
+
+    expect(logger).toHaveBeenCalledWith({
+      category: 'upstream_http_error',
+      status: 502,
+      provider: { type: 'provider_error' },
+    })
+    const serializedLogs = JSON.stringify(logger.mock.calls)
+    expect(serializedLogs).not.toContain(API_KEY)
+    expect(serializedLogs).not.toContain('C:\\private')
+    expect(serializedLogs).not.toContain('?token=')
+  })
+
+  it('logs status only for non-JSON and oversized provider errors', async () => {
+    const logger = vi.fn()
+    const nonJsonFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      `plain-private-${API_KEY}-C:\\private\\provider.log`,
+      { status: 502, headers: { 'Content-Type': 'text/plain' } },
+    ))
+    const oversizedFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: 'server_error',
+        type: 'provider_error',
+        param: 'upstream',
+        message: `${'x'.repeat(9_000)}-${API_KEY}`,
+      },
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } }))
+
+    await request(appWith(nonJsonFetch, API_KEY, undefined, logger))
+      .post('/api/agent/book-chat')
+      .send(validBody())
+    await request(appWith(oversizedFetch, API_KEY, undefined, logger))
+      .post('/api/agent/book-chat')
+      .send(validBody())
+
+    expect(logger.mock.calls).toEqual([
+      [{ category: 'upstream_http_error', status: 502 }],
+      [{ category: 'upstream_http_error', status: 500 }],
+    ])
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
+  })
+
+  it('logs only a safe category and error name when fetch rejects', async () => {
+    const logger = vi.fn()
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(
+      new TypeError(`fetch-private-${API_KEY}-C:\\private\\network.ts`),
+    )
+
+    const response = await request(appWith(fetchImpl, API_KEY, undefined, logger))
+      .post('/api/agent/book-chat')
+      .send(validBody())
+
+    expect(eventsFrom(response.text).at(-1)).toEqual({
+      event: 'error',
+      data: { code: 'upstream_unavailable', message: '学习助手生成失败，请稍后重试。' },
+    })
+    expect(logger).toHaveBeenCalledWith({ category: 'upstream_fetch_error', name: 'TypeError' })
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('network.ts')
   })
 
   it('maps a malformed provider stream to a safe error event', async () => {
@@ -250,10 +356,11 @@ describe('POST /api/agent/book-chat', () => {
       observeSignal?.(signal)
       signal.addEventListener('abort', () => reject(signal.reason), { once: true })
     }))
+    const logger = vi.fn()
 
     try {
       const responsePromise = Promise.resolve(
-        request(appWith(fetchImpl)).post('/api/agent/book-chat').send(validBody()),
+        request(appWith(fetchImpl, API_KEY, undefined, logger)).post('/api/agent/book-chat').send(validBody()),
       )
       const upstreamSignal = await signalSeen
       expect(fireRouteTimeout).toBeTypeOf('function')
@@ -267,6 +374,7 @@ describe('POST /api/agent/book-chat', () => {
         code: 'upstream_timeout',
         message: '学习助手生成失败，请稍后重试。',
       })
+      expect(logger).toHaveBeenCalledWith({ category: 'upstream_timeout', name: 'TimeoutError' })
     } finally {
       timeoutSpy.mockRestore()
     }
@@ -281,7 +389,8 @@ describe('POST /api/agent/book-chat', () => {
       observeSignal?.(signal)
       signal.addEventListener('abort', () => reject(signal.reason), { once: true })
     }))
-    const server = http.createServer(appWith(fetchImpl))
+    const logger = vi.fn()
+    const server = http.createServer(appWith(fetchImpl, API_KEY, undefined, logger))
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const { port } = server.address() as AddressInfo
 
@@ -306,6 +415,7 @@ describe('POST /api/agent/book-chat', () => {
       const upstreamSignal = await signalSeen
       await responseClosed
       await vi.waitFor(() => expect(upstreamSignal.aborted).toBe(true))
+      expect(logger).not.toHaveBeenCalled()
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
     }
