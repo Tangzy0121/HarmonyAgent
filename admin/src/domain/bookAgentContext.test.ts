@@ -255,6 +255,79 @@ describe('buildBookAgentContext', () => {
     expect(source).toMatchObject({ chapterId: 'ch-2', blockId: 'later-shared-reference' })
   })
 
+  it('re-fits the final context after shared-source ownership grows during reassignment', () => {
+    const sharedAnchor = {
+      ...readyBook.chapters[0].blocks[0].sourceAnchors[0],
+      sourceId: 'shared-source',
+      fileName: 'f'.repeat(500),
+      pageRange: 'p'.repeat(200),
+      excerpt: 'e'.repeat(1_000),
+    }
+    const retainedAnchors = [sharedAnchor]
+    const independentAnchor = {
+      ...sharedAnchor,
+      sourceId: 'independent-retained-source',
+      fileName: 'f',
+      pageRange: '1',
+      excerpt: 'e',
+    }
+    const trimmedOwnerAnchors = [sharedAnchor, ...Array.from({ length: 1_500 }, (_, index) => ({
+      ...sharedAnchor,
+      sourceId: `trimmed-source-${index}`,
+      fileName: 'f',
+      pageRange: '1',
+      excerpt: 'e',
+    }))]
+    const longRetainedBlockId = 'retained-owner-'.repeat(180)
+    const nearLimitBook = {
+      ...allChaptersReady(),
+      chapters: allChaptersReady().chapters.map((chapter, index) => index === 0
+        ? {
+            ...chapter,
+            blocks: [{
+              ...chapter.blocks[0],
+              id: 'trimmed-first-owner',
+              status: 'ready' as const,
+              sourceAnchors: trimmedOwnerAnchors,
+            }],
+          }
+        : index === 1
+          ? {
+              ...chapter,
+              blocks: [
+                {
+                  ...chapter.blocks[0],
+                  id: 'small-retained-reference',
+                  status: 'ready' as const,
+                  sourceAnchors: [independentAnchor],
+                },
+                {
+                  ...chapter.blocks[0],
+                  id: longRetainedBlockId,
+                  status: 'ready' as const,
+                  sourceAnchors: retainedAnchors,
+                },
+              ],
+            }
+          : { ...chapter, status: 'pending' as const }),
+    }
+
+    const context = buildBookAgentContext(nearLimitBook, {
+      chapterId: 'ch-1',
+      scope: 'book',
+      focusBlockId: 'focus-'.repeat(2_800),
+    })
+    const sharedSource = context.sources.find((source) => source.sourceId === 'shared-source')
+
+    expect(JSON.stringify(context).length).toBeLessThanOrEqual(24_000)
+    expect(context.chapters.find((chapter) => chapter.id === 'ch-1')?.blocks).toEqual([])
+    expect(context.chapters.find((chapter) => chapter.id === 'ch-2')?.blocks.map((block) => block.id))
+      .toEqual(['small-retained-reference'])
+    expect(sharedSource).toBeUndefined()
+    expect(context.sources.every((source) => context.chapters.some((chapter) => chapter.id === source.chapterId
+      && chapter.blocks.some((block) => block.id === source.blockId)))).toBe(true)
+  })
+
   it('hard-bounds long chapter and source metadata with deterministic tail removal and valid shared sources', () => {
     const sharedAnchor = {
       ...readyBook.chapters[0].blocks[0].sourceAnchors[0],

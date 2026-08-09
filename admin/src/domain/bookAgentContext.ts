@@ -199,12 +199,14 @@ function fitWithinContextBudget(context: BookAgentContext): void {
     if (chapter) {
       const [removed] = chapter.blocks.splice(-1, 1)
       pruneUnusedSources(context)
+      reassignSourceOwners(context)
       recordWarning(context.warnings, `Context exceeded ${CONTEXT_CHARACTER_BUDGET} characters; block ${removed.id} was omitted.`)
       continue
     }
 
     const removedChapter = context.chapters.pop()
     if (removedChapter) {
+      reassignSourceOwners(context)
       recordWarning(context.warnings, `Context exceeded ${CONTEXT_CHARACTER_BUDGET} characters; chapter ${removedChapter.id} was omitted.`)
       continue
     }
@@ -236,7 +238,7 @@ export function buildBookAgentContext(book: LearningBook, options: BuildBookAgen
   }
   assignSources(context, candidates, warnings)
   fitChaptersWithinBudget(context)
-  fitWithinContextBudget(context)
   reassignSourceOwners(context)
+  fitWithinContextBudget(context)
   return context
 }
