@@ -10,6 +10,7 @@ interface AgentDrawerProps {
   snap: DrawerSnap
   activeDestination: Destination
   contextLabel?: string
+  modeLabel?: string
   draft: string
   onDraftChange: (draft: string) => void
   onSnapChange: (snap: DrawerSnap) => void
@@ -37,6 +38,7 @@ export function AgentDrawer({
   snap,
   activeDestination,
   contextLabel,
+  modeLabel,
   draft,
   onDraftChange,
   onSnapChange,
@@ -203,6 +205,7 @@ export function AgentDrawer({
           <>
             <header className="drawer-header">
               <div className="agent-identity"><Icon name="blossom" size={18} /><span>Knowledge Agent</span></div>
+              {modeLabel && <span className="agent-workflow-label">{modeLabel}</span>}
               <h2>{isFullScreen && messages.length ? agentConversation.title : '从当前内容开始'}</h2>
               <p>{isFullScreen && messages.length ? '围绕当前知识点继续追问，引用会保留来源位置。' : '我会结合页面上下文，帮你整理概念和下一步。'}</p>
             </header>

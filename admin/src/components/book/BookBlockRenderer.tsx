@@ -1,0 +1,103 @@
+import { useState } from 'react'
+import { Icon } from '../Icon'
+import type { BookBlock, QuizAttempt, UserNote } from '../../types/learningBook'
+
+interface BookBlockRendererProps {
+  block: BookBlock
+  note?: UserNote
+  attempt?: QuizAttempt
+  onRegenerate: (blockId: string) => void
+  onSubmitQuiz: (blockId: string, answerId: string) => void
+  onUpdateNote: (noteId: string, body: string) => void
+  onStartDeepLearning: (blockId: string) => void
+}
+
+export function BookBlockRenderer({ block, note, attempt, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning }: BookBlockRendererProps) {
+  const [selectedAnswer, setSelectedAnswer] = useState(attempt?.answerId ?? '')
+  const canRegenerate = block.type !== 'citation' && block.type !== 'user_note'
+
+  const content = (() => {
+    switch (block.type) {
+      case 'explanation':
+        return <><p>{block.body}</p><aside className="book-block__key-point"><Icon name="spark" size={18} /><span>{block.keyPoint}</span></aside></>
+      case 'example':
+        return <><p>{block.scenario}</p><p className="book-block__takeaway"><strong>带走一句：</strong>{block.takeaway}</p></>
+      case 'formula':
+        return <><div className="book-block__formula">{block.formula}</div><p>{block.explanation}</p></>
+      case 'citation':
+        return <blockquote><p>“{block.excerpt}”</p><cite><Icon name="quote" size={15} />{block.location}</cite></blockquote>
+      case 'concept':
+        return <div className="book-concept-list">
+          {block.concepts.map((concept) => (
+            <article key={concept.id}>
+              <span>{concept.label}</span><p>{concept.description}</p><small>{concept.learningState}</small>
+            </article>
+          ))}
+          {block.relations.map((relation) => (
+            <p className="book-concept-relation" key={relation.id}>
+              {block.concepts.find((item) => item.id === relation.sourceId)?.label} → {relation.type} → {block.concepts.find((item) => item.id === relation.targetId)?.label}
+            </p>
+          ))}
+        </div>
+      case 'quiz':
+        return <div className="book-quiz">
+          <p className="book-quiz__question">{block.question}</p>
+          <div className="book-quiz__options">
+            {block.options.map((option) => (
+              <button
+                type="button"
+                key={option.id}
+                className={selectedAnswer === option.id ? 'is-selected' : ''}
+                disabled={Boolean(attempt)}
+                onClick={() => setSelectedAnswer(option.id)}
+              ><span>{option.marker}</span>{option.text}</button>
+            ))}
+          </div>
+          {attempt ? (
+            <p className={`book-quiz__feedback ${attempt.isCorrect ? 'is-correct' : ''}`} role="status">
+              {attempt.isCorrect ? '回答正确。' : '这次还没有答对。'} {block.feedback}
+            </p>
+          ) : (
+            <button type="button" className="book-block__primary" disabled={!selectedAnswer} onClick={() => onSubmitQuiz(block.id, selectedAnswer)}>提交答案</button>
+          )}
+        </div>
+      case 'user_note':
+        return <div className="book-user-note">
+          <Icon name="note" size={19} />
+          <textarea
+            value={note?.body ?? ''}
+            aria-label="我的学习笔记"
+            placeholder="写下你的理解、疑问或例子。重新生成本章时，这条笔记仍会保留。"
+            onChange={(event) => onUpdateNote(block.noteId, event.target.value)}
+          />
+        </div>
+      default:
+        return <p className="book-block__unsupported" role="alert">这一内容块暂不受当前版本支持，请稍后重试或重新生成本章。</p>
+    }
+  })()
+
+  return (
+    <article className={`book-block book-block--${block.type}`}>
+      <header>
+        <div><span className="book-block__type">{blockTypeLabel[block.type]}</span><h2>{block.title}</h2></div>
+        {canRegenerate && <button type="button" onClick={() => onRegenerate(block.id)} aria-label={`重新生成${block.title}`}><Icon name="refresh" size={16} />重生成</button>}
+      </header>
+      {content}
+      {block.type !== 'quiz' && block.type !== 'user_note' && (
+        <footer>
+          <button type="button" onClick={() => onStartDeepLearning(block.id)}>深入学习这一段 <Icon name="arrow" size={15} /></button>
+        </footer>
+      )}
+    </article>
+  )
+}
+
+const blockTypeLabel: Record<BookBlock['type'], string> = {
+  explanation: '核心讲解',
+  example: '例子',
+  formula: '公式',
+  citation: '原文依据',
+  concept: '知识节点',
+  quiz: '快速验证',
+  user_note: '我的笔记',
+}

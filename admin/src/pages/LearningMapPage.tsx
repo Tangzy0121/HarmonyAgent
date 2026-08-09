@@ -14,7 +14,9 @@ import {
   type KnowledgeNode,
 } from '../data/learningMap'
 import { useMapGesture } from '../hooks/useMapGesture'
+import { projectLearningEvidence } from '../domain/learningProjection'
 import { lociGlassPresets } from '../types/materials'
+import type { LearningEvidence } from '../types/learningBook'
 import type { MapViewport } from '../types/prototype'
 
 interface LearningMapPageProps {
@@ -23,6 +25,7 @@ interface LearningMapPageProps {
   onViewportChange: (viewport: MapViewport) => void
   isChangeFocus?: boolean
   onScheduleNext?: () => void
+  learningEvidence?: LearningEvidence[]
 }
 
 const learningStateStyle: Record<KnowledgeNode['learningState'], {
@@ -57,7 +60,7 @@ function buildRelationshipPath(from: KnowledgeNode, to: KnowledgeNode) {
   ].join(' ')
 }
 
-export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onScheduleNext }: LearningMapPageProps) {
+export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onScheduleNext, learningEvidence = [] }: LearningMapPageProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const previousViewportRef = useRef<MapViewport | null>(null)
   const hasAutoFocusedRef = useRef(false)
@@ -71,10 +74,11 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
     onViewportChange,
   })
 
-  const nodeById = useMemo(() => new Map(knowledgeNodes.map((node) => [node.id, node])), [])
+  const projectedNodes = useMemo(() => projectLearningEvidence(knowledgeNodes, learningEvidence), [learningEvidence])
+  const nodeById = useMemo(() => new Map(projectedNodes.map((node) => [node.id, node])), [projectedNodes])
   const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) : undefined
   const activeNodeId = viewport.focusedNodeId ?? selectedNodeId
-  const reviewCount = knowledgeNodes.filter((node) => node.learningState === '待复习').length
+  const reviewCount = projectedNodes.filter((node) => node.learningState === '待复习').length
   const changeTarget = nodeById.get('supervised-learning')
 
   const selectNode = (node: KnowledgeNode) => {
@@ -139,7 +143,7 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
           spec={{ ...lociGlassPresets.refractive, cornerRadius: 24, interactionStrength: 0 }}
         >
           <div className="learning-page__header">
-            <MobileTopBar title="学习地图" titleId="learning-title" subtitle={`${knowledgeNodes.length} 个主题 · ${reviewCount} 个待复习`} showProfile={false} />
+            <MobileTopBar title="学习地图" titleId="learning-title" subtitle={`${projectedNodes.length} 个主题 · ${reviewCount} 个待复习`} showProfile={false} />
           </div>
           <div className="map-filter-row">
             <MapFilterBar value={filter} onChange={setFilter} />
@@ -202,7 +206,7 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
             })}
           </svg>
 
-          {knowledgeNodes.map((node) => {
+          {projectedNodes.map((node) => {
             const isFocused = activeNodeId === node.id
             const isRecentChange = isChangeFocus && node.id === 'supervised-learning'
             const categoryLabel = categoryLegend.find((item) => item.category === node.category)?.label

@@ -6,9 +6,10 @@ import { libraryPageContent } from '../data/libraryPage'
 interface PageProps {
   isActive: boolean
   onOpenDocument: (documentId: string) => void
+  bookStatusLabel?: string
 }
 
-export function KnowledgeLibraryPage({ isActive, onOpenDocument }: PageProps) {
+export function KnowledgeLibraryPage({ isActive, onOpenDocument, bookStatusLabel }: PageProps) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'全部' | '资料' | '笔记'>('全部')
   const visibleItems = useMemo(() => libraryPageContent.items.filter((item) => (
@@ -50,7 +51,7 @@ export function KnowledgeLibraryPage({ isActive, onOpenDocument }: PageProps) {
               <strong>{item.name}</strong>
               <small>{item.detail}</small>
             </span>
-            <span className={`library-row-v4__status library-row-v4__status--${item.status}`}>{item.status}</span>
+            <span className={`library-row-v4__status library-row-v4__status--${item.status}`}>{item.id === 'ml-chapter-03' && bookStatusLabel ? bookStatusLabel : item.status}</span>
             <Icon name="arrow" size={16} />
           </button>
         ))}
