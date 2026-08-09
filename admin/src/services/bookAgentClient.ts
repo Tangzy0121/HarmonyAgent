@@ -147,6 +147,8 @@ export async function streamBookAgent(
   let buffer = ''
   let terminal = false
   let pendingCarriageReturn = false
+  let reachedNaturalEof = false
+  let shouldCancel = false
 
   const normalizeLineEndings = (text: string, flush = false): string => {
     let normalized = ''
@@ -189,16 +191,39 @@ export async function streamBookAgent(
     }
   }
 
-  while (!terminal) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += normalizeLineEndings(decoder.decode(value, { stream: true }))
-    dispatchCompleteFrames()
-  }
+  try {
+    while (!terminal) {
+      const { value, done } = await reader.read()
+      if (done) {
+        reachedNaturalEof = true
+        break
+      }
+      buffer += normalizeLineEndings(decoder.decode(value, { stream: true }))
+      dispatchCompleteFrames()
+    }
 
-  if (!terminal) {
-    buffer += normalizeLineEndings(decoder.decode(), true)
-    dispatchCompleteFrames()
-    if (!terminal) throw new BookAgentClientError('incomplete_stream', INCOMPLETE_STREAM_MESSAGE)
+    if (terminal && !reachedNaturalEof) shouldCancel = true
+    if (!terminal) {
+      buffer += normalizeLineEndings(decoder.decode(), true)
+      dispatchCompleteFrames()
+      if (terminal && !reachedNaturalEof) shouldCancel = true
+      if (!terminal) throw new BookAgentClientError('incomplete_stream', INCOMPLETE_STREAM_MESSAGE)
+    }
+  } catch (error) {
+    if (!reachedNaturalEof) shouldCancel = true
+    throw error
+  } finally {
+    if (shouldCancel) {
+      try {
+        await reader.cancel()
+      } catch {
+        // Cancellation cleanup cannot replace a terminal result or primary parse/callback error.
+      }
+    }
+    try {
+      reader.releaseLock()
+    } catch {
+      // A cleanup failure cannot change the externally observed stream result.
+    }
   }
 }

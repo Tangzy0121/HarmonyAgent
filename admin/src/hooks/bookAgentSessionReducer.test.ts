@@ -191,4 +191,22 @@ describe('completeBookAgentHistory', () => {
       { role: 'assistant', content: 'message 5' },
     ])
   })
+
+  it('keeps adjacent complete user-assistant pairs and drops orphaned failed or cancelled turns', () => {
+    const messages: BookAgentMessage[] = [
+      { id: 'u1', role: 'user', content: 'completed question', status: 'complete', createdAt: '1' },
+      { id: 'a1', role: 'assistant', content: 'completed answer', status: 'complete', createdAt: '2' },
+      { id: 'u2', role: 'user', content: 'failed question', status: 'complete', createdAt: '3' },
+      { id: 'a2', role: 'assistant', content: 'partial failure', status: 'error', createdAt: '4' },
+      { id: 'u3', role: 'user', content: 'cancelled question', status: 'complete', createdAt: '5' },
+      { id: 'a3', role: 'assistant', content: 'partial cancellation', status: 'cancelled', createdAt: '6' },
+      { id: 'orphan-a', role: 'assistant', content: 'legacy orphan', status: 'complete', createdAt: '7' },
+      { id: 'orphan-u', role: 'user', content: 'legacy user', status: 'complete', createdAt: '8' },
+    ]
+
+    expect(completeBookAgentHistory(messages)).toEqual([
+      { role: 'user', content: 'completed question' },
+      { role: 'assistant', content: 'completed answer' },
+    ])
+  })
 })

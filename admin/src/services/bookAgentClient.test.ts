@@ -31,6 +31,19 @@ function encodedChunks(text: string, boundaries: number[]): Uint8Array[] {
   return points.slice(0, -1).map((start, index) => bytes.slice(start, points[index + 1]))
 }
 
+function readerResponse(read: () => Promise<ReadableStreamReadResult<Uint8Array>>) {
+  const reader = {
+    read: vi.fn(read),
+    cancel: vi.fn(async () => undefined),
+    releaseLock: vi.fn(),
+  }
+  const response = {
+    ok: true,
+    body: { getReader: () => reader },
+  } as unknown as Response
+  return { reader, response }
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -149,6 +162,57 @@ describe('streamBookAgent', () => {
       code: 'upstream_unavailable',
       message: '学习助手生成失败，请稍后重试。',
     }])
+  })
+
+  it('cancels an open reader after a terminal event and releases it even if cancellation rejects', async () => {
+    const terminal = new TextEncoder().encode('event: done\ndata: {}\n\n')
+    const { reader, response } = readerResponse(async () => ({ done: false, value: terminal }))
+    reader.cancel.mockRejectedValueOnce(new Error('cancel failed'))
+    vi.stubGlobal('fetch', vi.fn(async () => response))
+
+    await expect(streamBookAgent(request, { onEvent: vi.fn() })).resolves.toBeUndefined()
+
+    expect(reader.read).toHaveBeenCalledOnce()
+    expect(reader.cancel).toHaveBeenCalledOnce()
+    expect(reader.releaseLock).toHaveBeenCalledOnce()
+  })
+
+  it('cancels and releases an open reader without masking malformed-event or callback errors', async () => {
+    const cases = [
+      {
+        payload: 'event: delta\ndata: {bad}\n\n',
+        onEvent: vi.fn(),
+        expected: expect.objectContaining({ code: 'invalid_stream' }),
+      },
+      {
+        payload: 'event: delta\ndata: {"text":"hello"}\n\n',
+        onEvent: () => { throw new Error('render failed') },
+        expected: expect.objectContaining({ message: 'render failed' }),
+      },
+    ]
+
+    for (const testCase of cases) {
+      const chunk = new TextEncoder().encode(testCase.payload)
+      const { reader, response } = readerResponse(async () => ({ done: false, value: chunk }))
+      reader.cancel.mockRejectedValueOnce(new Error('cancel failed'))
+      vi.stubGlobal('fetch', vi.fn(async () => response))
+
+      await expect(streamBookAgent(request, { onEvent: testCase.onEvent })).rejects.toEqual(testCase.expected)
+      expect(reader.cancel).toHaveBeenCalledOnce()
+      expect(reader.releaseLock).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('releases but does not cancel after natural EOF', async () => {
+    const { reader, response } = readerResponse(async () => ({ done: true, value: undefined }))
+    vi.stubGlobal('fetch', vi.fn(async () => response))
+
+    await expect(streamBookAgent(request, { onEvent: vi.fn() })).rejects.toEqual(
+      expect.objectContaining({ code: 'incomplete_stream' }),
+    )
+
+    expect(reader.cancel).not.toHaveBeenCalled()
+    expect(reader.releaseLock).toHaveBeenCalledOnce()
   })
 
   it('ignores unknown events but rejects EOF without done or error', async () => {

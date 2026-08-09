@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import { buildBookAgentContext } from '../domain/bookAgentContext'
 import {
@@ -55,22 +55,41 @@ export function completeBookAgentHistory(
   messages: BookAgentMessage[],
   retriedQuestion?: string,
 ): BookAgentClientHistoryMessage[] {
-  let complete = messages
-    .filter((message) => message.status === 'complete' && message.content.trim())
-    .map((message) => ({ role: message.role, content: message.content }))
-
+  let cutoff = messages.length
   if (retriedQuestion !== undefined) {
-    let questionIndex = -1
-    for (let index = complete.length - 1; index >= 0; index -= 1) {
-      const message = complete[index]
-      if (message.role === 'user' && message.content === retriedQuestion) {
-        questionIndex = index
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (
+        message.role === 'user'
+        && message.status === 'complete'
+        && message.content === retriedQuestion
+      ) {
+        cutoff = index
         break
       }
     }
-    if (questionIndex >= 0) complete = complete.slice(0, questionIndex)
   }
-  return complete.slice(-6)
+
+  const paired: BookAgentClientHistoryMessage[] = []
+  for (let index = 0; index + 1 < cutoff; index += 1) {
+    const user = messages[index]
+    const assistant = messages[index + 1]
+    if (
+      user.role === 'user'
+      && user.status === 'complete'
+      && user.content.trim()
+      && assistant.role === 'assistant'
+      && assistant.status === 'complete'
+      && assistant.content.trim()
+    ) {
+      paired.push(
+        { role: 'user', content: user.content },
+        { role: 'assistant', content: assistant.content },
+      )
+      index += 1
+    }
+  }
+  return paired.slice(-6)
 }
 
 export function useBookAgentSessions({
@@ -85,6 +104,8 @@ export function useBookAgentSessions({
   const activeRef = useRef<ActiveRequest | null>(null)
   const [focusBySession, setFocusBySession] = useState<Record<string, string | undefined>>({})
   const sessionKey = bookAgentSessionKey(book.id, activeChapterId, scope)
+  const renderedSessionKeyRef = useRef(sessionKey)
+  renderedSessionKeyRef.current = sessionKey
 
   const dispatch = useCallback((action: BookAgentSessionAction) => {
     stateRef.current = bookAgentSessionReducer(stateRef.current, action)
@@ -114,7 +135,12 @@ export function useBookAgentSessions({
 
     const onEvent = (event: BookAgentClientEvent): void => {
       const active = activeRef.current
-      if (!active || active.requestId !== requestId || active.sessionKey !== targetSessionKey) return
+      if (
+        renderedSessionKeyRef.current !== targetSessionKey
+        || !active
+        || active.requestId !== requestId
+        || active.sessionKey !== targetSessionKey
+      ) return
       if (event.type === 'start') {
         dispatch({ type: 'start', sessionKey: targetSessionKey, requestId, turnId: event.turnId })
       } else if (event.type === 'delta') {
@@ -141,7 +167,12 @@ export function useBookAgentSessions({
       await streamBookAgent({ question, history, context }, { signal: controller.signal, onEvent })
     } catch (error) {
       const active = activeRef.current
-      if (!active || active.requestId !== requestId || active.sessionKey !== targetSessionKey) return
+      if (
+        renderedSessionKeyRef.current !== targetSessionKey
+        || !active
+        || active.requestId !== requestId
+        || active.sessionKey !== targetSessionKey
+      ) return
       activeRef.current = null
       if (isAbortError(error)) {
         dispatch({ type: 'cancel', sessionKey: targetSessionKey, requestId })
@@ -215,7 +246,7 @@ export function useBookAgentSessions({
   }, [cancelActive, dispatch, sessionKey])
 
   const previousSessionKey = useRef(sessionKey)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previous = previousSessionKey.current
     if (previous !== sessionKey && activeRef.current?.sessionKey === previous) cancelActive()
     previousSessionKey.current = sessionKey
