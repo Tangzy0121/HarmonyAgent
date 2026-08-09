@@ -148,7 +148,12 @@ describe('POST /api/agent/book-chat', () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamStream([
       'data: {"choices":[{"delta":{"content":"标签提供"}}]}\n\n',
       'data: {"choices":[{"delta":{"content":"学习目标。[S1]"}}]}\n\n',
-      'data: {"choices":[],"usage":{"prompt_tokens":20,"completion_tokens":5,"total_tokens":25}}\n\n',
+      'data: {"choices":[],"usage":{' +
+      '"prompt_tokens":20,"completion_tokens":5,"total_tokens":25,' +
+      '"prompt_cache_hit_tokens":12,"prompt_cache_miss_tokens":8,' +
+      '"prompt_tokens_details":{"cached_tokens":12},' +
+      '"completion_tokens_details":{"reasoning_tokens":2},' +
+      '"provider_internal":"private"}}\n\n',
       'data: [DONE]\n\n',
     ]))
 
@@ -181,7 +186,13 @@ describe('POST /api/agent/book-chat', () => {
     expect(events[0].data).toEqual({ turnId: 'turn-test-1' })
     expect(events[1].data).toEqual({ sources: validBody().context.sources })
     expect(events[4].data).toEqual({
-      usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+      usage: {
+        prompt_tokens: 20,
+        completion_tokens: 5,
+        total_tokens: 25,
+        prompt_cache_hit_tokens: 12,
+        prompt_cache_miss_tokens: 8,
+      },
     })
     expect(response.text).not.toContain(API_KEY)
   })

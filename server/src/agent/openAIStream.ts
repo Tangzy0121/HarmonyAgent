@@ -1,4 +1,4 @@
-export type OpenAIStreamUsage = Record<string, unknown>
+export type OpenAIStreamUsage = Record<string, number>
 
 export type OpenAIStreamFrame =
   | { type: 'delta'; text: string }
@@ -21,8 +21,28 @@ export class OpenAIStreamParseError extends Error {
 
 type FrameHandler = (frame: OpenAIStreamFrame) => void | Promise<void>
 
+const USAGE_COUNTERS = [
+  'prompt_tokens',
+  'completion_tokens',
+  'total_tokens',
+  'prompt_cache_hit_tokens',
+  'prompt_cache_miss_tokens',
+] as const
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeUsage(value: unknown): OpenAIStreamUsage | undefined {
+  if (!isRecord(value)) return undefined
+  const usage: OpenAIStreamUsage = {}
+  for (const key of USAGE_COUNTERS) {
+    const counter = value[key]
+    if (typeof counter === 'number' && Number.isSafeInteger(counter) && counter >= 0) {
+      usage[key] = counter
+    }
+  }
+  return Object.keys(usage).length > 0 ? usage : undefined
 }
 
 async function dispatchDataEvent(dataLines: string[], onFrame: FrameHandler): Promise<boolean> {
@@ -51,8 +71,9 @@ async function dispatchDataEvent(dataLines: string[], onFrame: FrameHandler): Pr
       }
     }
   }
-  if (isRecord(payload.usage)) {
-    await onFrame({ type: 'usage', usage: payload.usage })
+  const usage = normalizeUsage(payload.usage)
+  if (usage) {
+    await onFrame({ type: 'usage', usage })
   }
   return false
 }

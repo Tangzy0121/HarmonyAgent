@@ -50,6 +50,52 @@ describe('parseOpenAIStream', () => {
     ])
   })
 
+  it('normalizes DeepSeek usage to closed top-level numeric token counters', async () => {
+    const frames: OpenAIStreamFrame[] = []
+    const upstream = streamFromByteChunks([bytes(
+      'data: {"choices":[],"usage":{' +
+      '"prompt_tokens":120,"completion_tokens":30,"total_tokens":150,' +
+      '"prompt_cache_hit_tokens":80,"prompt_cache_miss_tokens":40,' +
+      '"prompt_tokens_details":{"cached_tokens":80},' +
+      '"completion_tokens_details":{"reasoning_tokens":12},' +
+      '"unknown_tokens":999}}\n\n' +
+      'data: [DONE]\n\n',
+    )])
+
+    await parseOpenAIStream(upstream, (frame) => frames.push(frame))
+
+    expect(frames).toEqual([
+      {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 120,
+          completion_tokens: 30,
+          total_tokens: 150,
+          prompt_cache_hit_tokens: 80,
+          prompt_cache_miss_tokens: 40,
+        },
+      },
+      { type: 'done' },
+    ])
+  })
+
+  it('omits usage when no known counter is a finite nonnegative safe integer', async () => {
+    const frames: OpenAIStreamFrame[] = []
+    const upstream = streamFromByteChunks([bytes(
+      'data: {"choices":[],"usage":{' +
+      '"prompt_tokens":-1,"completion_tokens":1.5,' +
+      '"total_tokens":9007199254740992,' +
+      '"prompt_cache_hit_tokens":"20",' +
+      '"prompt_tokens_details":{"cached_tokens":20},' +
+      '"unknown_tokens":12}}\n\n' +
+      'data: [DONE]\n\n',
+    )])
+
+    await parseOpenAIStream(upstream, (frame) => frames.push(frame))
+
+    expect(frames).toEqual([{ type: 'done' }])
+  })
+
   it('ignores blank, comment, non-data, and empty data lines', async () => {
     const frames: OpenAIStreamFrame[] = []
     const upstream = streamFromByteChunks([
