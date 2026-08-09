@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { llmRouter } from './routes/llm.js';
+import { createBookAgentRouter } from './routes/bookAgent.js';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.get('/health', (_req, res) => {
 // LLM 代理路由（挂载在两个前缀下，兼容 admin 代理 /api 和 鸿蒙端 /v1）
 app.use('/v1', llmRouter);
 app.use('/api', llmRouter);
+app.use('/api/agent', createBookAgentRouter());
 
 app.listen(PORT, () => {
   console.log(`[HarmonyAgent Server] running on http://localhost:${PORT}`);
