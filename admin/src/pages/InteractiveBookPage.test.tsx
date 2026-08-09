@@ -46,4 +46,25 @@ describe('InteractiveBookPage', () => {
     expect(html).toContain('正在生成第一章')
     expect(html).toContain('完成本章生成')
   })
+
+  it('describes later chapter generation without calling it the first chapter', () => {
+    const thirdChapterBook = advanceGeneration(advanceGeneration(learningBookFixture))
+    const html = renderToStaticMarkup(
+      <InteractiveBookPage
+        book={thirdChapterBook}
+        activeChapterId="ch-3"
+        contextScope="chapter"
+        onAskAgent={() => undefined}
+        onBack={() => undefined}
+        onBookChange={() => undefined}
+        onChapterChange={() => undefined}
+        onContextScopeChange={() => undefined}
+        onStartDeepLearning={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('正在生成第三章')
+    expect(html).toContain('本章完成后即可开始阅读')
+    expect(html).not.toContain('第一章完成后')
+  })
 })

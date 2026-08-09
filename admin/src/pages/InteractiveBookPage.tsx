@@ -41,7 +41,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
             <span className="book-generating-state__orb"><Icon name="spark" size={34} /></span>
             <p>第 {activeChapter.order + 1} 章 · 正在理解原文</p>
             <h1 id="interactive-book-title">正在生成第{chapterOrdinal}章</h1>
-            <span>Agent 正在依据第 {activeChapter.sourceAnchors.map((anchor) => anchor.pageRange).join('、')} 页组织讲解、例子和验证题。第一章完成后即可开始阅读，后续章节会继续生成。</span>
+            <span>Agent 正在依据第 {activeChapter.sourceAnchors.map((anchor) => anchor.pageRange).join('、')} 页组织讲解、例子和验证题。本章完成后即可开始阅读，后续章节会继续生成。</span>
             <div className="book-generating-state__steps"><i className="is-done" /><i className="is-active" /><i /><i /></div>
             <button type="button" onClick={() => onBookChange(advanceGeneration(book))}>完成本章生成 <Icon name="arrow" size={17} /></button>
           </section>

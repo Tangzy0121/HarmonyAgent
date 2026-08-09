@@ -5103,6 +5103,15 @@ button:disabled {
     linear-gradient(180deg, #fbfaf7 0%, #f5f1eb 100%);
 }
 
+.prototype-app--book .app-shell__content {
+  container-name: interactive-book-shell;
+  container-type: inline-size;
+}
+
+.prototype-app--book.prototype-app--third-batch-shell .app-shell__identity {
+  display: none;
+}
+
 .agent-workflow-label { display: inline-flex; width: fit-content; margin: 8px auto 0; padding: 5px 9px; border: 1px solid rgb(255 255 255 / 0.16); border-radius: 999px; color: rgb(255 255 255 / 0.66); font-size: 0.6rem; font-weight: 680; }
 .today-learning-evidence { margin: 12px 20px 0; padding: 11px 13px; border: 1px solid rgb(61 117 84 / 0.14); border-radius: 12px; color: #35684c; background: rgb(116 170 137 / 0.1); font-size: 0.7rem; font-weight: 680; }
 
@@ -5330,7 +5339,7 @@ button:disabled {
   50% { transform: translateY(-6px) scale(1.035); box-shadow: 0 28px 70px rgb(139 88 72 / 0.24); }
 }
 
-@media (min-width: 860px) {
+@container interactive-book-shell (min-width: 860px) {
   .interactive-book-page { grid-template-columns: 260px minmax(0, 1fr); }
   .interactive-book-navigation__source { display: flex; align-items: center; gap: 6px; color: rgb(35 31 29 / 0.48); font-size: 0.65rem; }
   .book-generation-rail { position: sticky; top: calc(62px + env(safe-area-inset-top)); display: block; height: calc(100dvh - 62px - env(safe-area-inset-top)); padding: 30px 15px; border-right: 1px solid rgb(35 31 29 / 0.08); }

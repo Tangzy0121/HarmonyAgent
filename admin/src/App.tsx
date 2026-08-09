@@ -409,7 +409,7 @@ function App() {
 
   return (
     <AppShell
-      className={`prototype-app--lighting-pilot prototype-app--third-batch-shell ${isPrimaryShell ? '' : 'prototype-app--third-batch-deep'} ${isThirdBatchToday ? 'prototype-app--third-batch-today' : ''}`}
+      className={`prototype-app--lighting-pilot prototype-app--third-batch-shell ${isPrimaryShell ? '' : 'prototype-app--third-batch-deep'} ${activeDocumentId || isInteractiveBook ? 'prototype-app--book' : ''} ${isThirdBatchToday ? 'prototype-app--third-batch-today' : ''}`}
       identity={<AppIdentityBar />}
       controls={
         activeDocumentId || isInteractiveBook || activeLearningId || isMapChangeFocus ? null : <>
