@@ -282,7 +282,7 @@ export function AgentDrawer({
                     </p>
                     {message.status === 'cancelled' && <span className="agent-message__status">已停止</span>}
                     {message.status === 'error' && <span className="agent-message__status agent-message__status--error">{bookSession.errorMessage ?? '本次回答生成失败。'}</span>}
-                    {sources.length > 0 && <ul className="agent-source-list" aria-label="回答引用的原文依据">
+                    {sources.length > 0 && <ul className="agent-source-list" role="list" aria-label="回答引用的原文依据">
                       {sources.map((source) => <li key={source.id}><button
                           className="agent-source-card"
                           type="button"

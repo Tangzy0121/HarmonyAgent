@@ -239,6 +239,7 @@ describe('AgentDrawer controlled learning-book mode', () => {
 
     expect(labelledDivs.every((tag) => /\brole=/u.test(tag))).toBe(true)
     expect(sourceHtml).toMatch(/<ul\b[^>]*aria-label="回答引用的原文依据"/u)
+    expect(sourceHtml).toMatch(/<ul\b[^>]*\brole="list"[^>]*aria-label="回答引用的原文依据"/u)
     expect(sourceHtml).toMatch(/<li><button\b/u)
     expect(sourceHtml).not.toMatch(/<section\b[^>]*aria-label="回答引用的原文依据"/u)
     expect(sourceHtml).toContain('aria-label="查看证据 S1：机器学习 · 第三章.pdf 第 4–6 页"')
