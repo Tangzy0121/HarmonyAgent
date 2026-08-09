@@ -163,9 +163,58 @@ describe('buildBookAgentContext', () => {
     const context = buildBookAgentContext(largeChapter, { chapterId: 'ch-1', scope: 'chapter' })
 
     expect(context.chapters[0].blocks.reduce((size, block) => size + block.content.length, 0)).toBeLessThanOrEqual(8_000)
-    const lastBlock = context.chapters[0].blocks[context.chapters[0].blocks.length - 1]
-    expect(lastBlock?.content.endsWith('…已截断')).toBe(true)
+    expect(JSON.stringify(context.chapters[0]).length).toBeLessThanOrEqual(8_000)
     expect(context.warnings.join(' ')).toContain('ch-1')
+  })
+
+  it('bounds the final serialized chapter, including block metadata and source references, at 8,000 characters', () => {
+    const sharedAnchor = readyBook.chapters[0].blocks[0].sourceAnchors[0]
+    const metadataHeavyChapter = {
+      ...readyBook,
+      chapters: readyBook.chapters.map((chapter) => chapter.id === 'ch-1'
+        ? {
+            ...chapter,
+            title: 'chapter-title-'.repeat(39),
+            objective: 'chapter-objective-'.repeat(53),
+            blocks: Array.from({ length: 5 }, (_, index) => ({
+              ...chapter.blocks[0],
+              id: `metadata-heavy-${index}`,
+              status: 'ready' as const,
+              title: 'block-title-'.repeat(42),
+              body: 'body-'.repeat(180),
+              keyPoint: `key-${index}`,
+              sourceAnchors: [sharedAnchor],
+            })),
+          }
+        : chapter),
+    }
+
+    const context = buildBookAgentContext(metadataHeavyChapter, { chapterId: 'ch-1', scope: 'chapter' })
+    const repeated = buildBookAgentContext(metadataHeavyChapter, { chapterId: 'ch-1', scope: 'chapter' })
+    const chapter = context.chapters[0]
+    const sourceIds = new Set<string>(context.sources.map((source) => source.id))
+
+    expect(JSON.stringify(chapter).length).toBeLessThanOrEqual(8_000)
+    expect(chapter.blocks).toHaveLength(4)
+    expect(chapter.blocks.map((block) => block.id)).toEqual(repeated.chapters[0].blocks.map((block) => block.id))
+    expect(chapter.blocks.every((block) => block.sourceIds.every((sourceId) => sourceIds.has(sourceId)))).toBe(true)
+    expect(context.sources.every((source) => source.chapterId === chapter.id
+      && chapter.blocks.some((block) => block.id === source.blockId))).toBe(true)
+  })
+
+  it('throws a stable controlled error when a chapter identity alone exceeds its final budget', () => {
+    const oversizedChapterId = 'chapter-id-'.repeat(1_000)
+    const oversizedChapter = {
+      ...readyBook,
+      chapters: readyBook.chapters.map((chapter) => chapter.id === 'ch-1'
+        ? { ...chapter, id: oversizedChapterId }
+        : chapter),
+    }
+
+    expect(() => buildBookAgentContext(oversizedChapter, {
+      chapterId: oversizedChapterId,
+      scope: 'chapter',
+    })).toThrow('BOOK_AGENT_CHAPTER_BUDGET_EXCEEDED')
   })
 
   it('hard-bounds long chapter and source metadata with deterministic tail removal and valid shared sources', () => {

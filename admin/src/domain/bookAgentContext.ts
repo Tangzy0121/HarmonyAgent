@@ -12,6 +12,7 @@ const CONTEXT_CHARACTER_BUDGET = 24_000
 const TRUNCATION_SUFFIX = '…已截断'
 const MAX_WARNING_COUNT = 20
 const CONTEXT_BUDGET_ERROR = 'BOOK_AGENT_CONTEXT_BUDGET_EXCEEDED'
+const CHAPTER_BUDGET_ERROR = 'BOOK_AGENT_CHAPTER_BUDGET_EXCEEDED'
 
 const TITLE_CHARACTER_BUDGET = 500
 const OBJECTIVE_CHARACTER_BUDGET = 1_000
@@ -155,13 +156,28 @@ function contextLabel(book: LearningBook, chapterId: string, scope: 'chapter' | 
   return chapter ? `第${chapter.order + 1} 章 · ${chapter.title}` : `章节 · ${chapterId}`
 }
 
+function pruneUnusedSources(context: BookAgentContext): void {
+  const retainedSourceIds = new Set(context.chapters.flatMap((chapter) => chapter.blocks.flatMap((block) => block.sourceIds)))
+  context.sources = context.sources.filter((source) => retainedSourceIds.has(source.id))
+}
+
+function fitChaptersWithinBudget(context: BookAgentContext): void {
+  for (const chapter of context.chapters) {
+    while (JSON.stringify(chapter).length > CHAPTER_CHARACTER_BUDGET) {
+      const removed = chapter.blocks.pop()
+      if (!removed) throw new Error(CHAPTER_BUDGET_ERROR)
+      pruneUnusedSources(context)
+      recordWarning(context.warnings, `Chapter ${chapter.id} exceeded ${CHAPTER_CHARACTER_BUDGET} characters; block ${removed.id} was omitted.`)
+    }
+  }
+}
+
 function fitWithinContextBudget(context: BookAgentContext): void {
   while (JSON.stringify(context).length > CONTEXT_CHARACTER_BUDGET) {
     const chapter = [...context.chapters].reverse().find((candidate) => candidate.blocks.length > 0)
     if (chapter) {
       const [removed] = chapter.blocks.splice(-1, 1)
-      const retainedSourceIds = new Set(context.chapters.flatMap((candidate) => candidate.blocks.flatMap((block) => block.sourceIds)))
-      context.sources = context.sources.filter((source) => retainedSourceIds.has(source.id))
+      pruneUnusedSources(context)
       recordWarning(context.warnings, `Context exceeded ${CONTEXT_CHARACTER_BUDGET} characters; block ${removed.id} was omitted.`)
       continue
     }
@@ -198,6 +214,7 @@ export function buildBookAgentContext(book: LearningBook, options: BuildBookAgen
     warnings,
   }
   assignSources(context, candidates, warnings)
+  fitChaptersWithinBudget(context)
   fitWithinContextBudget(context)
   return context
 }
