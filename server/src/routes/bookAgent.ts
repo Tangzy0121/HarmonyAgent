@@ -28,6 +28,8 @@ export interface BookAgentLogEvent {
     | 'internal_route_error'
   status?: number
   name?: string
+  requestBytes?: number
+  causeCode?: string
   provider?: {
     code?: string
     type?: string
@@ -59,6 +61,15 @@ const SAFE_PROVIDER_TYPES = new Set([
 ])
 const SAFE_PROVIDER_PARAMS = new Set(['authorization', 'requests', 'upstream'])
 const SAFE_ERROR_NAMES = new Set(['Error', 'TypeError', 'TimeoutError', 'OpenAIStreamParseError'])
+const SAFE_NETWORK_CAUSE_CODES = new Set([
+  'ECONNRESET',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'ENOTFOUND',
+  'ECONNREFUSED',
+])
 
 class UpstreamHttpError extends Error {
   constructor() {
@@ -90,6 +101,31 @@ function closedIdentifier(value: unknown, allowlist: ReadonlySet<string>): strin
 
 function safeErrorName(error: unknown): string | undefined {
   return error instanceof Error ? closedIdentifier(error.name, SAFE_ERROR_NAMES) : undefined
+}
+
+function safeCauseCode(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  try {
+    const cause = (error as Error & { cause?: unknown }).cause
+    if (!(cause instanceof Error)) return undefined
+    return closedIdentifier((cause as Error & { code?: unknown }).code, SAFE_NETWORK_CAUSE_CODES)
+  } catch {
+    return undefined
+  }
+}
+
+function exactUtf8ByteLength(value: string): number {
+  const encoded = new TextEncoder().encode(value)
+  const byteLength = encoded.byteLength
+  if (
+    !Number.isFinite(byteLength) ||
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    byteLength > encoded.buffer.byteLength
+  ) {
+    throw new Error('invalid_request_byte_length')
+  }
+  return byteLength
 }
 
 function emitLog(logger: BookAgentLogger, event: BookAgentLogEvent): void {
@@ -223,10 +259,14 @@ export function createBookAgentRouter(
     let timedOut = false
     let phase: 'setup' | 'fetch' | 'stream' = 'setup'
     let diagnosticEmitted = false
+    let requestBytes: number | undefined
     const emitDiagnostic = (event: BookAgentLogEvent) => {
       if (diagnosticEmitted) return
       diagnosticEmitted = true
-      emitLog(logger, event)
+      emitLog(logger, {
+        ...event,
+        ...(requestBytes === undefined ? {} : { requestBytes }),
+      })
     }
     const onClientAbort = () => {
       disconnected = true
@@ -256,6 +296,7 @@ export function createBookAgentRouter(
         max_completion_tokens: 1200,
         temperature: 0.2,
       })
+      requestBytes = exactUtf8ByteLength(providerBody)
       phase = 'fetch'
       const upstream = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
@@ -296,9 +337,11 @@ export function createBookAgentRouter(
       if (!disconnected && !res.destroyed) {
         if (timedOut) {
           const name = safeErrorName(error)
+          const causeCode = safeCauseCode(error)
           emitDiagnostic({
             category: 'upstream_timeout',
             ...(name === undefined ? {} : { name }),
+            ...(causeCode === undefined ? {} : { causeCode }),
           })
         } else if (!(error instanceof UpstreamHttpError)) {
           const category = phase === 'fetch'
@@ -307,7 +350,12 @@ export function createBookAgentRouter(
               ? 'upstream_stream_error'
               : 'internal_route_error'
           const name = safeErrorName(error)
-          emitDiagnostic({ category, ...(name === undefined ? {} : { name }) })
+          const causeCode = safeCauseCode(error)
+          emitDiagnostic({
+            category,
+            ...(name === undefined ? {} : { name }),
+            ...(causeCode === undefined ? {} : { causeCode }),
+          })
         }
         const payload = timedOut
           ? { code: 'upstream_timeout', message: FAILURE_MESSAGE }

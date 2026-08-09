@@ -106,6 +106,10 @@ function eventsFrom(responseText: string): Array<{ event: string; data: unknown 
     })
 }
 
+function requestBytesFromCall(call: Parameters<typeof fetch>): number {
+  return new TextEncoder().encode(String(call[1]?.body)).byteLength
+}
+
 describe('POST /api/agent/book-chat', () => {
   it('returns stable JSON for malformed JSON without exposing parser internals', async () => {
     const response = await request(routeOwnedJsonApp(vi.fn<typeof fetch>()))
@@ -221,6 +225,7 @@ describe('POST /api/agent/book-chat', () => {
       category: 'upstream_http_error',
       status,
       provider: { code, type, param },
+      requestBytes: requestBytesFromCall(fetchImpl.mock.calls[0]),
     })
     const serializedLogs = JSON.stringify(logger.mock.calls)
     expect(serializedLogs).not.toContain(API_KEY)
@@ -247,6 +252,7 @@ describe('POST /api/agent/book-chat', () => {
     expect(logger).toHaveBeenCalledWith({
       category: 'upstream_http_error',
       status: 502,
+      requestBytes: requestBytesFromCall(fetchImpl.mock.calls[0]),
     })
     const serializedLogs = JSON.stringify(logger.mock.calls)
     expect(serializedLogs).not.toContain(API_KEY)
@@ -277,29 +283,74 @@ describe('POST /api/agent/book-chat', () => {
       .send(validBody())
 
     expect(logger.mock.calls).toEqual([
-      [{ category: 'upstream_http_error', status: 502 }],
-      [{ category: 'upstream_http_error', status: 500 }],
+      [{
+        category: 'upstream_http_error',
+        status: 502,
+        requestBytes: requestBytesFromCall(nonJsonFetch.mock.calls[0]),
+      }],
+      [{
+        category: 'upstream_http_error',
+        status: 500,
+        requestBytes: requestBytesFromCall(oversizedFetch.mock.calls[0]),
+      }],
     ])
     expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
   })
 
   it('logs only a safe category and error name when fetch rejects', async () => {
     const logger = vi.fn()
-    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(
-      new TypeError(`fetch-private-${API_KEY}-C:\\private\\network.ts`),
-    )
+    const networkCause = Object.assign(new Error('socket-private-message'), { code: 'ECONNRESET' })
+    const networkError = new TypeError(`fetch-private-${API_KEY}-C:\\private\\network.ts`)
+    Object.defineProperty(networkError, 'cause', { value: networkCause })
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(networkError)
 
     const response = await request(appWith(fetchImpl, API_KEY, undefined, logger))
       .post('/api/agent/book-chat')
       .send(validBody())
 
+    const serializedBody = String(fetchImpl.mock.calls[0][1]?.body)
+    const expectedRequestBytes = new TextEncoder().encode(serializedBody).byteLength
+    expect(serializedBody).toContain('为什么标签很重要？')
+
     expect(eventsFrom(response.text).at(-1)).toEqual({
       event: 'error',
       data: { code: 'upstream_unavailable', message: '学习助手生成失败，请稍后重试。' },
     })
-    expect(logger).toHaveBeenCalledWith({ category: 'upstream_fetch_error', name: 'TypeError' })
+    expect(logger).toHaveBeenCalledWith({
+      category: 'upstream_fetch_error',
+      name: 'TypeError',
+      causeCode: 'ECONNRESET',
+      requestBytes: expectedRequestBytes,
+    })
     expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
     expect(JSON.stringify(logger.mock.calls)).not.toContain('network.ts')
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('socket-private-message')
+  })
+
+  it('omits unknown alphanumeric network cause codes while retaining request byte count', async () => {
+    const logger = vi.fn()
+    const unknownCause = Object.assign(new Error('unknown-private-message'), {
+      code: 'A7f9Q2m8L4x6K1p3',
+    })
+    const networkError = new TypeError('network failed')
+    Object.defineProperty(networkError, 'cause', { value: unknownCause })
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(networkError)
+
+    const response = await request(appWith(fetchImpl, API_KEY, undefined, logger))
+      .post('/api/agent/book-chat')
+      .send(validBody())
+
+    const expectedRequestBytes = new TextEncoder()
+      .encode(String(fetchImpl.mock.calls[0][1]?.body))
+      .byteLength
+    expect(eventsFrom(response.text).at(-1)?.event).toBe('error')
+    expect(logger).toHaveBeenCalledWith({
+      category: 'upstream_fetch_error',
+      name: 'TypeError',
+      requestBytes: expectedRequestBytes,
+    })
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('A7f9Q2m8L4x6K1p3')
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('unknown-private-message')
   })
 
   it('classifies prompt construction failures as internal without contacting upstream', async () => {
@@ -342,6 +393,7 @@ describe('POST /api/agent/book-chat', () => {
     expect(logger).toHaveBeenCalledWith({
       category: 'upstream_stream_error',
       name: 'OpenAIStreamParseError',
+      requestBytes: requestBytesFromCall(fetchImpl.mock.calls[0]),
     })
   })
 
@@ -426,7 +478,11 @@ describe('POST /api/agent/book-chat', () => {
       })
       expect(cancelCount).toBe(1)
       expect(logger.mock.calls).toEqual([[
-        { category: 'upstream_timeout', name: 'TimeoutError' },
+        {
+          category: 'upstream_timeout',
+          name: 'TimeoutError',
+          requestBytes: requestBytesFromCall(fetchImpl.mock.calls[0]),
+        },
       ]])
     } finally {
       timeoutSpy.mockRestore()
@@ -489,7 +545,11 @@ describe('POST /api/agent/book-chat', () => {
         code: 'upstream_timeout',
         message: '学习助手生成失败，请稍后重试。',
       })
-      expect(logger).toHaveBeenCalledWith({ category: 'upstream_timeout', name: 'TimeoutError' })
+      expect(logger).toHaveBeenCalledWith({
+        category: 'upstream_timeout',
+        name: 'TimeoutError',
+        requestBytes: requestBytesFromCall(fetchImpl.mock.calls[0]),
+      })
     } finally {
       timeoutSpy.mockRestore()
     }
