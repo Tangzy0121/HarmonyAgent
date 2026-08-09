@@ -238,7 +238,11 @@ describe('AgentDrawer controlled learning-book mode', () => {
     const labelledDivs = combined.match(/<div\b[^>]*\baria-label=[^>]*>/gu) ?? []
 
     expect(labelledDivs.every((tag) => /\brole=/u.test(tag))).toBe(true)
-    expect(sourceHtml).toMatch(/<section\b[^>]*aria-label="回答引用的原文依据"/u)
+    expect(sourceHtml).toMatch(/<ul\b[^>]*aria-label="回答引用的原文依据"/u)
+    expect(sourceHtml).toMatch(/<li><button\b/u)
+    expect(sourceHtml).not.toMatch(/<section\b[^>]*aria-label="回答引用的原文依据"/u)
+    expect(sourceHtml).toContain('aria-label="查看证据 S1：机器学习 · 第三章.pdf 第 4–6 页"')
+    expect(sourceHtml).not.toContain('class="agent-session-actions"')
     expect(actionHtml).toMatch(/<div\b[^>]*role="group"[^>]*aria-label="本轮回答操作"/u)
     expect(emptyBookHtml).toMatch(/<div\b[^>]*role="group"[^>]*aria-label="学习书提问提示"/u)
     expect(legacyHtml).toMatch(/<div\b[^>]*role="group"[^>]*aria-label="继续追问"/u)
@@ -306,7 +310,7 @@ describe('AgentDrawer controlled learning-book mode', () => {
     expect(html).toContain('第 4–6 页')
     expect(html.indexOf('第 7 页')).toBeLessThan(html.indexOf('第 4–6 页'))
     expect(html).toContain('目标值参与预测比较')
-    expect(html.match(/证据 S2/g)).toHaveLength(1)
+    expect(html.match(/agent-source-card__index">证据 S2<\/span>/g)).toHaveLength(1)
     expect(html).not.toContain('第 8 页')
     expect(html).not.toContain('固定演示回答中的句子')
     expect(html).not.toContain('S99</')
@@ -330,6 +334,7 @@ describe('AgentDrawer controlled learning-book mode', () => {
     const sourceButton = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes('证据 S1'))
 
     expect(sourceButton).toBeDefined()
+    expect(sourceButton?.getAttribute('aria-label')).toBe('查看证据 S1：机器学习 · 第三章.pdf 第 4–6 页')
     invokeReactClick(sourceButton!)
     expect(onSourceOpen).toHaveBeenCalledTimes(1)
     expect(onSourceOpen).toHaveBeenCalledWith(knownSource)

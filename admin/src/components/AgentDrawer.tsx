@@ -282,21 +282,20 @@ export function AgentDrawer({
                     </p>
                     {message.status === 'cancelled' && <span className="agent-message__status">已停止</span>}
                     {message.status === 'error' && <span className="agent-message__status agent-message__status--error">{bookSession.errorMessage ?? '本次回答生成失败。'}</span>}
-                    {sources.length > 0 && <section className="agent-source-list" aria-label="回答引用的原文依据">
-                      {sources.map((source) => <button
-                        className="agent-source-card"
-                        type="button"
-                        key={source.id}
-                        aria-label={`查看原文位置：${source.fileName} ${source.pageRange}`}
-                        onClick={() => onSourceOpen?.(source)}
-                      >
-                        <span className="agent-source-card__index">证据 {source.id}</span>
-                        <strong>{source.fileName}</strong>
-                        <span>{source.pageRange}</span>
-                        <small>{source.excerpt}</small>
-                        <em>查看原文位置 <Icon name="arrow" size={15} /></em>
-                      </button>)}
-                    </section>}
+                    {sources.length > 0 && <ul className="agent-source-list" aria-label="回答引用的原文依据">
+                      {sources.map((source) => <li key={source.id}><button
+                          className="agent-source-card"
+                          type="button"
+                          aria-label={`查看证据 ${source.id}：${source.fileName} ${source.pageRange}`}
+                          onClick={() => onSourceOpen?.(source)}
+                        >
+                          <span className="agent-source-card__index">证据 {source.id}</span>
+                          <strong>{source.fileName}</strong>
+                          <span>{source.pageRange}</span>
+                          <small>{source.excerpt}</small>
+                          <em>查看原文位置 <Icon name="arrow" size={15} /></em>
+                        </button></li>)}
+                    </ul>}
                   </article>
                 })}
                 {(bookSession.status === 'streaming' || bookSession.status === 'error' || bookSession.status === 'cancelled') && <div className="agent-session-actions" role="group" aria-label="本轮回答操作">
