@@ -125,6 +125,7 @@ function normalizeContext(value: unknown): NormalizedBookAgentContext | null {
 
   const chapterIds = new Set<string>()
   const blockIds = new Set<string>()
+  const blockOwners = new Map<string, { chapterId: string; block: NormalizedBookAgentBlock }>()
   let blockCount = 0
   const chapters = value.chapters.map((chapterValue): NormalizedBookAgentChapter => {
     if (!isRecord(chapterValue) || !Array.isArray(chapterValue.blocks)) {
@@ -143,7 +144,7 @@ function normalizeContext(value: unknown): NormalizedBookAgentContext | null {
       const blockId = requiredText(blockValue.id)
       if (blockIds.has(blockId)) throw new BookAgentValidationError('invalid_context')
       blockIds.add(blockId)
-      return {
+      const block: NormalizedBookAgentBlock = {
         id: blockId,
         type: requiredText(blockValue.type),
         title: requiredText(blockValue.title),
@@ -151,6 +152,8 @@ function normalizeContext(value: unknown): NormalizedBookAgentContext | null {
         sourceIds: stringArray(blockValue.sourceIds),
         userAuthored: blockValue.userAuthored,
       }
+      blockOwners.set(blockId, { chapterId: id, block })
+      return block
     })
 
     return {
@@ -171,7 +174,8 @@ function normalizeContext(value: unknown): NormalizedBookAgentContext | null {
     sourceIds.add(id)
     const chapterId = requiredText(sourceValue.chapterId)
     const blockId = requiredText(sourceValue.blockId)
-    if (!chapterIds.has(chapterId) || !blockIds.has(blockId)) {
+    const owner = blockOwners.get(blockId)
+    if (!owner || owner.chapterId !== chapterId || owner.block.userAuthored) {
       throw new BookAgentValidationError('invalid_context')
     }
     return {
@@ -187,10 +191,26 @@ function normalizeContext(value: unknown): NormalizedBookAgentContext | null {
 
   for (const chapter of chapters) {
     for (const block of chapter.blocks) {
+      if (block.userAuthored && block.sourceIds.length > 0) {
+        throw new BookAgentValidationError('invalid_context')
+      }
       if (block.sourceIds.some((sourceId) => !sourceIds.has(sourceId))) {
         throw new BookAgentValidationError('invalid_context')
       }
     }
+  }
+  for (const source of sources) {
+    const owner = blockOwners.get(source.blockId)
+    if (!owner?.block.sourceIds.includes(source.id)) {
+      throw new BookAgentValidationError('invalid_context')
+    }
+  }
+
+  const focusBlockId = value.focusBlockId === undefined
+    ? undefined
+    : requiredText(value.focusBlockId)
+  if (focusBlockId !== undefined && !blockIds.has(focusBlockId)) {
+    throw new BookAgentValidationError('invalid_context')
   }
 
   const retainedSourceIds = new Set(sources.slice(0, MAX_SOURCES).map((source) => source.id))
@@ -199,9 +219,7 @@ function normalizeContext(value: unknown): NormalizedBookAgentContext | null {
     title: requiredText(value.title),
     scope: value.scope,
     label: requiredText(value.label),
-    ...(value.focusBlockId === undefined
-      ? {}
-      : { focusBlockId: requiredText(value.focusBlockId) }),
+    ...(focusBlockId === undefined ? {} : { focusBlockId }),
     chapters: chapters.map((chapter) => ({
       ...chapter,
       blocks: chapter.blocks.map((block) => ({

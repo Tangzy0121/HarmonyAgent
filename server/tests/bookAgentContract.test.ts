@@ -34,7 +34,7 @@ function makeRequest({ historyCount = 8, sourceCount = 21 }: RequestOverrides = 
               type: 'explanation',
               title: ' 标签 ',
               content: ' 标签   提供目标\n信号。 ',
-              sourceIds: ['S1'],
+              sourceIds: Array.from({ length: sourceCount }, (_, index) => `S${index + 1}`),
               userAuthored: false,
             },
           ],
@@ -133,6 +133,40 @@ describe('normalizeBookAgentRequest', () => {
     const danglingReference = makeRequest({ sourceCount: 1 })
     danglingReference.context.chapters[0].blocks[0].sourceIds = ['S99']
     expectCode(() => normalizeBookAgentRequest(danglingReference), 'invalid_context')
+  })
+
+  it('rejects crossed source owners and inventory sources not referenced by their owner block', () => {
+    const crossedOwner = makeRequest({ sourceCount: 1 })
+    crossedOwner.context.chapters.push({
+      id: 'chapter-2',
+      title: '无监督学习',
+      objective: '理解聚类',
+      blocks: [{
+        ...crossedOwner.context.chapters[0].blocks[0],
+        id: 'block-2',
+      }],
+    })
+    crossedOwner.context.sources[0].chapterId = 'chapter-1'
+    crossedOwner.context.sources[0].blockId = 'block-2'
+    expectCode(() => normalizeBookAgentRequest(crossedOwner), 'invalid_context')
+
+    const inventoryOnly = makeRequest({ sourceCount: 2 })
+    inventoryOnly.context.chapters[0].blocks[0].sourceIds = ['S1']
+    expectCode(() => normalizeBookAgentRequest(inventoryOnly), 'invalid_context')
+  })
+
+  it('rejects source references and source ownership on user-authored blocks', () => {
+    const request = makeRequest({ sourceCount: 1 })
+    request.context.chapters[0].blocks[0].userAuthored = true
+
+    expectCode(() => normalizeBookAgentRequest(request), 'invalid_context')
+  })
+
+  it('rejects a focus block that is absent from the retained context', () => {
+    const request = makeRequest({ sourceCount: 1 })
+    request.context.focusBlockId = 'missing-block'
+
+    expectCode(() => normalizeBookAgentRequest(request), 'invalid_context')
   })
 
   it('rejects more than eight chapters or more than 40 total blocks', () => {
