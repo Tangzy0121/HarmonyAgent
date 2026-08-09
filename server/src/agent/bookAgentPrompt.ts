@@ -8,9 +8,19 @@ export interface BookAgentPromptMessage {
   content: string
 }
 
+function escapeContextData(value: string): string {
+  return value
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+}
+
+function wrapContextData(value: string): string {
+  return `<book_context_data>\n${escapeContextData(value)}\n</book_context_data>`
+}
+
 function serializeContext(context: NormalizedBookAgentContext): string {
   const lines = [
-    '<book_context_data>',
     '【学习书上下文】',
     `书名：${context.title}`,
     `范围：${context.label}`,
@@ -49,8 +59,7 @@ function serializeContext(context: NormalizedBookAgentContext): string {
   if (context.warnings.length > 0) {
     lines.push('', '【上下文提示】', ...context.warnings)
   }
-  lines.push('</book_context_data>')
-  return lines.join('\n')
+  return wrapContextData(lines.join('\n'))
 }
 
 function groundedRules(context: NormalizedBookAgentContext | null): string {
@@ -71,13 +80,11 @@ function groundedRules(context: NormalizedBookAgentContext | null): string {
 }
 
 function detachedContextMessage(): string {
-  return [
-    '<book_context_data>',
+  return wrapContextData([
     '【学习书上下文】',
     '未附加学习书依据。当前没有可核对的学习书内容或原文来源，引用不可用。',
     '不要把一般性解释表述为来自当前学习书的结论。',
-    '</book_context_data>',
-  ].join('\n')
+  ].join('\n'))
 }
 
 export function buildBookAgentMessages(
