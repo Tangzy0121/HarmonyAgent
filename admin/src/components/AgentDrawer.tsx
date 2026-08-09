@@ -282,7 +282,7 @@ export function AgentDrawer({
                     </p>
                     {message.status === 'cancelled' && <span className="agent-message__status">已停止</span>}
                     {message.status === 'error' && <span className="agent-message__status agent-message__status--error">{bookSession.errorMessage ?? '本次回答生成失败。'}</span>}
-                    {sources.length > 0 && <div className="agent-source-list" aria-label="回答引用的原文依据">
+                    {sources.length > 0 && <section className="agent-source-list" aria-label="回答引用的原文依据">
                       {sources.map((source) => <button
                         className="agent-source-card"
                         type="button"
@@ -296,13 +296,13 @@ export function AgentDrawer({
                         <small>{source.excerpt}</small>
                         <em>查看原文位置 <Icon name="arrow" size={15} /></em>
                       </button>)}
-                    </div>}
+                    </section>}
                   </article>
                 })}
-                <div className="agent-session-actions" aria-label="本轮回答操作">
+                {(bookSession.status === 'streaming' || bookSession.status === 'error' || bookSession.status === 'cancelled') && <div className="agent-session-actions" role="group" aria-label="本轮回答操作">
                   {bookSession.status === 'streaming' && <button type="button" onClick={onStop}>停止生成</button>}
                   {(bookSession.status === 'error' || bookSession.status === 'cancelled') && <button type="button" onClick={() => void onRetry?.()}>重新尝试</button>}
-                </div>
+                </div>}
                 <div ref={conversationEndRef} />
               </section>
             ) : !isBookMode && isFullScreen && messages.length ? (
@@ -321,7 +321,7 @@ export function AgentDrawer({
                     </button>}
                   </article>
                 ))}
-                <div className="agent-followups" aria-label="继续追问">
+                <div className="agent-followups" role="group" aria-label="继续追问">
                   <p>继续追问</p>
                   {agentConversation.followUps.map((prompt) => (
                     <button type="button" key={prompt} onClick={() => onDraftChange(prompt)}>
@@ -332,11 +332,11 @@ export function AgentDrawer({
                 <div ref={conversationEndRef} />
               </section>
             ) : isBookMode ? (
-              <div className="prompt-list prompt-list--book" aria-label="学习书提问提示">
+              <div className="prompt-list prompt-list--book" role="group" aria-label="学习书提问提示">
                 <p>{contextEnabled ? '可以问概念、例子，或让 Agent 对照原文解释。' : '当前未附加学习书依据，回答不会生成原文引用。'}</p>
               </div>
             ) : (
-              <div className="prompt-list" aria-label="建议问题">
+              <div className="prompt-list" role="group" aria-label="建议问题">
                 <p>{messages.length ? '可以这样问' : '新对话可以从这里开始'}</p>
                 {agentPrompts.map((prompt) => (
                   <button key={prompt} type="button" onClick={() => onDraftChange(prompt)}>
@@ -367,7 +367,7 @@ export function AgentDrawer({
             onChange={(event) => onDraftChange(event.target.value)}
             disabled={isStreaming}
           />
-          <button type="submit" disabled={!draft.trim() || isStreaming}>
+          <button type="submit" aria-label="发送问题" disabled={!draft.trim() || isStreaming}>
             <span className="agent-send-label">发送</span><Icon name="arrow" size={18} />
           </button>
         </form>}

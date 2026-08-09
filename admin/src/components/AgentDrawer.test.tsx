@@ -201,6 +201,49 @@ function session(overrides: Partial<BookAgentSessionState> = {}): BookAgentSessi
 }
 
 describe('AgentDrawer controlled learning-book mode', () => {
+  it('keeps a stable accessible name on the disabled streaming submit button', () => {
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(<AgentDrawer
+      snap="full"
+      activeDestination="library"
+      draft=""
+      bookSession={session({ status: 'streaming', activeRequestId: 'request-1' })}
+      onDraftChange={() => undefined}
+      onSnapChange={() => undefined}
+    />))
+    const submit = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('type') === 'submit')
+
+    expect(submit).toBeDefined()
+    expect(submit?.getAttribute('aria-label')).toBe('发送问题')
+    expect(submit?.getAttribute('disabled')).not.toBeNull()
+  })
+
+  it('uses semantic labelled containers instead of aria-labelled generic divs', () => {
+    const sourceHtml = renderControlled(session({
+      messages: [{ id: 'assistant-source', role: 'assistant', content: '依据见 [S1]。', status: 'complete', createdAt: '2026-08-09', sources: [knownSource] }],
+    }))
+    const actionHtml = renderControlled(session({
+      status: 'error',
+      messages: [{ id: 'assistant-error', role: 'assistant', content: '', status: 'error', createdAt: '2026-08-09' }],
+    }))
+    const emptyBookHtml = renderControlled(session())
+    const legacyHtml = renderToStaticMarkup(<AgentDrawer
+      snap="full"
+      activeDestination="library"
+      draft=""
+      onDraftChange={() => undefined}
+      onSnapChange={() => undefined}
+    />)
+    const combined = `${sourceHtml}${actionHtml}${emptyBookHtml}${legacyHtml}`
+    const labelledDivs = combined.match(/<div\b[^>]*\baria-label=[^>]*>/gu) ?? []
+
+    expect(labelledDivs.every((tag) => /\brole=/u.test(tag))).toBe(true)
+    expect(sourceHtml).toMatch(/<section\b[^>]*aria-label="回答引用的原文依据"/u)
+    expect(actionHtml).toMatch(/<div\b[^>]*role="group"[^>]*aria-label="本轮回答操作"/u)
+    expect(emptyBookHtml).toMatch(/<div\b[^>]*role="group"[^>]*aria-label="学习书提问提示"/u)
+    expect(legacyHtml).toMatch(/<div\b[^>]*role="group"[^>]*aria-label="继续追问"/u)
+  })
+
   it('shows the book conversation input after legacy history was open before a surface switch', () => {
     const container = mountEnvironment()
     const common = {
