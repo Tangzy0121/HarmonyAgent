@@ -40,7 +40,7 @@ export interface BookAgentContext {
 export interface BookAgentRequest {
   bookId: string
   chapterId: string
-  scope: AgentContextScope
+  scope?: AgentContextScope
   message: string
   focusBlockId?: string
 }

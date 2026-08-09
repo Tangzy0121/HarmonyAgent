@@ -21,6 +21,13 @@ describe('buildBookAgentContext', () => {
     expect(JSON.stringify(context).length).toBeLessThanOrEqual(24_000)
   })
 
+  it('defaults an omitted scope to the requested readable chapter', () => {
+    const context = buildBookAgentContext(readyBook, { chapterId: 'ch-1' })
+
+    expect(context.scope).toBe('chapter')
+    expect(context.chapters.map((chapter) => chapter.id)).toEqual(['ch-1'])
+  })
+
   it('uses the readable portion of a book rather than pending chapters', () => {
     expect(buildBookAgentContext(readyBook, { chapterId: 'ch-1', scope: 'book' }).chapters.map((chapter) => chapter.id))
       .toEqual(['ch-1'])
@@ -159,5 +166,52 @@ describe('buildBookAgentContext', () => {
     const lastBlock = context.chapters[0].blocks[context.chapters[0].blocks.length - 1]
     expect(lastBlock?.content.endsWith('…已截断')).toBe(true)
     expect(context.warnings.join(' ')).toContain('ch-1')
+  })
+
+  it('hard-bounds long chapter and source metadata with deterministic tail removal and valid shared sources', () => {
+    const sharedAnchor = {
+      ...readyBook.chapters[0].blocks[0].sourceAnchors[0],
+      fileName: 'file-name-'.repeat(1_000),
+      pageRange: 'page-range-'.repeat(500),
+      excerpt: 'excerpt-'.repeat(2_000),
+    }
+    const longBook = {
+      ...allChaptersReady(),
+      proposal: { ...readyBook.proposal, title: 'book-title-'.repeat(1_000) },
+      chapters: allChaptersReady().chapters.map((chapter) => ({
+        ...chapter,
+        title: `chapter-${chapter.id}-${'title-'.repeat(1_000)}`,
+        objective: `objective-${'text-'.repeat(1_000)}`,
+        blocks: Array.from({ length: 5 }, (_, index) => ({
+          ...chapter.blocks[0],
+          id: `${chapter.id}-long-${index}`,
+          status: 'ready' as const,
+          sourceAnchors: [sharedAnchor],
+          body: 'body-'.repeat(400),
+          keyPoint: `key-${index}`,
+        })),
+      })),
+    }
+
+    const context = buildBookAgentContext(longBook, { chapterId: 'ch-1', scope: 'book' })
+    const repeated = buildBookAgentContext(longBook, { chapterId: 'ch-1', scope: 'book' })
+    const blocks = context.chapters.flatMap((chapter) => chapter.blocks)
+    const sourceIds = new Set<string>(context.sources.map((source) => source.id))
+
+    expect(JSON.stringify(context).length).toBeLessThanOrEqual(24_000)
+    expect(context.chapters.flatMap((chapter) => chapter.blocks.map((block) => block.id)))
+      .toEqual(repeated.chapters.flatMap((chapter) => chapter.blocks.map((block) => block.id)))
+    expect(blocks.some((block) => block.id.startsWith('ch-4-'))).toBe(false)
+    expect(blocks.every((block) => block.sourceIds.every((sourceId) => sourceIds.has(sourceId)))).toBe(true)
+    expect(context.sources.every((source) => context.chapters.some((chapter) => chapter.id === source.chapterId
+      && chapter.blocks.some((block) => block.id === source.blockId)))).toBe(true)
+    expect(context.sources).toHaveLength(1)
+  })
+
+  it('throws a stable controlled error when required identity fields alone exceed the context budget', () => {
+    expect(() => buildBookAgentContext({ ...readyBook, id: 'book-id-'.repeat(4_000) }, {
+      chapterId: 'ch-1',
+      scope: 'chapter',
+    })).toThrow('BOOK_AGENT_CONTEXT_BUDGET_EXCEEDED')
   })
 })
