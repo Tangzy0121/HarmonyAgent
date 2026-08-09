@@ -100,12 +100,10 @@ export function useBookAgentSessions({
 }: UseBookAgentSessionsOptions): UseBookAgentSessionsResult {
   const [state, reactDispatch] = useReducer(bookAgentSessionReducer, initialBookAgentSessionsState)
   const stateRef = useRef(state)
-  stateRef.current = state
   const activeRef = useRef<ActiveRequest | null>(null)
   const [focusBySession, setFocusBySession] = useState<Record<string, string | undefined>>({})
   const sessionKey = bookAgentSessionKey(book.id, activeChapterId, scope)
-  const renderedSessionKeyRef = useRef(sessionKey)
-  renderedSessionKeyRef.current = sessionKey
+  const committedSessionKeyRef = useRef(sessionKey)
 
   const dispatch = useCallback((action: BookAgentSessionAction) => {
     stateRef.current = bookAgentSessionReducer(stateRef.current, action)
@@ -136,7 +134,7 @@ export function useBookAgentSessions({
     const onEvent = (event: BookAgentClientEvent): void => {
       const active = activeRef.current
       if (
-        renderedSessionKeyRef.current !== targetSessionKey
+        committedSessionKeyRef.current !== targetSessionKey
         || !active
         || active.requestId !== requestId
         || active.sessionKey !== targetSessionKey
@@ -168,7 +166,7 @@ export function useBookAgentSessions({
     } catch (error) {
       const active = activeRef.current
       if (
-        renderedSessionKeyRef.current !== targetSessionKey
+        committedSessionKeyRef.current !== targetSessionKey
         || !active
         || active.requestId !== requestId
         || active.sessionKey !== targetSessionKey
@@ -245,10 +243,15 @@ export function useBookAgentSessions({
     })
   }, [cancelActive, dispatch, sessionKey])
 
+  useLayoutEffect(() => {
+    stateRef.current = state
+  }, [state])
+
   const previousSessionKey = useRef(sessionKey)
   useLayoutEffect(() => {
     const previous = previousSessionKey.current
     if (previous !== sessionKey && activeRef.current?.sessionKey === previous) cancelActive()
+    committedSessionKeyRef.current = sessionKey
     previousSessionKey.current = sessionKey
   }, [cancelActive, sessionKey])
 

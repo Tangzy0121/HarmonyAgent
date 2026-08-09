@@ -1,4 +1,4 @@
-import { createElement } from 'react'
+import { createElement, startTransition, StrictMode, Suspense } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -97,7 +97,10 @@ let documentStub: FakeDocument
 let container: FakeElement
 let root: Root
 let latest: UseBookAgentSessionsResult
-let fireDuringRender: (() => void) | undefined
+let suspendDuringRender = false
+let suspendedRenderAttempted = false
+let suspension: Promise<void>
+let resolveSuspension: () => void
 
 function Harness({ chapterId }: { chapterId: string }) {
   latest = useBookAgentSessions({
@@ -106,14 +109,24 @@ function Harness({ chapterId }: { chapterId: string }) {
     scope: 'chapter',
     contextEnabled: false,
   })
-  const fire = fireDuringRender
-  fireDuringRender = undefined
-  fire?.()
+  if (suspendDuringRender) {
+    suspendedRenderAttempted = true
+    throw suspension
+  }
   return null
 }
 
+function tree(chapterId: string) {
+  return createElement(
+    StrictMode,
+    null,
+    createElement(Suspense, { fallback: null }, createElement(Harness, { chapterId })),
+  )
+}
+
 function render(chapterId: string): void {
-  flushSync(() => root.render(createElement(Harness, { chapterId })))
+  suspendDuringRender = false
+  flushSync(() => root.render(tree(chapterId)))
 }
 
 function emit(call: PendingCall, event: BookAgentClientEvent): void {
@@ -137,6 +150,11 @@ async function complete(call: PendingCall, answer: string): Promise<void> {
 
 beforeEach(() => {
   calls.length = 0
+  suspendDuringRender = false
+  suspendedRenderAttempted = false
+  suspension = new Promise<void>((resolve) => {
+    resolveSuspension = resolve
+  })
   documentStub = new FakeDocument()
   const windowStub = {
     document: documentStub,
@@ -159,30 +177,50 @@ beforeEach(() => {
   render('ch-1')
 })
 
-afterEach(() => {
+afterEach(async () => {
   flushSync(() => root.unmount())
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
 
 describe('useBookAgentSessions', () => {
-  it('aborts and freezes the old session when a terminal event races a session-key render switch', async () => {
+  it('aborts the old request at a committed key switch without aborting a new-key request', async () => {
     void submit('old chapter question')
     expect(calls).toHaveLength(1)
     const oldCall = calls[0]
-    fireDuringRender = () => {
-      oldCall.options.onEvent({ type: 'done' })
-      oldCall.resolve()
-    }
 
     render('ch-2')
     await Promise.resolve()
 
     expect(oldCall.options.signal?.aborted).toBe(true)
     expect(latest.session.id).toBe('book-ml-chapter-03:chapter:ch-2')
+    void submit('new chapter question')
+    expect(calls[1].options.signal?.aborted).toBe(false)
+    oldCall.options.onEvent({ type: 'done' })
     render('ch-1')
     expect(latest.session.status).toBe('cancelled')
     expect(latest.session.messages[1]).toMatchObject({ status: 'cancelled', content: '' })
+  })
+
+  it('keeps the committed session active when a concurrent new-key render suspends and is abandoned', async () => {
+    const pending = submit('committed question')
+    const oldCall = calls[0]
+    suspendDuringRender = true
+    startTransition(() => root.render(tree('ch-2')))
+    await vi.waitFor(() => expect(suspendedRenderAttempted).toBe(true))
+
+    emit(oldCall, { type: 'delta', text: 'committed answer' })
+    emit(oldCall, { type: 'done' })
+    oldCall.resolve()
+    render('ch-1')
+    resolveSuspension()
+    await pending
+    await Promise.resolve()
+
+    expect(oldCall.options.signal?.aborted).toBe(false)
+    expect(latest.session.status).toBe('idle')
+    expect(latest.session.messages[1]).toMatchObject({ status: 'complete', content: 'committed answer' })
   })
 
   it('omits an errored orphan user turn from the next ordinary submit history', async () => {
