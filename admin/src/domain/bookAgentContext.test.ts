@@ -217,6 +217,44 @@ describe('buildBookAgentContext', () => {
     })).toThrow('BOOK_AGENT_CHAPTER_BUDGET_EXCEEDED')
   })
 
+  it('reassigns a shared source owner when chapter trimming removes its first referencing block', () => {
+    const sharedAnchor = readyBook.chapters[0].blocks[0].sourceAnchors[0]
+    const twoChapterBook = {
+      ...allChaptersReady(),
+      chapters: allChaptersReady().chapters.map((chapter, index) => index === 0
+        ? {
+            ...chapter,
+            blocks: [{
+              ...chapter.blocks[0],
+              id: 'first-owner-'.repeat(500),
+              status: 'ready' as const,
+              body: 'body-'.repeat(380),
+              keyPoint: 'first owner is deliberately too large',
+              sourceAnchors: [sharedAnchor],
+            }],
+          }
+        : index === 1
+          ? {
+              ...chapter,
+              blocks: [{
+                ...chapter.blocks[0],
+                id: 'later-shared-reference',
+                status: 'ready' as const,
+                sourceAnchors: [sharedAnchor],
+              }],
+            }
+          : { ...chapter, status: 'pending' as const }),
+    }
+
+    const context = buildBookAgentContext(twoChapterBook, { chapterId: 'ch-1', scope: 'book' })
+    const source = context.sources.find((candidate) => candidate.sourceId === sharedAnchor.sourceId)
+
+    expect(context.chapters.find((chapter) => chapter.id === 'ch-1')?.blocks).toEqual([])
+    expect(context.chapters.find((chapter) => chapter.id === 'ch-2')?.blocks.map((block) => block.id))
+      .toEqual(['later-shared-reference'])
+    expect(source).toMatchObject({ chapterId: 'ch-2', blockId: 'later-shared-reference' })
+  })
+
   it('hard-bounds long chapter and source metadata with deterministic tail removal and valid shared sources', () => {
     const sharedAnchor = {
       ...readyBook.chapters[0].blocks[0].sourceAnchors[0],

@@ -161,6 +161,27 @@ function pruneUnusedSources(context: BookAgentContext): void {
   context.sources = context.sources.filter((source) => retainedSourceIds.has(source.id))
 }
 
+function reassignSourceOwners(context: BookAgentContext): void {
+  const firstReferenceBySourceId = new Map<string, { chapterId: string; blockId: string }>()
+  for (const chapter of context.chapters) {
+    for (const block of chapter.blocks) {
+      for (const sourceId of block.sourceIds) {
+        if (!firstReferenceBySourceId.has(sourceId)) {
+          firstReferenceBySourceId.set(sourceId, { chapterId: chapter.id, blockId: block.id })
+        }
+      }
+    }
+  }
+
+  for (const source of context.sources) {
+    const owner = firstReferenceBySourceId.get(source.id)
+    if (owner) {
+      source.chapterId = owner.chapterId
+      source.blockId = owner.blockId
+    }
+  }
+}
+
 function fitChaptersWithinBudget(context: BookAgentContext): void {
   for (const chapter of context.chapters) {
     while (JSON.stringify(chapter).length > CHAPTER_CHARACTER_BUDGET) {
@@ -216,5 +237,6 @@ export function buildBookAgentContext(book: LearningBook, options: BuildBookAgen
   assignSources(context, candidates, warnings)
   fitChaptersWithinBudget(context)
   fitWithinContextBudget(context)
+  reassignSourceOwners(context)
   return context
 }
