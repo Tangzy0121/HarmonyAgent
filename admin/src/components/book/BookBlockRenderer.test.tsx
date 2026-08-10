@@ -163,12 +163,6 @@ function renderBlock(block: BookBlock): FakeElement {
   return container
 }
 
-async function flushEffects(): Promise<void> {
-  // React 18 在事件外触发的更新经 Scheduler 宏任务（MessageChannel）调度，微任务等不到
-  await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  flushSync(() => undefined)
-}
-
 function findByClass(container: FakeElement, className: string): FakeElement {
   const element = descendants(container).find((candidate) => candidate.className.split(' ').includes(className))
   expect(element, `element with class "${className}"`).toBeDefined()
@@ -266,12 +260,14 @@ describe('BookBlockRenderer · flash_cards', () => {
 describe('BookBlockRenderer · figure', () => {
   it('lazy-loads mermaid, renders the svg into the canvas, and shows the caption', async () => {
     const container = renderBlock(figureBlock)
-    await flushEffects()
+
+    // 动态 import 的解析时机随全量套件负载波动，轮询渲染终态而不是数固定 tick
+    await vi.waitFor(() => {
+      expect(findByClass(container, 'book-figure__canvas').innerHTML).toContain('<svg')
+    })
 
     expect(mermaidMock.initialize).toHaveBeenCalledWith({ startOnLoad: false, securityLevel: 'strict' })
     expect(mermaidMock.parse).toHaveBeenCalledWith(figureBlock.mermaid)
-    const canvas = findByClass(container, 'book-figure__canvas')
-    expect(canvas.innerHTML).toContain('<svg')
     expect(container.textContent).toContain('训练流程示意')
     expect(container.textContent).toContain('图解')
   })
@@ -279,9 +275,10 @@ describe('BookBlockRenderer · figure', () => {
   it('falls back to the source view without throwing when mermaid.parse rejects', async () => {
     mermaidMock.parse.mockRejectedValue(new Error('bad syntax'))
     const container = renderBlock(figureBlock)
-    await flushEffects()
 
-    expect(container.textContent).toContain('图示生成失败')
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('图示生成失败')
+    })
     const details = descendants(container).find((element) => element.tagName === 'DETAILS')
     expect(details, 'fallback details').toBeDefined()
     expect(details!.textContent).toContain('flowchart LR')
