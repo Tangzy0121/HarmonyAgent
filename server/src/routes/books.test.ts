@@ -355,3 +355,158 @@ describe('DELETE /api/books/:id', () => {
     expect(again.body).toEqual({ error: 'book_not_found' })
   })
 })
+
+async function createProposalBook(app: express.Express): Promise<{
+  id: string
+  chapters: { id: string; title: string; order: number; objective: string; estimatedMinutes: number }[]
+}> {
+  const created = await request(app)
+    .post('/api/books')
+    .send({ documentId, goal: '理解概念', learnerLevel: '入门' })
+  expect(created.status).toBe(201)
+  return created.body.book
+}
+
+function proposalEditBody(chapters: { id: string }[]): unknown {
+  return {
+    title: '编辑后的书名',
+    description: '编辑后的描述',
+    chapters: chapters.map((chapter, index) => ({
+      id: chapter.id,
+      title: `编辑后的第${index + 1}章`,
+      order: index + 1,
+      objective: `编辑后的目标${index + 1}`,
+      estimatedMinutes: 20,
+    })),
+  }
+}
+
+describe('PUT /api/books/:id/proposal', () => {
+  it('saves valid edits, reorders chapters, and bumps updatedAt', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const book = await createProposalBook(app)
+
+    // 确定性比较 updatedAt：先把落库时间戳改成一个过去的固定值
+    const stored = (await bookStore.get(book.id))!
+    await bookStore.save({ ...stored, updatedAt: '2000-01-01T00:00:00.000Z' })
+
+    const edits = proposalEditBody(book.chapters) as {
+      title: string
+      description: string
+      chapters: { id: string; title: string; order: number; objective: string; estimatedMinutes: number }[]
+    }
+    // 打乱顺序 + 非规范 order 值，验证重排与归一化
+    edits.chapters = [
+      { ...edits.chapters[2], order: 10 },
+      { ...edits.chapters[0], order: 20 },
+      { ...edits.chapters[1], order: 30 },
+    ]
+
+    const res = await request(app).put(`/api/books/${book.id}/proposal`).send(edits)
+
+    expect(res.status).toBe(200)
+    const updated = res.body.book
+    expect(updated.proposal.title).toBe('编辑后的书名')
+    expect(updated.proposal.description).toBe('编辑后的描述')
+    expect(updated.chapters.map((chapter: { id: string }) => chapter.id))
+      .toEqual(['ch-3', 'ch-1', 'ch-2'])
+    expect(updated.chapters.map((chapter: { order: number }) => chapter.order)).toEqual([1, 2, 3])
+    expect(updated.updatedAt).not.toBe('2000-01-01T00:00:00.000Z')
+
+    const saved = await bookStore.get(book.id)
+    expect(saved).toMatchObject({ id: book.id, status: 'proposal' })
+    expect(saved?.proposal.title).toBe('编辑后的书名')
+  })
+
+  it('returns 400 invalid_proposal_edit for a mismatched chapter id set', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const book = await createProposalBook(app)
+
+    const edits = proposalEditBody(book.chapters) as {
+      chapters: { id: string }[]
+    }
+    edits.chapters[0] = { ...edits.chapters[0], id: 'ch-99' }
+
+    const res = await request(app).put(`/api/books/${book.id}/proposal`).send(edits)
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_proposal_edit' })
+  })
+
+  it('returns 404 book_not_found for an unknown book id', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+
+    const res = await request(app)
+      .put('/api/books/book_missing-1/proposal')
+      .send(proposalEditBody([{ id: 'ch-1' }, { id: 'ch-2' }, { id: 'ch-3' }]))
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'book_not_found' })
+  })
+
+  it('returns 409 book_not_editable after the book is confirmed', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const book = await createProposalBook(app)
+
+    const confirmed = await request(app).post(`/api/books/${book.id}/confirm`)
+    expect(confirmed.status).toBe(200)
+
+    const res = await request(app)
+      .put(`/api/books/${book.id}/proposal`)
+      .send(proposalEditBody(book.chapters))
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'book_not_editable' })
+  })
+})
+
+describe('POST /api/books/:id/confirm', () => {
+  it('confirms a proposal book: status generating, activeChapterId first chapter, chapter shells unchanged', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const book = await createProposalBook(app)
+
+    const res = await request(app).post(`/api/books/${book.id}/confirm`)
+
+    expect(res.status).toBe(200)
+    const confirmed = res.body.book
+    expect(confirmed.id).toBe(book.id)
+    expect(confirmed.status).toBe('generating')
+    expect(confirmed.activeChapterId).toBe('ch-1')
+    // 章节状态不变：仍为 pending，等客户端逐章触发生成
+    for (const chapter of confirmed.chapters) {
+      expect(chapter.status).toBe('pending')
+      expect(chapter.blocks).toEqual([])
+    }
+    expect(confirmed.generationJobs).toEqual(book.generationJobs)
+
+    const saved = await bookStore.get(book.id)
+    expect(saved).toMatchObject({ id: book.id, status: 'generating', activeChapterId: 'ch-1' })
+  })
+
+  it('returns 409 book_not_editable when confirming a non-proposal book', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const book = await createProposalBook(app)
+
+    await request(app).post(`/api/books/${book.id}/confirm`)
+
+    const again = await request(app).post(`/api/books/${book.id}/confirm`)
+    expect(again.status).toBe(409)
+    expect(again.body).toEqual({ error: 'book_not_editable' })
+  })
+
+  it('returns 404 book_not_found for an unknown book id', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+
+    const res = await request(app).post('/api/books/book_missing-1/confirm')
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'book_not_found' })
+  })
+})

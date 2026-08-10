@@ -13,6 +13,7 @@ import {
   type StoredBook,
 } from '../books/bookTypes.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
+import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
 import {
   extractJsonObject,
   normalizeProposal,
@@ -337,6 +338,74 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     } catch (error) {
       next(error)
     }
+  })
+
+  router.put('/:id/proposal', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+
+    let updated: StoredBook
+    try {
+      updated = applyProposalEdits(book, req.body as ProposalEdits)
+    } catch (error) {
+      if (error instanceof ProposalEditError) {
+        res.status(error.code === 'book_not_editable' ? 409 : 400).json({ error: error.code })
+        return
+      }
+      throw error
+    }
+
+    updated = { ...updated, updatedAt: new Date().toISOString() }
+    try {
+      await bookStore.save(updated)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    res.status(200).json({ book: updated })
+  })
+
+  router.post('/:id/confirm', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    if (book.status !== 'proposal') {
+      res.status(409).json({ error: 'book_not_editable' })
+      return
+    }
+
+    // 确认目录：进入 generating，激活第一章；章节保持 pending，等客户端逐章触发生成
+    const sorted = [...book.chapters].sort((a, b) => a.order - b.order)
+    const confirmed: StoredBook = {
+      ...book,
+      status: 'generating',
+      activeChapterId: sorted[0]?.id ?? book.activeChapterId,
+      updatedAt: new Date().toISOString(),
+    }
+    try {
+      await bookStore.save(confirmed)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    res.status(200).json({ book: confirmed })
   })
 
   const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
