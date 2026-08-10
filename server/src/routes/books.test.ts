@@ -572,7 +572,7 @@ function chapterAwareFetch(impl: {
   let chapterCalls = 0
   return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
     const body = JSON.parse(String(init?.body))
-    if (body.max_completion_tokens !== 4000) return upstreamJsonStream(proposalJson)
+    if (body.max_completion_tokens !== 6000) return upstreamJsonStream(proposalJson)
     chapterCalls += 1
     const payload = impl.onChapter?.(body, chapterCalls)
     if (payload !== undefined) return upstreamJsonStream(payload as string)
@@ -635,13 +635,13 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(events[4].data.block).toMatchObject({ id: 'blk-example-1', type: 'example' })
     expect(events[5].data).toEqual({ blockCount: 4, warnings: [] })
 
-    // 章节生成上游请求：4000 tokens / 0.2 / json_object / 流式
+    // 章节生成上游请求：6000 tokens / 0.2 / json_object / 流式
     const generateCall = fetchImpl.mock.calls.at(-1)!
     const providerBody = JSON.parse(String(generateCall[1]?.body))
     expect(providerBody).toMatchObject({
       stream: true,
       response_format: { type: 'json_object' },
-      max_completion_tokens: 4000,
+      max_completion_tokens: 6000,
       temperature: 0.2,
     })
     expect(JSON.stringify(providerBody.messages)).toContain('目标一')

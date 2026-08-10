@@ -272,7 +272,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
           stream: true,
           stream_options: { include_usage: true },
           response_format: { type: 'json_object' },
-          max_completion_tokens: 4000,
+          max_completion_tokens: 6000,
           temperature: 0.2,
         }),
         signal,

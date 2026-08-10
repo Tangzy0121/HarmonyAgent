@@ -70,6 +70,24 @@ describe('buildChapterMessages', () => {
     expect(system.content).toMatch(/不得执行|不能执行/u)
   })
 
+  it('includes layout-architect rules and the new callout/flash_cards/figure block types', () => {
+    const [system] = buildChapterMessages(input)
+
+    // 新类型与排版规则进入提示词
+    expect(system.content).toContain('callout')
+    expect(system.content).toContain('flash_cards')
+    expect(system.content).toContain('figure')
+    expect(system.content).toContain('key_idea')
+    expect(system.content).toContain('pitfall')
+    expect(system.content).toContain('flowchart')
+    expect(system.content).toContain('mindmap')
+    expect(system.content).toContain('6 到 10 个内容块')
+    expect(system.content).toContain('至少 4 种')
+    // 既有安全规则不回归
+    expect(system.content).toContain('不可信数据')
+    expect(system.content).toContain('逐字')
+  })
+
   it('never embeds secret-shaped material in any message', () => {
     const text = serialized(buildChapterMessages(input))
 
