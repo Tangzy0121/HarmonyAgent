@@ -5342,6 +5342,7 @@ button:disabled {
 .book-block__primary:disabled { opacity: 0.34; }
 .book-quiz__feedback { padding: 12px; border-radius: 11px; color: #814e43; background: rgb(229 194 182 / 0.25); font-size: 0.75rem; line-height: 1.6; }
 .book-quiz__feedback.is-correct { color: #35684c; background: rgb(116 170 137 / 0.14); }
+.book-quiz__evidence { margin: 8px 0 0; color: rgb(35 31 29 / 0.58); font-size: 0.72rem; line-height: 1.6; }
 .book-user-note { display: flex; gap: 10px; min-height: 88px; padding: 14px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 13px; color: rgb(35 31 29 / 0.58); background: rgb(255 248 213 / 0.25); }
 .book-user-note textarea { width: 100%; min-width: 0; min-height: 76px; resize: vertical; padding: 0; border: 0; outline: 0; color: rgb(35 31 29 / 0.72); background: transparent; font: inherit; font-size: 0.78rem; line-height: 1.65; }
 .book-user-note textarea::placeholder { color: rgb(35 31 29 / 0.4); }
@@ -7450,7 +7451,7 @@ button:disabled {
   left: 0;
   width: 100%;
   max-height: 82dvh;
-  padding: 9px 20px calc(18px + env(safe-area-inset-bottom));
+  padding: 9px 20px calc(120px + env(safe-area-inset-bottom));
   overflow-y: auto;
   border-top: 1px solid var(--ink-12);
   border-radius: 28px 28px 0 0;

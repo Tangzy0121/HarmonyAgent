@@ -27,4 +27,12 @@ describe('interactive book responsive shell', () => {
     expect(rule).toMatch(/min-height:\s*0/)
     expect(rule).toMatch(/overflow-y:\s*auto/)
   })
+
+  it('keeps the upload sheet submit button clear of the bottom navigation', () => {
+    const rule = css.match(/\.upload-book-sheet\s*\{([^}]*)\}/)?.[1]
+
+    // 底部导航高约 60px，sheet 需留出 120px+ 底部余量且自身可滚动，提交按钮不被遮挡
+    expect(rule).toMatch(/overflow-y:\s*auto/)
+    expect(rule).toMatch(/calc\(120px \+ env\(safe-area-inset-bottom\)\)/)
+  })
 })

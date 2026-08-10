@@ -78,6 +78,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                   block={block}
                   note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
                   attempt={book.quizAttempts.find((attempt) => attempt.blockId === block.id)}
+                  evidence={block.type === 'quiz' ? book.evidence.find((item) => item.sourceBlockId === block.id) : undefined}
                   allowBlockRegenerate={!isRealBook}
                   onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
                   onSubmitQuiz={(blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}

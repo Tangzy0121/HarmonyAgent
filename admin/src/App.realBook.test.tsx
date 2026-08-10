@@ -433,6 +433,33 @@ describe('App · 真实学习书接线', () => {
     expect(container.textContent).not.toContain('这一章生成失败了')
   })
 
+  it('真实书答对随堂小测后生成学习证据文案（客户端会话内，计数为 1）', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+    }))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    const quizBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-quiz-1')
+    expect(quizBlock, 'real book quiz block').toBeDefined()
+    expect(quizBlock!.textContent).not.toContain('学习证据')
+
+    const clickWithin = (root: FakeElement, text: string) => {
+      const button = descendants(root).find((element) => element.tagName === 'BUTTON' && element.textContent.includes(text))
+      expect(button, `button containing "${text}" inside quiz block`).toBeDefined()
+      flushSync(() => Simulate.click(button as unknown as Element))
+    }
+    clickWithin(quizBlock!, '不属于，因为没有目标标签形成监督信号。')
+    clickWithin(quizBlock!, '提交答案')
+    await flushEffects()
+
+    // 答题反馈 + 学习证据文案出现且仅一条（evidence 计数为 1）
+    expect(quizBlock!.textContent).toContain('回答正确。')
+    expect(quizBlock!.textContent).toContain('学习证据')
+    expect(quizBlock!.textContent?.match(/能够根据目标标签判断监督学习。/g)).toHaveLength(1)
+  })
+
   it('以 #book/{bookId}/{chapterId} 直接挂载时经 getBook 恢复阅读，不重走提案', async () => {
     vi.mocked(getBook).mockResolvedValue(realBookFixture({
       status: 'ready',
@@ -515,5 +542,41 @@ describe('App · 真实学习书接线', () => {
     expect(windowStub.location.hash).toBe('#library')
     expect(container.textContent).toContain('文件超过 20MB 上限')
     expect(container.textContent).toContain('上传学习资料')
+  })
+
+  it('确认目录被服务端拒绝时显示目录校验专项文案', async () => {
+    vi.mocked(updateProposal).mockRejectedValue(new BookApiError('invalid_proposal_edit', '学习资料服务暂时不可用，请稍后重试。'))
+    mountApp('#proposal/book_x')
+    await flushEffects()
+
+    click('确认目录并生成')
+    await flushEffects()
+
+    expect(confirmBook).not.toHaveBeenCalled()
+    expect(windowStub.location.hash).toBe('#proposal/book_x')
+    expect(container.textContent).toContain('目录修改未通过校验，请检查后重试。')
+    expect(container.textContent).not.toContain('学习资料服务暂时不可用')
+  })
+
+  it.each([
+    ['pdf_too_many_pages', '这份 PDF 超过 30 页上限，请拆分后再上传。'],
+    ['pdf_encrypted', '这份 PDF 已加密，暂不支持解析。'],
+    ['pdf_no_text', '这份 PDF 没有可提取的文字（可能是扫描件），暂不支持。'],
+    ['pdf_unreadable', '这份 PDF 无法读取，请检查文件是否损坏。'],
+  ])('上传失败 %s 时显示专项文案', async (code, expectedText) => {
+    vi.mocked(uploadDocument).mockRejectedValue(new BookApiError(code, '学习资料服务暂时不可用，请稍后重试。'))
+    mountApp('#library')
+    await flushEffects()
+
+    click('上传学习资料')
+    selectFile(new File([new Uint8Array([1, 2, 3])], 'chapter.pdf', { type: 'application/pdf' }))
+    click('理解概念')
+    click('入门')
+    click('开始生成学习书')
+    await flushEffects()
+
+    expect(createBook).not.toHaveBeenCalled()
+    expect(container.textContent).toContain(expectedText)
+    expect(container.textContent).not.toContain('学习资料服务暂时不可用')
   })
 })

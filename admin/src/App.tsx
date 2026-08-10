@@ -52,10 +52,18 @@ function generatedBookStatus(chapters: LearningBook['chapters']): LearningBook['
   return 'generating'
 }
 
+const REAL_BOOK_ERROR_MESSAGES: Record<string, string> = {
+  pdf_too_large: '文件超过 20MB 上限，请压缩或拆分后再上传。',
+  pdf_too_many_pages: '这份 PDF 超过 30 页上限，请拆分后再上传。',
+  pdf_encrypted: '这份 PDF 已加密，暂不支持解析。',
+  pdf_no_text: '这份 PDF 没有可提取的文字（可能是扫描件），暂不支持。',
+  pdf_unreadable: '这份 PDF 无法读取，请检查文件是否损坏。',
+  invalid_proposal_edit: '目录修改未通过校验，请检查后重试。',
+}
+
 function realBookActionErrorMessage(error: unknown): string {
   if (error instanceof BookApiError) {
-    if (error.code === 'pdf_too_large') return '文件超过 20MB 上限，请压缩或拆分后再上传。'
-    return error.message
+    return REAL_BOOK_ERROR_MESSAGES[error.code] ?? error.message
   }
   return '网络连接异常，请检查网络后重试。'
 }
