@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { json, Router, type ErrorRequestHandler } from 'express'
+import { json, Router, type ErrorRequestHandler, type Response } from 'express'
 
 import type { BookAgentPromptMessage } from '../agent/bookAgentPrompt.js'
 import { OpenAIStreamParseError, parseOpenAIStream } from '../agent/openAIStream.js'
@@ -8,10 +8,13 @@ import type { BookStore } from '../books/bookStore.js'
 import {
   LEARNING_GOALS,
   LEARNER_LEVELS,
+  type BookBlock,
   type LearnerLevel,
   type LearningGoal,
   type StoredBook,
 } from '../books/bookTypes.js'
+import { buildChapterMessages } from '../books/chapterPrompt.js'
+import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
 import {
@@ -35,12 +38,16 @@ export interface BooksLogEvent {
     | 'upstream_timeout'
     | 'upstream_stream_error'
     | 'proposal_validation_failed'
+    | 'chapter_validation_failed'
+    | 'chapter_generated'
+    | 'chapter_error'
     | 'book_created'
     | 'book_removed'
   status?: number
   name?: string
   attempt?: number
   bookId?: string
+  chapterId?: string
   documentId?: string
 }
 
@@ -57,12 +64,32 @@ interface BooksRouterDependencies {
 
 const UPSTREAM_TIMEOUT_MS = 60_000
 const SAFE_ERROR_NAMES = new Set(['Error', 'TypeError', 'TimeoutError', 'OpenAIStreamParseError'])
+const BOOK_BLOCK_BUDGET = 30
+const CHAPTER_FAILURE_MESSAGE = '章节生成失败，请稍后重试。'
 
 class UpstreamCallError extends Error {
   constructor() {
     super('upstream_call_failed')
     this.name = 'UpstreamCallError'
   }
+}
+
+function writeEvent(res: Response, type: string, data: unknown): void {
+  if (res.destroyed || res.writableEnded) return
+  res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
+}
+
+/** 解析章 sourceAnchor 上的页码范围（'4' 或 '3–6'，en dash / 连字符均可）。 */
+function parseAnchorPageRange(value: string | undefined): { start: number; end: number } | null {
+  if (typeof value !== 'string') return null
+  const match = /^\s*(\d+)\s*(?:[–-]\s*(\d+)\s*)?$/u.exec(value)
+  if (!match) return null
+  const start = Number(match[1])
+  const end = match[2] === undefined ? start : Number(match[2])
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || start > end) {
+    return null
+  }
+  return { start, end }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -221,6 +248,57 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       throw new UpstreamCallError()
     } finally {
       clearTimeout(timeout)
+    }
+  }
+
+  // 章节生成专用上游调用：超时/断连中止由路由层持有 signal 统一控制，
+  // 其余行为（流式收集、json_object、白名单脱敏日志）与目录提案一致
+  async function callChapterUpstream(
+    messages: BookAgentPromptMessage[],
+    apiKey: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const baseUrl = (env.LLM_BASE_URL?.trim() || 'https://api.deepseek.com').replace(/\/$/u, '')
+    try {
+      const upstream = await fetchImpl(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: env.LLM_MODEL?.trim() || 'deepseek-v4-flash',
+          messages,
+          stream: true,
+          stream_options: { include_usage: true },
+          response_format: { type: 'json_object' },
+          max_completion_tokens: 4000,
+          temperature: 0.2,
+        }),
+        signal,
+      })
+
+      if (!upstream.ok) {
+        emitLog(logger, { category: 'upstream_http_error', status: upstream.status })
+        throw new UpstreamCallError()
+      }
+      if (!upstream.body) throw new UpstreamCallError()
+
+      let text = ''
+      await parseOpenAIStream(upstream.body, (frame) => {
+        if (frame.type === 'delta') text += frame.text
+      })
+      return text
+    } catch (error) {
+      if (error instanceof UpstreamCallError) throw error
+      // 中止（超时或客户端断连）由路由层按 timedOut/disconnected 分类，这里不记日志
+      if (signal.aborted) throw new UpstreamCallError()
+      if (error instanceof OpenAIStreamParseError) {
+        emitLog(logger, { category: 'upstream_stream_error', name: safeErrorName(error) })
+        throw new UpstreamCallError()
+      }
+      emitLog(logger, { category: 'upstream_fetch_error', name: safeErrorName(error) })
+      throw new UpstreamCallError()
     }
   }
 
@@ -406,6 +484,215 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
     res.status(200).json({ book: confirmed })
+  })
+
+  router.post('/:id/chapters/:cid/generate', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    const chapter = book.chapters.find((entry) => entry.id === req.params.cid)
+    if (chapter === undefined) {
+      res.status(404).json({ error: 'chapter_not_found' })
+      return
+    }
+    // 前置校验失败一律 JSON 409/404/503，不进入 SSE
+    if (book.status === 'proposal' || chapter.status !== 'pending') {
+      res.status(409).json({ error: 'chapter_not_generatable' })
+      return
+    }
+    const anchorRange = parseAnchorPageRange(chapter.sourceAnchors[0]?.pageRange)
+    let document: StoredDocument | null
+    try {
+      document = await documentStore.get(book.source.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (document === null || anchorRange === null || anchorRange.end > document.pageCount) {
+      res.status(409).json({ error: 'chapter_not_generatable' })
+      return
+    }
+    const apiKey = env.LLM_API_KEY?.trim() ?? ''
+    if (!apiKey) {
+      res.status(503).json({ error: 'chapter_not_configured' })
+      return
+    }
+
+    res.status(200)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.flushHeaders()
+
+    const abortController = new AbortController()
+    let disconnected = false
+    let timedOut = false
+    const onClientAbort = () => {
+      disconnected = true
+      abortController.abort(new DOMException('Client disconnected', 'AbortError'))
+    }
+    const onResponseClose = () => {
+      if (!res.writableFinished) onClientAbort()
+    }
+    req.once('aborted', onClientAbort)
+    res.once('close', onResponseClose)
+    const timeout = setTimeout(() => {
+      timedOut = true
+      abortController.abort(new DOMException('Upstream timed out', 'TimeoutError'))
+    }, UPSTREAM_TIMEOUT_MS)
+    timeout.unref()
+
+    const job = book.generationJobs.find((entry) => entry.chapterId === chapter.id)
+    const persist = async (): Promise<void> => {
+      book.updatedAt = new Date().toISOString()
+      if (job !== undefined) job.updatedAt = book.updatedAt
+      await bookStore.save(book)
+    }
+    // 全部章 ready → ready；有 error 章 → partial；其余保持 generating
+    const refreshBookStatus = (): void => {
+      if (book.chapters.every((entry) => entry.status === 'ready')) {
+        book.status = 'ready'
+      } else if (book.chapters.some((entry) => entry.status === 'error')) {
+        book.status = 'partial'
+      } else {
+        book.status = 'generating'
+      }
+    }
+    const markChapterError = async (code: string): Promise<void> => {
+      chapter.status = 'error'
+      if (job !== undefined) {
+        job.status = 'error'
+        job.lastError = code
+      }
+      refreshBookStatus()
+      await persist()
+    }
+
+    try {
+      chapter.status = 'generating'
+      if (job !== undefined) job.status = 'generating'
+      await persist()
+      writeEvent(res, 'chapter_start', { chapterId: chapter.id })
+
+      const chapterPages = document.pages.filter(
+        (page) => page.page >= anchorRange.start && page.page <= anchorRange.end,
+      )
+      const proposalDigest = [
+        book.proposal.description,
+        ...[...book.chapters]
+          .sort((a, b) => a.order - b.order)
+          .map((entry) => `第${entry.order}章 ${entry.title}：${entry.objective}`),
+      ].filter(Boolean).join('\n')
+      const baseMessages = buildChapterMessages({
+        bookTitle: book.proposal.title,
+        proposalDigest,
+        chapter: { title: chapter.title, objective: chapter.objective },
+        pagesText: buildDocumentDigest(chapterPages),
+      })
+      const usedBlocks = book.chapters.reduce((sum, entry) => sum + entry.blocks.length, 0)
+      const validationCtx = {
+        pages: document.pages,
+        pageStart: anchorRange.start,
+        pageEnd: anchorRange.end,
+        fileName: document.fileName,
+        remainingBookBudget: BOOK_BLOCK_BUDGET - usedBlocks,
+      }
+
+      // 解析/校验失败带修正指令重试一次；上游传输类失败不重试
+      let result: { blocks: BookBlock[]; warnings: string[] } | null = null
+      let failureCode = 'chapter_generation_failed'
+      let attemptMessages = baseMessages
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        if (job !== undefined) job.attempts += 1
+        await persist()
+        let text: string
+        try {
+          text = await callChapterUpstream(attemptMessages, apiKey, abortController.signal)
+        } catch {
+          failureCode = timedOut ? 'upstream_timeout' : 'upstream_unavailable'
+          break
+        }
+        try {
+          result = normalizeChapterBlocks(extractJsonObject(text), validationCtx)
+          break
+        } catch (error) {
+          if (
+            !(error instanceof ProposalValidationError) &&
+            !(error instanceof ChapterValidationError)
+          ) {
+            throw error
+          }
+          emitLog(logger, {
+            category: 'chapter_validation_failed',
+            attempt,
+            bookId: book.id,
+            chapterId: chapter.id,
+          })
+          attemptMessages = [
+            ...baseMessages,
+            { role: 'assistant', content: text },
+            { role: 'user', content: '上次输出未通过校验：chapter_invalid，请只输出合法 JSON。' },
+          ]
+        }
+      }
+
+      if (result === null) {
+        await markChapterError(failureCode)
+        if (!disconnected && !res.destroyed) {
+          writeEvent(res, 'error', { code: failureCode, message: CHAPTER_FAILURE_MESSAGE })
+          res.end()
+        }
+        return
+      }
+
+      // 逐块 emit 并逐块落盘，中断时保留已落盘部分
+      for (const [index, block] of result.blocks.entries()) {
+        chapter.blocks.push(block)
+        writeEvent(res, 'block', { index, block })
+        await persist()
+      }
+      chapter.status = 'ready'
+      if (job !== undefined) {
+        job.status = 'ready'
+        job.lastError = null
+      }
+      refreshBookStatus()
+      await persist()
+      emitLog(logger, { category: 'chapter_generated', bookId: book.id, chapterId: chapter.id })
+      writeEvent(res, 'chapter_done', { blockCount: result.blocks.length, warnings: result.warnings })
+      res.end()
+    } catch (error) {
+      emitLog(logger, {
+        category: 'chapter_error',
+        name: safeErrorName(error),
+        bookId: book.id,
+        chapterId: chapter.id,
+      })
+      try {
+        await markChapterError('chapter_generation_failed')
+      } catch {
+        // store 故障时不覆盖主错误路径
+      }
+      if (!disconnected && !res.destroyed) {
+        writeEvent(res, 'error', {
+          code: 'chapter_generation_failed',
+          message: CHAPTER_FAILURE_MESSAGE,
+        })
+        res.end()
+      }
+    } finally {
+      clearTimeout(timeout)
+      req.removeListener('aborted', onClientAbort)
+      res.removeListener('close', onResponseClose)
+    }
   })
 
   const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {

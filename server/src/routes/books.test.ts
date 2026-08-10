@@ -1,4 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -508,5 +510,359 @@ describe('POST /api/books/:id/confirm', () => {
 
     expect(res.status).toBe(404)
     expect(res.body).toEqual({ error: 'book_not_found' })
+  })
+})
+
+function sseEventsFrom(responseText: string): Array<{ event: string; data: any }> {
+  return responseText
+    .split('\n\n')
+    .filter(Boolean)
+    .map((frame) => {
+      const lines = frame.split('\n')
+      return {
+        event: lines.find((line) => line.startsWith('event: '))?.slice(7) ?? '',
+        data: JSON.parse(lines.find((line) => line.startsWith('data: '))?.slice(6) ?? 'null'),
+      }
+    })
+}
+
+// 章 ch-1 页范围 1–2、ch-2 页范围 3–4、ch-3 页范围 5–6；
+// citation 引文必须逐字出自对应页文本（见 parsed 夹具）
+function chapterBlocksJson(page: number) {
+  return {
+    blocks: [
+      {
+        type: 'explanation',
+        title: '本章讲解',
+        body: `围绕第${page}页内容展开讲解。`,
+        keyPoint: `第${page}页要点`,
+      },
+      {
+        type: 'citation',
+        title: '原文引文',
+        excerpt: `机器学习的第${page}部分讲解内容`,
+        pageRange: String(page),
+      },
+      {
+        type: 'quiz',
+        title: '随堂小测',
+        conceptId: 'c1',
+        question: `第${page}部分讲了什么？`,
+        options: [
+          { id: 'o1', text: '机器学习' },
+          { id: 'o2', text: '烹饪技巧' },
+        ],
+        correctAnswerId: 'o1',
+        feedback: `第${page}页讲解的是机器学习。`,
+      },
+    ],
+  }
+}
+
+function chapterAwareFetch(impl: {
+  onChapter?: (body: { messages: unknown }, chapterCalls: number) => unknown
+} = {}) {
+  let chapterCalls = 0
+  return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+    const body = JSON.parse(String(init?.body))
+    if (body.max_completion_tokens !== 4000) return upstreamJsonStream(proposalJson)
+    chapterCalls += 1
+    const payload = impl.onChapter?.(body, chapterCalls)
+    if (payload !== undefined) return upstreamJsonStream(payload as string)
+    const serialized = JSON.stringify(body.messages)
+    // proposalDigest 含全部章节目标，只能按「本章标题」区分章节
+    const page = serialized.includes('本章标题：第一章')
+      ? 1
+      : serialized.includes('本章标题：第二章')
+        ? 3
+        : 5
+    return upstreamJsonStream(chapterBlocksJson(page))
+  })
+}
+
+async function createConfirmedBook(app: express.Express): Promise<{ id: string }> {
+  const created = await request(app)
+    .post('/api/books')
+    .send({ documentId, goal: '理解概念', learnerLevel: '入门' })
+  expect(created.status).toBe(201)
+  const confirmed = await request(app).post(`/api/books/${created.body.book.id}/confirm`)
+  expect(confirmed.status).toBe(200)
+  return { id: created.body.book.id as string }
+}
+
+describe('POST /api/books/:id/chapters/:cid/generate', () => {
+  it('streams chapter_start → block×N → chapter_done and persists blocks, chapter and job', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/event-stream')
+    const events = sseEventsFrom(res.text)
+    expect(events.map(({ event }) => event)).toEqual([
+      'chapter_start',
+      'block',
+      'block',
+      'block',
+      'chapter_done',
+    ])
+    expect(events[0].data).toEqual({ chapterId: 'ch-1' })
+    expect(events[1].data).toMatchObject({ index: 0 })
+    expect(events[1].data.block).toMatchObject({
+      id: 'blk-explanation-1',
+      type: 'explanation',
+      status: 'ready',
+      revision: 1,
+    })
+    expect(events[2].data.block).toMatchObject({ id: 'blk-citation-1', type: 'citation' })
+    expect(events[2].data.block.sourceAnchors).toEqual([{
+      sourceId: 'S1',
+      fileName: 'lecture.pdf',
+      pageRange: '1',
+      excerpt: '机器学习的第1部分讲解内容',
+    }])
+    expect(events[3].data.block).toMatchObject({ id: 'blk-quiz-1', type: 'quiz' })
+    expect(events[4].data).toEqual({ blockCount: 3, warnings: [] })
+
+    // 章节生成上游请求：4000 tokens / 0.2 / json_object / 流式
+    const generateCall = fetchImpl.mock.calls.at(-1)!
+    const providerBody = JSON.parse(String(generateCall[1]?.body))
+    expect(providerBody).toMatchObject({
+      stream: true,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 4000,
+      temperature: 0.2,
+    })
+    expect(JSON.stringify(providerBody.messages)).toContain('目标一')
+    expect(JSON.stringify(providerBody.messages)).toContain('【第1页】')
+
+    // 落盘：章 ready、块齐全、job ready/attempts=1
+    const saved = await bookStore.get(id)
+    const chapter = saved?.chapters.find((entry) => entry.id === 'ch-1')
+    expect(chapter?.status).toBe('ready')
+    expect(chapter?.blocks).toHaveLength(3)
+    expect(chapter?.blocks.map((block) => block.id)).toEqual([
+      'blk-explanation-1',
+      'blk-citation-1',
+      'blk-quiz-1',
+    ])
+    const job = saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1')
+    expect(job).toMatchObject({ status: 'ready', attempts: 1, lastError: null })
+    // 其余章不受影响
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-2')?.status).toBe('pending')
+    expect(saved?.status).toBe('generating')
+  })
+
+  it('returns 409 chapter_not_generatable for a chapter that is not pending', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const first = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(first.status).toBe(200)
+
+    const again = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(again.status).toBe(409)
+    expect(again.body).toEqual({ error: 'chapter_not_generatable' })
+    // 前置 409：未再调上游（提案 1 次 + 章节 1 次）
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns 409 chapter_not_generatable when the book is still in proposal status', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const created = await request(app)
+      .post('/api/books')
+      .send({ documentId, goal: '理解概念', learnerLevel: '入门' })
+    const id = created.body.book.id as string
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'chapter_not_generatable' })
+    expect(res.headers['content-type']).not.toContain('text/event-stream')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 404 for an unknown book or chapter id', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const missingBook = await request(app).post('/api/books/book_missing-1/chapters/ch-1/generate')
+    expect(missingBook.status).toBe(404)
+    expect(missingBook.body).toEqual({ error: 'book_not_found' })
+
+    const missingChapter = await request(app).post(`/api/books/${id}/chapters/ch-99/generate`)
+    expect(missingChapter.status).toBe(404)
+    expect(missingChapter.body).toEqual({ error: 'chapter_not_found' })
+  })
+
+  it('returns 503 without contacting upstream when the key is absent', async () => {
+    const proposalFetch = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const setupApp = appWith(proposalFetch)
+    const { id } = await createConfirmedBook(setupApp)
+
+    const noKeyFetch = vi.fn<typeof fetch>()
+    const app = appWith(noKeyFetch, { apiKey: '' })
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    expect(res.status).toBe(503)
+    expect(res.body).toEqual({ error: 'chapter_not_configured' })
+    expect(noKeyFetch).not.toHaveBeenCalled()
+  })
+
+  it('retries once with a correction instruction when the first reply is invalid JSON', async () => {
+    const fetchImpl = chapterAwareFetch({
+      onChapter: (_body, chapterCalls) => (chapterCalls === 1 ? '这不是 JSON' : chapterBlocksJson(1)),
+    })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    expect(res.status).toBe(200)
+    expect(sseEventsFrom(res.text).map(({ event }) => event)).toEqual([
+      'chapter_start',
+      'block',
+      'block',
+      'block',
+      'chapter_done',
+    ])
+    const retryBody = JSON.parse(String(fetchImpl.mock.calls.at(-1)?.[1]?.body))
+    const lastMessage = retryBody.messages.at(-1)
+    expect(lastMessage.role).toBe('user')
+    expect(lastMessage.content).toContain('上次输出未通过校验')
+    const job = (await bookStore.get(id))?.generationJobs.find((entry) => entry.chapterId === 'ch-1')
+    expect(job).toMatchObject({ status: 'ready', attempts: 2 })
+  })
+
+  it('emits chapter_generation_failed and marks the chapter error when both attempts are invalid', async () => {
+    const fetchImpl = chapterAwareFetch({ onChapter: () => '仍然不是 JSON' })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    expect(res.status).toBe(200)
+    const events = sseEventsFrom(res.text)
+    expect(events.map(({ event }) => event)).toEqual(['chapter_start', 'error'])
+    expect(events[1].data.code).toBe('chapter_generation_failed')
+    expect(fetchImpl).toHaveBeenCalledTimes(3) // 提案 1 次 + 章节 2 次
+
+    const saved = await bookStore.get(id)
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-1')).toMatchObject({
+      status: 'error',
+      blocks: [],
+    })
+    expect(saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1'))
+      .toMatchObject({ status: 'error', attempts: 2, lastError: 'chapter_generation_failed' })
+    expect(saved?.status).toBe('partial')
+  })
+
+  it('retries once and fails when every citation is dropped by validation', async () => {
+    const badCitationBlocks = {
+      blocks: [
+        { type: 'explanation', title: '讲解', body: '正文', keyPoint: '要点' },
+        { type: 'citation', title: '伪造引文', excerpt: '原文中不存在的内容', pageRange: '1' },
+        {
+          type: 'quiz',
+          title: '小测',
+          conceptId: 'c1',
+          question: '问题？',
+          options: [{ id: 'o1', text: '甲' }, { id: 'o2', text: '乙' }],
+          correctAnswerId: 'o1',
+          feedback: '解析',
+        },
+      ],
+    }
+    const fetchImpl = chapterAwareFetch({ onChapter: () => badCitationBlocks })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    expect(res.status).toBe(200)
+    const events = sseEventsFrom(res.text)
+    expect(events.at(-1)?.data.code).toBe('chapter_generation_failed')
+    // 校验失败同样重试一次：提案 1 + 章节 2
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+
+    const saved = await bookStore.get(id)
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-1')?.status).toBe('error')
+    // 其他章状态不变
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-2')?.status).toBe('pending')
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-3')?.status).toBe('pending')
+  })
+
+  it('flips the book to ready once every chapter is ready', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    await request(app).post(`/api/books/${id}/chapters/ch-2/generate`)
+    expect((await bookStore.get(id))?.status).toBe('generating')
+
+    await request(app).post(`/api/books/${id}/chapters/ch-3/generate`)
+    const readyBook = await bookStore.get(id)
+    expect(readyBook?.status).toBe('ready')
+    expect(readyBook?.chapters.every((chapter) => chapter.status === 'ready')).toBe(true)
+  })
+
+  it('aborts the upstream request and persists the chapter as error when the client disconnects', async () => {
+    const proposalFetch = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const setupApp = appWith(proposalFetch)
+    const { id } = await createConfirmedBook(setupApp)
+
+    let observeSignal: ((signal: AbortSignal) => void) | undefined
+    const signalSeen = new Promise<AbortSignal>((resolve) => { observeSignal = resolve })
+    const hangingFetch = vi.fn<typeof fetch>((_input, init) => new Promise((_resolve, reject) => {
+      const signal = init?.signal
+      if (!signal) return reject(new Error('missing signal'))
+      observeSignal?.(signal)
+      // 与真实 fetch 一致：已中止的 signal 立即拒绝
+      if (signal.aborted) return reject(signal.reason)
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }))
+    const app = appWith(hangingFetch)
+    const server = http.createServer(app)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as AddressInfo
+
+    try {
+      const responseClosed = new Promise<void>((resolve, reject) => {
+        const clientRequest = http.request({
+          host: '127.0.0.1',
+          port,
+          path: `/api/books/${id}/chapters/ch-1/generate`,
+          method: 'POST',
+        }, (clientResponse) => {
+          clientResponse.once('data', () => clientResponse.destroy())
+          clientResponse.once('close', resolve)
+        })
+        clientRequest.once('error', (error) => {
+          if ((error as NodeJS.ErrnoException).code !== 'ECONNRESET') reject(error)
+        })
+        clientRequest.end()
+      })
+
+      const upstreamSignal = await signalSeen
+      await responseClosed
+      await vi.waitFor(() => expect(upstreamSignal.aborted).toBe(true))
+      // 注意：不能用轮询 bookStore.get 等待落盘——Windows 上并发读会持有句柄，
+      // 导致 bookStore 原子写的 rename EPERM（读不报错、写失败）。路由本身毫秒内完成，
+      // 固定短等待后单次断言即可。
+      await new Promise<void>((resolve) => setTimeout(resolve, 300))
+      // 章翻 error 落盘，attempts 已计
+      const saved = await bookStore.get(id)
+      expect(saved?.chapters.find((entry) => entry.id === 'ch-1')?.status).toBe('error')
+      expect(saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1'))
+        .toMatchObject({ status: 'error', attempts: 1 })
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    }
   })
 })
