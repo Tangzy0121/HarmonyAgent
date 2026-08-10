@@ -557,6 +557,56 @@ describe('normalizeChapterBlocks 新块类型（callout/flash_cards/figure）', 
     expect(eightCards.blocks.some((block) => block.type === 'flash_cards')).toBe(true)
   })
 
+  it('drops flash_cards when front/back/hint exceed their char limits, with a warning', () => {
+    const base = [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()]
+    const card = (overrides: Record<string, unknown>) => [
+      { front: '监督学习', back: '有标签', ...overrides },
+      { front: '无监督学习', back: '无标签' },
+      { front: '强化学习', back: '奖励信号' },
+    ]
+
+    // front 121 字（上限 120）→ 丢弃
+    const longFront = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: card({ front: '问'.repeat(121) }) })] },
+      baseCtx,
+    )
+    expect(longFront.blocks.some((block) => block.type === 'flash_cards')).toBe(false)
+    expect(longFront.warnings.length).toBeGreaterThan(0)
+
+    // back 301 字（上限 300）→ 丢弃
+    const longBack = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: card({ back: '答'.repeat(301) }) })] },
+      baseCtx,
+    )
+    expect(longBack.blocks.some((block) => block.type === 'flash_cards')).toBe(false)
+    expect(longBack.warnings.length).toBeGreaterThan(0)
+
+    // hint 121 字（上限 120）→ 丢弃
+    const longHint = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: card({ hint: '提示'.repeat(61) }) })] },
+      baseCtx,
+    )
+    expect(longHint.blocks.some((block) => block.type === 'flash_cards')).toBe(false)
+    expect(longHint.warnings.length).toBeGreaterThan(0)
+
+    // 正向边界：front 120 / back 300 / hint 120 恰达上限 → 保留且字段原样
+    const atLimit = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: card({
+        front: '问'.repeat(120),
+        back: '答'.repeat(300),
+        hint: '提'.repeat(120),
+      }) })] },
+      baseCtx,
+    )
+    const kept = atLimit.blocks.find((block) => block.type === 'flash_cards')
+    if (kept?.type !== 'flash_cards') throw new Error('flash_cards block missing')
+    expect(kept.cards[0]).toEqual({
+      front: '问'.repeat(120),
+      back: '答'.repeat(300),
+      hint: '提'.repeat(120),
+    })
+  })
+
   it('drops a figure with empty/overlong mermaid, script injection, or overlong caption, with a warning', () => {
     const base = [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()]
 
