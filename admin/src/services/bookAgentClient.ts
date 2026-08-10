@@ -1,4 +1,10 @@
 import type { BookAgentContext, BookAgentSource } from '../types/bookAgent'
+import {
+  createSseFrameParserState,
+  parseSseFrames,
+  type SseFrameEvent,
+  type SseFrameParserState,
+} from './sseFrames'
 
 export interface BookAgentClientHistoryMessage {
   role: 'user' | 'assistant'
@@ -92,21 +98,10 @@ function parseEvent(type: string, data: string): BookAgentClientEvent | null {
   throw new BookAgentClientError('invalid_stream', INVALID_STREAM_MESSAGE)
 }
 
-function parseFrame(frame: string): { event: BookAgentClientEvent | null; terminal: boolean } {
-  let type = 'message'
-  const data: string[] = []
-  for (const line of frame.split('\n')) {
-    if (!line || line.startsWith(':')) continue
-    const separator = line.indexOf(':')
-    const field = separator < 0 ? line : line.slice(0, separator)
-    let value = separator < 0 ? '' : line.slice(separator + 1)
-    if (value.startsWith(' ')) value = value.slice(1)
-    if (field === 'event') type = value
-    if (field === 'data') data.push(value)
-  }
-  if (!RECOGNIZED_EVENTS.has(type)) return { event: null, terminal: false }
-  if (data.length === 0) throw new BookAgentClientError('invalid_stream', INVALID_STREAM_MESSAGE)
-  const event = parseEvent(type, data.join('\n'))
+function parseFrame(frame: SseFrameEvent): { event: BookAgentClientEvent | null; terminal: boolean } {
+  if (!RECOGNIZED_EVENTS.has(frame.event)) return { event: null, terminal: false }
+  if (frame.data === '') throw new BookAgentClientError('invalid_stream', INVALID_STREAM_MESSAGE)
+  const event = parseEvent(frame.event, frame.data)
   return { event, terminal: event?.type === 'done' || event?.type === 'error' }
 }
 
@@ -121,12 +116,6 @@ async function readHttpError(response: Response): Promise<BookAgentClientError> 
     // Ignore provider/proxy response bodies and expose only a stable client message.
   }
   return new BookAgentClientError(code, SAFE_HTTP_MESSAGE)
-}
-
-function nextFrame(buffer: string): { frame: string; rest: string } | null {
-  const match = /\n\n/u.exec(buffer)
-  if (!match) return null
-  return { frame: buffer.slice(0, match.index), rest: buffer.slice(match.index + match[0].length) }
 }
 
 export async function streamBookAgent(
@@ -144,50 +133,19 @@ export async function streamBookAgent(
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
-  let buffer = ''
+  let parserState: SseFrameParserState = createSseFrameParserState()
   let terminal = false
-  let pendingCarriageReturn = false
   let reachedNaturalEof = false
   let shouldCancel = false
 
-  const normalizeLineEndings = (text: string, flush = false): string => {
-    let normalized = ''
-    let index = 0
-    if (pendingCarriageReturn) {
-      normalized += '\n'
-      if (text.startsWith('\n')) index = 1
-      pendingCarriageReturn = false
-    }
-    while (index < text.length) {
-      const character = text[index]
-      if (character === '\r') {
-        if (index === text.length - 1 && !flush) {
-          pendingCarriageReturn = true
-          break
-        }
-        normalized += '\n'
-        if (text[index + 1] === '\n') index += 1
-      } else {
-        normalized += character
-      }
-      index += 1
-    }
-    if (flush && pendingCarriageReturn) {
-      normalized += '\n'
-      pendingCarriageReturn = false
-    }
-    return normalized
-  }
-
-  const dispatchCompleteFrames = (): void => {
-    let extracted = nextFrame(buffer)
-    while (extracted) {
-      buffer = extracted.rest
-      const parsed = parseFrame(extracted.frame)
-      if (parsed.event) options.onEvent(parsed.event)
-      terminal = parsed.terminal
+  const dispatchCompleteFrames = (chunk: string, flush = false): void => {
+    const parsed = parseSseFrames(chunk, parserState, flush)
+    parserState = parsed.state
+    for (const frame of parsed.events) {
+      const result = parseFrame(frame)
+      if (result.event) options.onEvent(result.event)
+      terminal = result.terminal
       if (terminal) return
-      extracted = nextFrame(buffer)
     }
   }
 
@@ -198,14 +156,12 @@ export async function streamBookAgent(
         reachedNaturalEof = true
         break
       }
-      buffer += normalizeLineEndings(decoder.decode(value, { stream: true }))
-      dispatchCompleteFrames()
+      dispatchCompleteFrames(decoder.decode(value, { stream: true }))
     }
 
     if (terminal && !reachedNaturalEof) shouldCancel = true
     if (!terminal) {
-      buffer += normalizeLineEndings(decoder.decode(), true)
-      dispatchCompleteFrames()
+      dispatchCompleteFrames(decoder.decode(), true)
       if (terminal && !reachedNaturalEof) shouldCancel = true
       if (!terminal) throw new BookAgentClientError('incomplete_stream', INCOMPLETE_STREAM_MESSAGE)
     }
