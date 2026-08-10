@@ -12,6 +12,8 @@ export interface UploadBookSubmission {
 interface UploadBookSheetProps {
   onSubmit: (input: UploadBookSubmission) => void | Promise<void>
   onClose: () => void
+  /** 上传/建书失败文案（父层按 BookApiError.code 映射后传入）；面板保持打开 */
+  errorMessage?: string | null
 }
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
@@ -23,7 +25,7 @@ function formatSizeLabel(sizeBytes: number): string {
   return `${Math.max(1, Math.ceil(sizeBytes / 1024))} KB`
 }
 
-export function UploadBookSheet({ onSubmit, onClose }: UploadBookSheetProps) {
+export function UploadBookSheet({ onSubmit, onClose, errorMessage = null }: UploadBookSheetProps) {
   const [file, setFile] = useState<File | null>(null)
   const [goal, setGoal] = useState<LearningGoal | null>(null)
   const [learnerLevel, setLearnerLevel] = useState<LearnerLevel | null>(null)
@@ -137,6 +139,12 @@ export function UploadBookSheet({ onSubmit, onClose }: UploadBookSheetProps) {
         <p className="upload-book-sheet__note">
           PDF 将上传至云端解析，用于生成互动学习书；原始文件与解析结果可随时在知识库删除。
         </p>
+
+        {errorMessage && (
+          <p className="upload-book-sheet__error" role="alert">
+            {errorMessage}
+          </p>
+        )}
 
         <button
           type="button"

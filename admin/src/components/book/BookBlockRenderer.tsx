@@ -6,6 +6,8 @@ interface BookBlockRendererProps {
   block: BookBlock
   note?: UserNote
   attempt?: QuizAttempt
+  /** 块级“重生成”按钮显隐：mock 书本地重生成可用；真实书块由服务端整章生成，不渲染 */
+  allowBlockRegenerate?: boolean
   onRegenerate: (blockId: string) => void
   onSubmitQuiz: (blockId: string, answerId: string) => void
   onUpdateNote: (noteId: string, body: string) => void
@@ -13,9 +15,9 @@ interface BookBlockRendererProps {
   onAskAgent: (blockId: string) => void
 }
 
-export function BookBlockRenderer({ block, note, attempt, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent }: BookBlockRendererProps) {
+export function BookBlockRenderer({ block, note, attempt, allowBlockRegenerate = true, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent }: BookBlockRendererProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(attempt?.answerId ?? '')
-  const canRegenerate = block.type !== 'citation' && block.type !== 'user_note'
+  const canRegenerate = allowBlockRegenerate && block.type !== 'citation' && block.type !== 'user_note'
 
   const content = (() => {
     switch (block.type) {

@@ -15,10 +15,16 @@ interface InteractiveBookPageProps {
   onAskAgent: (focusBlockId?: string) => void
   onBack: () => void
   onStartDeepLearning: (blockId: string) => void
+  /** 真实书：生成中视图显示流式进度、隐藏 mock 的“完成本章生成”，块级重生成不渲染 */
+  isRealBook?: boolean
+  /** 当前章的流式进度（仅真实书生成中传入） */
+  chapterProgress?: { blocksReceived: number } | null
+  /** 真实书失败章重试：重新发起该章的流式生成 */
+  onRetryChapter?: (chapterId: string) => void
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
@@ -43,14 +49,18 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
             <h1 id="interactive-book-title">正在生成第{chapterOrdinal}章</h1>
             <span>Agent 正在依据第 {activeChapter.sourceAnchors.map((anchor) => anchor.pageRange).join('、')} 页组织讲解、例子和验证题。本章完成后即可开始阅读，后续章节会继续生成。</span>
             <div className="book-generating-state__steps"><i className="is-done" /><i className="is-active" /><i /><i /></div>
-            <button type="button" onClick={() => onBookChange(advanceGeneration(book))}>完成本章生成 <Icon name="arrow" size={17} /></button>
+            {isRealBook && <span>已生成 {chapterProgress?.blocksReceived ?? 0} 块</span>}
+            {!isRealBook && <button type="button" onClick={() => onBookChange(advanceGeneration(book))}>完成本章生成 <Icon name="arrow" size={17} /></button>}
           </section>
         ) : activeChapter.status === 'error' ? (
           <section className="book-pending-state" role="alert">
             <Icon name="refresh" size={28} />
             <h1 id="interactive-book-title">这一章生成失败了</h1>
             <p>已有章节和学习记录不会受到影响，可以单独重试当前章节。</p>
-            <button type="button" className="book-block__primary" onClick={() => onBookChange(retryChapterGeneration(book, activeChapter.id))}>重新生成本章</button>
+            <button type="button" className="book-block__primary" onClick={() => {
+              if (isRealBook) onRetryChapter?.(activeChapter.id)
+              else onBookChange(retryChapterGeneration(book, activeChapter.id))
+            }}>重新生成本章</button>
           </section>
         ) : activeChapter.status === 'ready' || activeChapter.status === 'partial' ? (
           <article className="interactive-book-chapter">
@@ -68,6 +78,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                   block={block}
                   note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
                   attempt={book.quizAttempts.find((attempt) => attempt.blockId === block.id)}
+                  allowBlockRegenerate={!isRealBook}
                   onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
                   onSubmitQuiz={(blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
                   onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}

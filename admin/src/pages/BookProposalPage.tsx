@@ -13,9 +13,13 @@ interface BookProposalPageProps {
   onBookChange: (book: LearningBook) => void
   onConfirm: () => void
   onBack: () => void
+  /** 真实书确认中：禁用确认按钮防重复提交（mock 书不传，行为不变） */
+  isConfirming?: boolean
+  /** 真实书确认失败文案（updateProposal/confirmBook 报错时由父层传入） */
+  confirmError?: string | null
 }
 
-export function BookProposalPage({ book, onBookChange, onConfirm, onBack }: BookProposalPageProps) {
+export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConfirming = false, confirmError = null }: BookProposalPageProps) {
   const [notice, setNotice] = useState('你可以调整名称与顺序，确认后再生成正文。')
   const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>(() => Object.fromEntries(book.chapters.map((chapter) => [chapter.id, chapter.title])))
 
@@ -109,11 +113,12 @@ export function BookProposalPage({ book, onBookChange, onConfirm, onBack }: Book
         </section>
 
         <p className="book-proposal-notice" role="status">{notice}</p>
+        {confirmError && <p className="book-proposal-notice" role="alert">{confirmError}</p>}
       </main>
 
       <footer className="book-proposal-primary-action">
         <div><span>下一步</span><strong>第一章生成后即可开始阅读</strong></div>
-        <button type="button" onClick={onConfirm}>确认目录并生成<Icon name="arrow" size={18} /></button>
+        <button type="button" disabled={isConfirming} onClick={onConfirm}>{isConfirming ? '正在确认目录…' : '确认目录并生成'}<Icon name="arrow" size={18} /></button>
       </footer>
     </section>
   )
