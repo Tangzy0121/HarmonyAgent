@@ -120,7 +120,72 @@ describe('applyProposalEdits', () => {
     expect(book.proposal.title).toBe('机器学习入门')
   })
 
-  it('rejects a chapter id set that does not match the shell one-to-one', () => {
+  it('accepts deleting a chapter (edited ids are a subset of the shell ids)', () => {
+    const book = makeBook(5)
+    const edits = editsFor(book, {
+      chapters: book.chapters.slice(0, 4).map((chapter) => ({
+        id: chapter.id,
+        title: chapter.title,
+        order: chapter.order,
+        objective: chapter.objective,
+        estimatedMinutes: chapter.estimatedMinutes,
+      })),
+    })
+
+    const updated = applyProposalEdits(book, edits)
+
+    expect(updated.chapters.map((chapter) => chapter.id)).toEqual(['ch-1', 'ch-2', 'ch-3', 'ch-4'])
+    expect(updated.chapters.map((chapter) => chapter.order)).toEqual([1, 2, 3, 4])
+    // 壳字段保留
+    expect(updated.chapters[3].coreConceptId).toBe('concept-ch-4')
+    expect(updated.chapters[3].sourceAnchors).toEqual(book.chapters[3].sourceAnchors)
+  })
+
+  it('accepts merging adjacent chapters (subset ids with concatenated title)', () => {
+    const book = makeBook(5)
+    const [first, second, ...rest] = book.chapters
+    const edits = editsFor(book, {
+      chapters: [
+        {
+          id: first.id,
+          title: `${first.title}与${second.title}`,
+          order: 1,
+          objective: `${first.objective} ${second.objective}`,
+          estimatedMinutes: first.estimatedMinutes + second.estimatedMinutes,
+        },
+        ...rest.map((chapter) => ({
+          id: chapter.id,
+          title: chapter.title,
+          order: chapter.order,
+          objective: chapter.objective,
+          estimatedMinutes: chapter.estimatedMinutes,
+        })),
+      ],
+    })
+
+    const updated = applyProposalEdits(book, edits)
+
+    expect(updated.chapters).toHaveLength(4)
+    expect(updated.chapters.map((chapter) => chapter.id)).toEqual(['ch-1', 'ch-3', 'ch-4', 'ch-5'])
+    expect(updated.chapters.map((chapter) => chapter.order)).toEqual([1, 2, 3, 4])
+    expect(updated.chapters[0].title).toBe('第1章与第2章')
+  })
+
+  it('rejects edits that shrink below the 3-chapter minimum via deletion', () => {
+    const book = makeBook(3)
+    const edits = editsFor(book, {
+      chapters: book.chapters.slice(0, 2).map((chapter) => ({
+        id: chapter.id,
+        title: chapter.title,
+        order: chapter.order,
+        objective: chapter.objective,
+        estimatedMinutes: chapter.estimatedMinutes,
+      })),
+    })
+    expectEditError(book, edits, 'invalid_proposal_edit')
+  })
+
+  it('rejects chapter ids that are not part of the original shell (new ids)', () => {
     const book = makeBook()
     const edits = editsFor(book)
     edits.chapters[0] = { ...edits.chapters[0], id: 'ch-99' }

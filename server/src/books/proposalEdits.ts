@@ -63,12 +63,12 @@ export function applyProposalEdits(book: StoredBook, edits: ProposalEdits): Stor
     throw new ProposalEditError('invalid_proposal_edit')
   }
 
+  // 章节 id 集合须为原壳 id 的非空子集（允许删除/合并章节，3–6 章）；新增 id 一律拒绝
   const originalIds = new Set(book.chapters.map((chapter) => chapter.id))
   const editIds = new Set<string>()
   const valid =
     chapters.length >= MIN_CHAPTERS &&
     chapters.length <= MAX_CHAPTERS &&
-    chapters.length === originalIds.size &&
     chapters.every((edit) => {
       if (!isValidChapterEdit(edit) || !originalIds.has(edit.id) || editIds.has(edit.id)) {
         return false
