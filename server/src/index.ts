@@ -7,6 +7,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { llmRouter } from './routes/llm.js';
 import { createBookAgentRouter } from './routes/bookAgent.js';
+import { createDocumentsRouter } from './routes/documents.js';
+import { createDocumentStore } from './documents/documentStore.js';
+import path from 'node:path';
 
 dotenv.config();
 
@@ -16,6 +19,12 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 // Middleware
 app.use(cors());
 app.use('/api/agent', createBookAgentRouter());
+app.use(
+  '/api/documents',
+  createDocumentsRouter({
+    store: createDocumentStore(process.env.DATA_DIR ?? path.join(process.cwd(), 'data')),
+  }),
+);
 app.use(express.json({ limit: '10mb' }));
 
 // Health check
