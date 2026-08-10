@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBookStore, type BookStore } from '../books/bookStore.js'
 import { createDocumentStore, type DocumentStore } from '../documents/documentStore.js'
 import type { ParsedDocument } from '../documents/pdfParser.js'
-import { createBooksRouter } from './books.js'
+import { CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
 
 const API_KEY = 'test-only-secret-key'
 
@@ -58,13 +58,14 @@ let documentId: string
 
 function appWith(
   fetchImpl: typeof fetch,
-  options: { apiKey?: string; logger?: (event: unknown) => void } = {},
+  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number } = {},
 ) {
   const app = express()
   app.use('/api/books', createBooksRouter({
     documentStore,
     bookStore,
     fetchImpl,
+    chapterTimeoutMs: options.chapterTimeoutMs,
     env: {
       LLM_API_KEY: options.apiKey ?? API_KEY,
       LLM_BASE_URL: 'https://api.deepseek.example/',
@@ -945,5 +946,30 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
     }
+  })
+
+  it('aborts a slow chapter upstream after the injected chapterTimeoutMs and reports upstream_timeout', async () => {
+    const proposalFetch = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const { id } = await createConfirmedBook(appWith(proposalFetch))
+
+    const hangingFetch = vi.fn<typeof fetch>((_input, init) => new Promise((_resolve, reject) => {
+      const signal = init?.signal
+      if (!signal) return reject(new Error('missing signal'))
+      if (signal.aborted) return reject(signal.reason)
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }))
+    const app = appWith(hangingFetch, { chapterTimeoutMs: 120 })
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    const events = sseEventsFrom(res.text)
+    expect(events.at(-1)?.event).toBe('error')
+    expect(events.at(-1)?.data).toMatchObject({ code: 'upstream_timeout' })
+    const saved = await bookStore.get(id)
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-1')?.status).toBe('error')
+  })
+
+  it('章节生成默认超时必须比提案 60s 预算更长（6000 token 章节在真实上游常超过 60s）', () => {
+    expect(CHAPTER_UPSTREAM_TIMEOUT_MS).toBeGreaterThan(UPSTREAM_TIMEOUT_MS)
   })
 })

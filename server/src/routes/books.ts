@@ -60,9 +60,13 @@ interface BooksRouterDependencies {
   env?: BooksEnvironment
   logger?: BooksLogger
   createBookId?: () => string
+  /** 章节生成上游超时（毫秒），默认 CHAPTER_UPSTREAM_TIMEOUT_MS；测试可注入小值 */
+  chapterTimeoutMs?: number
 }
 
-const UPSTREAM_TIMEOUT_MS = 60_000
+export const UPSTREAM_TIMEOUT_MS = 60_000
+// 章节输出预算 6000 tokens，真实上游生成常超过提案用的 60s，章节路径单独放宽到 180s
+export const CHAPTER_UPSTREAM_TIMEOUT_MS = 180_000
 const SAFE_ERROR_NAMES = new Set(['Error', 'TypeError', 'TimeoutError', 'OpenAIStreamParseError'])
 const BOOK_BLOCK_BUDGET = 30
 const CHAPTER_FAILURE_MESSAGE = '章节生成失败，请稍后重试。'
@@ -184,6 +188,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
   const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch
   const env = dependencies.env ?? process.env
   const createBookId = dependencies.createBookId ?? (() => `book_${randomUUID()}`)
+  const chapterTimeoutMs = dependencies.chapterTimeoutMs ?? CHAPTER_UPSTREAM_TIMEOUT_MS
   const logger =
     dependencies.logger ??
     ((event: BooksLogEvent) => {
@@ -551,7 +556,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     const timeout = setTimeout(() => {
       timedOut = true
       abortController.abort(new DOMException('Upstream timed out', 'TimeoutError'))
-    }, UPSTREAM_TIMEOUT_MS)
+    }, chapterTimeoutMs)
     timeout.unref()
 
     const job = book.generationJobs.find((entry) => entry.chapterId === chapter.id)
