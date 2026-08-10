@@ -10,7 +10,7 @@ export type BlockStatus = 'pending' | 'generating' | 'ready' | 'error' | 'hidden
 
 export type AgentContextScope = 'chapter' | 'book'
 
-export type BookBlockType = 'explanation' | 'example' | 'formula' | 'citation' | 'concept' | 'quiz' | 'user_note'
+export type BookBlockType = 'explanation' | 'example' | 'formula' | 'citation' | 'concept' | 'quiz' | 'callout' | 'flash_cards' | 'figure' | 'user_note'
 
 export interface SourceDocument {
   id: string
@@ -111,7 +111,31 @@ export interface UserNoteBlock extends BaseBookBlock {
   noteId: string
 }
 
-export type BookBlock = ExplanationBlock | ExampleBlock | FormulaBlock | CitationBlock | ConceptBlock | QuizBlock | UserNoteBlock
+export interface CalloutBlock extends BaseBookBlock {
+  type: 'callout'
+  kind: 'key_idea' | 'pitfall' | 'tip' | 'insight'
+  body: string
+}
+
+export interface FlashCard {
+  front: string
+  back: string
+  hint?: string
+}
+
+export interface FlashCardsBlock extends BaseBookBlock {
+  type: 'flash_cards'
+  cards: FlashCard[]
+}
+
+export interface FigureBlock extends BaseBookBlock {
+  type: 'figure'
+  kind: 'flowchart' | 'mindmap' | 'timeline' | 'sequence'
+  mermaid: string
+  caption: string
+}
+
+export type BookBlock = ExplanationBlock | ExampleBlock | FormulaBlock | CitationBlock | ConceptBlock | QuizBlock | CalloutBlock | FlashCardsBlock | FigureBlock | UserNoteBlock
 
 export interface BookChapter {
   id: string

@@ -40,6 +40,12 @@ function blockText(block: BookBlock, noteBody: string): string {
       return block.concepts.map((item) => `${item.label}：${item.description}`).join('\n')
     case 'quiz':
       return `${block.question}\n${block.options.map((item) => `${item.marker}. ${item.text}`).join('\n')}`
+    case 'callout':
+      return block.body
+    case 'flash_cards':
+      return block.cards.map((card) => `${card.front}：${card.back}`).join('\n')
+    case 'figure':
+      return `${block.caption}\n${block.mermaid}`
     case 'user_note':
       return `用户笔记（非原文）：${noteBody}`
   }

@@ -18,6 +18,9 @@ export type BookBlockType =
   | 'citation'
   | 'concept'
   | 'quiz'
+  | 'callout'
+  | 'flash_cards'
+  | 'figure'
   | 'user_note'
 
 export interface SourceDocument {
@@ -119,6 +122,30 @@ export interface UserNoteBlock extends BaseBookBlock {
   noteId: string
 }
 
+export interface CalloutBlock extends BaseBookBlock {
+  type: 'callout'
+  kind: 'key_idea' | 'pitfall' | 'tip' | 'insight'
+  body: string
+}
+
+export interface FlashCard {
+  front: string
+  back: string
+  hint?: string
+}
+
+export interface FlashCardsBlock extends BaseBookBlock {
+  type: 'flash_cards'
+  cards: FlashCard[]
+}
+
+export interface FigureBlock extends BaseBookBlock {
+  type: 'figure'
+  kind: 'flowchart' | 'mindmap' | 'timeline' | 'sequence'
+  mermaid: string
+  caption: string
+}
+
 export type BookBlock =
   | ExplanationBlock
   | ExampleBlock
@@ -126,6 +153,9 @@ export type BookBlock =
   | CitationBlock
   | ConceptBlock
   | QuizBlock
+  | CalloutBlock
+  | FlashCardsBlock
+  | FigureBlock
   | UserNoteBlock
 
 export interface BookChapter {

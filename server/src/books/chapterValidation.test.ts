@@ -91,6 +91,40 @@ function formulaBlock() {
   }
 }
 
+function calloutBlock(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'callout',
+    title: '常见坑',
+    kind: 'pitfall',
+    body: '别把监督学习和无监督学习混淆。',
+    ...overrides,
+  }
+}
+
+function flashCardsBlock(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'flash_cards',
+    title: '术语卡',
+    cards: [
+      { front: '监督学习', back: '有标签', hint: '看标签' },
+      { front: '无监督学习', back: '无标签' },
+      { front: '强化学习', back: '奖励信号' },
+    ],
+    ...overrides,
+  }
+}
+
+function figureBlock(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'figure',
+    title: '流程',
+    kind: 'flowchart',
+    mermaid: 'flowchart LR\n  A-->B',
+    caption: '训练流程',
+    ...overrides,
+  }
+}
+
 function validBlocks() {
   return [explanationBlock(), exampleBlock(), citationBlock(), conceptBlock(), quizBlock(), formulaBlock()]
 }
@@ -127,7 +161,7 @@ describe('normalizeChapterBlocks', () => {
 
     // 同类型第二块序号递增
     const again = normalizeChapterBlocks(
-      { blocks: [explanationBlock(), explanationBlock({ title: '第二段讲解' }), citationBlock(), quizBlock()] },
+      { blocks: [explanationBlock(), explanationBlock({ title: '第二段讲解' }), citationBlock(), quizBlock(), exampleBlock()] },
       baseCtx,
     )
     expect(again.blocks.map((block) => block.id)).toEqual([
@@ -135,12 +169,13 @@ describe('normalizeChapterBlocks', () => {
       'blk-explanation-2',
       'blk-citation-1',
       'blk-quiz-1',
+      'blk-example-1',
     ])
   })
 
   it('keeps a citation whose excerpt is a substring of page 4 and builds sourceAnchors', () => {
     const { blocks, warnings } = normalizeChapterBlocks(
-      { blocks: [explanationBlock(), citationBlock(), quizBlock()] },
+      { blocks: [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()] },
       baseCtx,
     )
 
@@ -163,6 +198,7 @@ describe('normalizeChapterBlocks', () => {
           explanationBlock(),
           citationBlock({ excerpt: '梯度下降 迭代更新\n模型参数', pageRange: '3–6' }),
           quizBlock(),
+          exampleBlock(),
         ],
       },
       { ...baseCtx, pageStart: 3, pageEnd: 6 },
@@ -181,6 +217,7 @@ describe('normalizeChapterBlocks', () => {
           citationBlock({ excerpt: '原文里根本不存在的一句话' }),
           citationBlock({ title: '有效引文' }),
           quizBlock(),
+          exampleBlock(),
         ],
       },
       baseCtx,
@@ -200,6 +237,7 @@ describe('normalizeChapterBlocks', () => {
           citationBlock({ pageRange: '99' }),
           citationBlock({ title: '有效引文' }),
           quizBlock(),
+          exampleBlock(),
         ],
       },
       baseCtx,
@@ -213,25 +251,25 @@ describe('normalizeChapterBlocks', () => {
 
   it('throws chapter_invalid when an explanation block is missing', () => {
     expect(() => normalizeChapterBlocks(
-      { blocks: [citationBlock(), quizBlock()] },
+      { blocks: [citationBlock(), quizBlock(), exampleBlock(), formulaBlock()] },
       baseCtx,
     )).toThrowError(ChapterValidationError)
     expect(() => normalizeChapterBlocks(
-      { blocks: [citationBlock(), quizBlock()] },
+      { blocks: [citationBlock(), quizBlock(), exampleBlock(), formulaBlock()] },
       baseCtx,
     )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
   })
 
   it('throws chapter_invalid when no citation survives validation', () => {
     expect(() => normalizeChapterBlocks(
-      { blocks: [explanationBlock(), citationBlock({ excerpt: '不存在的引文' }), quizBlock()] },
+      { blocks: [explanationBlock(), citationBlock({ excerpt: '不存在的引文' }), quizBlock(), exampleBlock(), formulaBlock()] },
       baseCtx,
     )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
   })
 
   it('throws chapter_invalid when a quiz block is missing', () => {
     expect(() => normalizeChapterBlocks(
-      { blocks: [explanationBlock(), citationBlock()] },
+      { blocks: [explanationBlock(), citationBlock(), exampleBlock(), formulaBlock()] },
       baseCtx,
     )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
   })
@@ -242,6 +280,7 @@ describe('normalizeChapterBlocks', () => {
         blocks: [
           explanationBlock(),
           citationBlock(),
+          exampleBlock(),
           quizBlock(),
           quizBlock({ title: '第二题', question: '问题二？' }),
           quizBlock({ title: '第三题', question: '问题三？' }),
@@ -287,21 +326,21 @@ describe('normalizeChapterBlocks', () => {
 
   it('drops blocks of an unknown type with a warning', () => {
     const { blocks, warnings } = normalizeChapterBlocks(
-      { blocks: [explanationBlock(), { type: 'animation', title: '动画' }, citationBlock(), quizBlock()] },
+      { blocks: [explanationBlock(), { type: 'animation', title: '动画' }, citationBlock(), quizBlock(), exampleBlock()] },
       baseCtx,
     )
 
-    expect(blocks.map((block) => block.type)).toEqual(['explanation', 'citation', 'quiz'])
+    expect(blocks.map((block) => block.type)).toEqual(['explanation', 'citation', 'quiz', 'example'])
     expect(warnings.some((warning) => warning.includes('animation'))).toBe(true)
   })
 
-  it('keeps only the first remainingBookBudget blocks in input order, with a warning', () => {
+  it('trims to remainingBookBudget while protecting essential types, with a warning', () => {
     const { blocks, warnings } = normalizeChapterBlocks(
       { blocks: [explanationBlock(), citationBlock(), quizBlock(), exampleBlock(), formulaBlock()] },
-      { ...baseCtx, remainingBookBudget: 2 },
+      { ...baseCtx, remainingBookBudget: 4 },
     )
 
-    expect(blocks.map((block) => block.type)).toEqual(['explanation', 'citation'])
+    expect(blocks.map((block) => block.type)).toEqual(['explanation', 'citation', 'quiz', 'example'])
     expect(warnings.some((warning) => warning.includes('预算'))).toBe(true)
   })
 
@@ -345,7 +384,7 @@ describe('normalizeChapterBlocks', () => {
 
   it('normalizes quiz options with markers and preserves the answer id', () => {
     const { blocks } = normalizeChapterBlocks(
-      { blocks: [explanationBlock(), citationBlock(), quizBlock()] },
+      { blocks: [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()] },
       baseCtx,
     )
 
@@ -367,5 +406,242 @@ describe('normalizeChapterBlocks', () => {
       .toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
     expect(() => normalizeChapterBlocks({ blocks: 'oops' }, baseCtx))
       .toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
+  })
+})
+
+describe('normalizeChapterBlocks 新块类型（callout/flash_cards/figure）', () => {
+  it('keeps valid callout/flash_cards/figure blocks and assigns id/status/revision/sourceAnchors', () => {
+    const valid = {
+      blocks: [
+        explanationBlock(),
+        citationBlock(),
+        quizBlock(),
+        calloutBlock(),
+        flashCardsBlock(),
+        figureBlock(),
+      ],
+    }
+    const { blocks, warnings } = normalizeChapterBlocks(valid, baseCtx)
+
+    expect(warnings).toEqual([])
+    expect(blocks.map((block) => block.type)).toEqual([
+      'explanation',
+      'citation',
+      'quiz',
+      'callout',
+      'flash_cards',
+      'figure',
+    ])
+    expect(blocks.map((block) => block.id)).toEqual([
+      'blk-explanation-1',
+      'blk-citation-1',
+      'blk-quiz-1',
+      'blk-callout-1',
+      'blk-flash_cards-1',
+      'blk-figure-1',
+    ])
+    for (const block of blocks) {
+      expect(block.status).toBe('ready')
+      expect(block.revision).toBe(1)
+    }
+
+    const callout = blocks[3]
+    if (callout.type !== 'callout') throw new Error('callout block missing')
+    expect(callout.kind).toBe('pitfall')
+    expect(callout.body).toBe('别把监督学习和无监督学习混淆。')
+    expect(callout.sourceAnchors).toEqual([])
+
+    const flashCards = blocks[4]
+    if (flashCards.type !== 'flash_cards') throw new Error('flash_cards block missing')
+    // hint 可选：缺省不补
+    expect(flashCards.cards).toEqual([
+      { front: '监督学习', back: '有标签', hint: '看标签' },
+      { front: '无监督学习', back: '无标签' },
+      { front: '强化学习', back: '奖励信号' },
+    ])
+
+    const figure = blocks[5]
+    if (figure.type !== 'figure') throw new Error('figure block missing')
+    expect(figure.kind).toBe('flowchart')
+    expect(figure.mermaid).toBe('flowchart LR\n  A-->B')
+    expect(figure.caption).toBe('训练流程')
+  })
+
+  it('falls back to default titles for the new block types', () => {
+    const { blocks } = normalizeChapterBlocks(
+      {
+        blocks: [
+          explanationBlock(),
+          citationBlock(),
+          quizBlock(),
+          calloutBlock({ title: '' }),
+          flashCardsBlock({ title: '' }),
+          figureBlock({ title: '' }),
+        ],
+      },
+      baseCtx,
+    )
+
+    expect(blocks.find((block) => block.type === 'callout')?.title).toBe('学习提示')
+    expect(blocks.find((block) => block.type === 'flash_cards')?.title).toBe('记忆闪卡')
+    expect(blocks.find((block) => block.type === 'figure')?.title).toBe('图解')
+  })
+
+  it('drops a callout with a non-whitelisted kind or an overlong body, with a warning', () => {
+    const base = [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()]
+
+    const badKind = normalizeChapterBlocks(
+      { blocks: [...base, calloutBlock({ kind: 'warning' })] },
+      baseCtx,
+    )
+    expect(badKind.blocks.some((block) => block.type === 'callout')).toBe(false)
+    expect(badKind.warnings.length).toBeGreaterThan(0)
+
+    const longBody = normalizeChapterBlocks(
+      { blocks: [...base, calloutBlock({ body: '长'.repeat(401) })] },
+      baseCtx,
+    )
+    expect(longBody.blocks.some((block) => block.type === 'callout')).toBe(false)
+    expect(longBody.warnings.length).toBeGreaterThan(0)
+
+    // 边界：body 恰好 400 字、kind 为枚举值时保留
+    const kept = normalizeChapterBlocks(
+      { blocks: [...base, calloutBlock({ kind: 'key_idea', body: '长'.repeat(400) })] },
+      baseCtx,
+    )
+    expect(kept.blocks.some((block) => block.type === 'callout')).toBe(true)
+  })
+
+  it('drops flash_cards with too few/many cards or an empty front, with a warning', () => {
+    const base = [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()]
+
+    const twoCards = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: [
+        { front: '监督学习', back: '有标签' },
+        { front: '无监督学习', back: '无标签' },
+      ] })] },
+      baseCtx,
+    )
+    expect(twoCards.blocks.some((block) => block.type === 'flash_cards')).toBe(false)
+    expect(twoCards.warnings.length).toBeGreaterThan(0)
+
+    const nineCards = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: Array.from({ length: 9 }, (_, index) => ({
+        front: `术语${index + 1}`,
+        back: `释义${index + 1}`,
+      })) })] },
+      baseCtx,
+    )
+    expect(nineCards.blocks.some((block) => block.type === 'flash_cards')).toBe(false)
+    expect(nineCards.warnings.length).toBeGreaterThan(0)
+
+    const emptyFront = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: [
+        { front: '  ', back: '有标签' },
+        { front: '无监督学习', back: '无标签' },
+        { front: '强化学习', back: '奖励信号' },
+      ] })] },
+      baseCtx,
+    )
+    expect(emptyFront.blocks.some((block) => block.type === 'flash_cards')).toBe(false)
+    expect(emptyFront.warnings.length).toBeGreaterThan(0)
+
+    // 边界：恰好 8 张卡时保留
+    const eightCards = normalizeChapterBlocks(
+      { blocks: [...base, flashCardsBlock({ cards: Array.from({ length: 8 }, (_, index) => ({
+        front: `术语${index + 1}`,
+        back: `释义${index + 1}`,
+      })) })] },
+      baseCtx,
+    )
+    expect(eightCards.blocks.some((block) => block.type === 'flash_cards')).toBe(true)
+  })
+
+  it('drops a figure with empty/overlong mermaid, script injection, or overlong caption, with a warning', () => {
+    const base = [explanationBlock(), citationBlock(), quizBlock(), exampleBlock()]
+
+    const emptyMermaid = normalizeChapterBlocks(
+      { blocks: [...base, figureBlock({ mermaid: '' })] },
+      baseCtx,
+    )
+    expect(emptyMermaid.blocks.some((block) => block.type === 'figure')).toBe(false)
+    expect(emptyMermaid.warnings.length).toBeGreaterThan(0)
+
+    const longMermaid = normalizeChapterBlocks(
+      { blocks: [...base, figureBlock({ mermaid: `flowchart LR\n  ${'A-->B\n  '.repeat(400)}` })] },
+      baseCtx,
+    )
+    expect(longMermaid.blocks.some((block) => block.type === 'figure')).toBe(false)
+    expect(longMermaid.warnings.length).toBeGreaterThan(0)
+
+    const scriptMermaid = normalizeChapterBlocks(
+      { blocks: [...base, figureBlock({ mermaid: 'flowchart LR\n  A--><SCRIPT>alert(1)</SCRIPT>' })] },
+      baseCtx,
+    )
+    expect(scriptMermaid.blocks.some((block) => block.type === 'figure')).toBe(false)
+    expect(scriptMermaid.warnings.length).toBeGreaterThan(0)
+
+    const longCaption = normalizeChapterBlocks(
+      { blocks: [...base, figureBlock({ caption: '注'.repeat(121) })] },
+      baseCtx,
+    )
+    expect(longCaption.blocks.some((block) => block.type === 'figure')).toBe(false)
+    expect(longCaption.warnings.length).toBeGreaterThan(0)
+  })
+})
+
+describe('normalizeChapterBlocks 章级 ≥4 类型硬要求与截断保护', () => {
+  it('throws chapter_invalid when the chapter has only three block types', () => {
+    expect(() => normalizeChapterBlocks(
+      { blocks: [explanationBlock(), citationBlock(), quizBlock()] },
+      baseCtx,
+    )).toThrowError(ChapterValidationError)
+    expect(() => normalizeChapterBlocks(
+      { blocks: [explanationBlock(), citationBlock(), quizBlock()] },
+      baseCtx,
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
+  })
+
+  it('keeps the only quiz/citation/explanation when trimming to a tight budget', () => {
+    const longChapterEndingWithOnlyQuiz = {
+      blocks: [
+        explanationBlock(),
+        citationBlock(),
+        exampleBlock(),
+        formulaBlock(),
+        calloutBlock(),
+        quizBlock(),
+      ],
+    }
+    const tightCtx = { ...baseCtx, remainingBookBudget: 4 }
+    const trimmed = normalizeChapterBlocks(longChapterEndingWithOnlyQuiz, tightCtx)
+
+    expect(trimmed.blocks.some((block) => block.type === 'quiz')).toBe(true)
+    expect(trimmed.blocks.length).toBeLessThanOrEqual(tightCtx.remainingBookBudget)
+    // 优先从末尾裁掉非必备类型（callout、formula），保留 example 凑足 4 种类型
+    expect(trimmed.blocks.map((block) => block.type)).toEqual([
+      'explanation',
+      'citation',
+      'example',
+      'quiz',
+    ])
+    expect(trimmed.warnings.some((warning) => warning.includes('预算'))).toBe(true)
+  })
+
+  it('throws chapter_invalid when the chapter still lacks four types after trimming', () => {
+    // 预算 3 只能保住三种必备类型，复检时不足 4 种 → 整章无效
+    expect(() => normalizeChapterBlocks(
+      {
+        blocks: [
+          explanationBlock(),
+          citationBlock(),
+          exampleBlock(),
+          formulaBlock(),
+          calloutBlock(),
+          quizBlock(),
+        ],
+      },
+      { ...baseCtx, remainingBookBudget: 3 },
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
   })
 })

@@ -2,8 +2,11 @@ import type { ParsedPage } from '../documents/pdfParser.js'
 import type {
   BookBlock,
   BookBlockType,
+  CalloutBlock,
   ConceptItem,
   ConceptRelation,
+  FigureBlock,
+  FlashCard,
   QuizOption,
   SourceAnchor,
 } from './bookTypes.js'
@@ -36,6 +39,9 @@ const GENERATABLE_TYPES = new Set<BookBlockType>([
   'citation',
   'concept',
   'quiz',
+  'callout',
+  'flash_cards',
+  'figure',
 ])
 
 const RELATION_TYPES = new Set<ConceptRelation['type']>(['前置', '包含', '相似', '对比', '应用'])
@@ -47,9 +53,26 @@ const DEFAULT_TITLES: Record<string, string> = {
   citation: '原文引用',
   concept: '核心概念',
   quiz: '随堂小测',
+  callout: '学习提示',
+  flash_cards: '记忆闪卡',
+  figure: '图解',
 }
 
 const MAX_EXCERPT_ANCHOR_CHARS = 120
+
+const CALLOUT_KINDS = new Set(['key_idea', 'pitfall', 'tip', 'insight'])
+const FIGURE_KINDS = new Set(['flowchart', 'mindmap', 'timeline', 'sequence'])
+const MAX_CALLOUT_BODY_CHARS = 400
+const FLASH_CARDS_MIN = 3
+const FLASH_CARDS_MAX = 8
+const MAX_CARD_FRONT_CHARS = 120
+const MAX_CARD_BACK_CHARS = 300
+const MAX_CARD_HINT_CHARS = 120
+const MAX_MERMAID_CHARS = 2_000
+const MAX_FIGURE_CAPTION_CHARS = 120
+
+// 截断时必须保住的必备块类型：每类至少留一个，优先裁其余类型
+const ESSENTIAL_TYPES = new Set(['explanation', 'citation', 'quiz'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -250,11 +273,63 @@ function normalizeQuiz(raw: Record<string, unknown>): {
   }
 }
 
+// callout/flash_cards/figure 非法时返回 null，由调用处逐块丢弃并记 warning（不判整章无效）
+function normalizeCallout(raw: Record<string, unknown>): { kind: CalloutBlock['kind']; body: string } | null {
+  const kind = optionalText(raw.kind)
+  const body = optionalText(raw.body)
+  if (kind === null || !CALLOUT_KINDS.has(kind)) return null
+  if (body === null || body.length > MAX_CALLOUT_BODY_CHARS) return null
+  return { kind: kind as CalloutBlock['kind'], body }
+}
+
+function normalizeFlashCards(raw: Record<string, unknown>): { cards: FlashCard[] } | null {
+  if (!Array.isArray(raw.cards) || raw.cards.length < FLASH_CARDS_MIN || raw.cards.length > FLASH_CARDS_MAX) return null
+  const cards: FlashCard[] = []
+  for (const entry of raw.cards) {
+    if (!isRecord(entry)) return null
+    const front = optionalText(entry.front)
+    const back = optionalText(entry.back)
+    if (front === null || front.length > MAX_CARD_FRONT_CHARS) return null
+    if (back === null || back.length > MAX_CARD_BACK_CHARS) return null
+    const hint = optionalText(entry.hint)
+    if (hint !== null && hint.length > MAX_CARD_HINT_CHARS) return null
+    cards.push(hint === null ? { front, back } : { front, back, hint })
+  }
+  return { cards }
+}
+
+function normalizeFigure(raw: Record<string, unknown>): { kind: FigureBlock['kind']; mermaid: string; caption: string } | null {
+  const kind = optionalText(raw.kind)
+  const mermaid = optionalText(raw.mermaid)
+  const caption = optionalText(raw.caption) ?? ''
+  if (kind === null || !FIGURE_KINDS.has(kind)) return null
+  if (mermaid === null || mermaid.length > MAX_MERMAID_CHARS) return null
+  // mermaid 会进前端渲染，拦截脚本注入
+  if (/<script/iu.test(mermaid)) return null
+  if (caption.length > MAX_FIGURE_CAPTION_CHARS) return null
+  return { kind: kind as FigureBlock['kind'], mermaid, caption }
+}
+
+/** 从末尾向预算内截断：跳过每类必备类型的最后一个块，优先裁非必备类型。 */
+function trimToBudget(blocks: BookBlock[], budget: number): { blocks: BookBlock[]; trimmed: number } {
+  const result = [...blocks]
+  let index = result.length - 1
+  while (result.length > budget && index >= 0) {
+    const type = result[index].type
+    const isLastEssential = ESSENTIAL_TYPES.has(type) && !result.some((b, j) => j !== index && b.type === type)
+    if (isLastEssential) { index -= 1; continue }
+    result.splice(index, 1)
+    index -= 1
+  }
+  return { blocks: result, trimmed: blocks.length - result.length }
+}
+
 /**
  * 归一化并校验上游产出的一章内容块。
- * 可修复的问题（未知类型、引文未命中、页码越界、非法关系）逐块丢弃并记 warning；
- * 章级硬要求（≥1 explanation、≥1 有效 citation、≥1 quiz）或 quiz 结构非法时
- * 抛 ChapterValidationError('chapter_invalid')。
+ * 可修复的问题（未知类型、引文未命中、页码越界、非法关系、非法 callout/flash_cards/figure）
+ * 逐块丢弃并记 warning；quiz 结构非法直接判整章无效。
+ * 章级硬要求（≥1 explanation、≥1 有效 citation、≥1 quiz、≥4 种块类型）在预算截断之后复检，
+ * 不满足时抛 ChapterValidationError('chapter_invalid')；截断会保护必备类型的最后一个块。
  */
 export function normalizeChapterBlocks(
   value: unknown,
@@ -343,6 +418,36 @@ export function normalizeChapterBlocks(
         blocks.push({ ...withCommonFields(base), type: 'quiz', ...quiz })
         break
       }
+      case 'callout': {
+        const callout = normalizeCallout(entry)
+        if (callout === null) {
+          warnings.push(`已丢弃字段非法的 callout 块「${optionalText(entry.title) ?? ''}」`)
+          continue
+        }
+        const base = normalizeBase(entry, blockType, counters)
+        blocks.push({ ...withCommonFields(base), type: 'callout', ...callout })
+        break
+      }
+      case 'flash_cards': {
+        const flashCards = normalizeFlashCards(entry)
+        if (flashCards === null) {
+          warnings.push(`已丢弃字段非法的 flash_cards 块「${optionalText(entry.title) ?? ''}」`)
+          continue
+        }
+        const base = normalizeBase(entry, blockType, counters)
+        blocks.push({ ...withCommonFields(base), type: 'flash_cards', ...flashCards })
+        break
+      }
+      case 'figure': {
+        const figure = normalizeFigure(entry)
+        if (figure === null) {
+          warnings.push(`已丢弃字段非法的 figure 块「${optionalText(entry.title) ?? ''}」`)
+          continue
+        }
+        const base = normalizeBase(entry, blockType, counters)
+        blocks.push({ ...withCommonFields(base), type: 'figure', ...figure })
+        break
+      }
       default:
         continue
     }
@@ -361,15 +466,18 @@ export function normalizeChapterBlocks(
     blocks = trimmed
   }
 
-  // 章级硬要求（先于预算截断判定：截断只负责限量，不改变章的合法性判定口径）
+  // 先做必备类型保护的预算截断，再复检章级硬要求（截断可能裁掉第 4 种类型）
+  const budget = Math.max(0, ctx.remainingBookBudget)
+  if (blocks.length > budget) {
+    const { blocks: kept, trimmed } = trimToBudget(blocks, budget)
+    warnings.push(`超出全书内容块预算，已按必备类型保护截断 ${trimmed} 个块`)
+    blocks = kept
+  }
+
+  // 章级硬要求：三种必备类型各 ≥1，且全章块类型 ≥4 种
   if (!blocks.some((block) => block.type === 'explanation')) invalid()
   if (!blocks.some((block) => block.type === 'citation')) invalid()
   if (!blocks.some((block) => block.type === 'quiz')) invalid()
-
-  const budget = Math.max(0, ctx.remainingBookBudget)
-  if (blocks.length > budget) {
-    warnings.push(`超出全书内容块预算，已按顺序截断 ${blocks.length - budget} 个块`)
-    return { blocks: blocks.slice(0, budget), warnings }
-  }
+  if (new Set(blocks.map((block) => block.type)).size < 4) invalid()
   return { blocks, warnings }
 }

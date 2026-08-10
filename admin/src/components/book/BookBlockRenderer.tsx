@@ -110,5 +110,8 @@ const blockTypeLabel: Record<BookBlock['type'], string> = {
   citation: '原文依据',
   concept: '知识节点',
   quiz: '快速验证',
+  callout: '学习提示',
+  flash_cards: '记忆闪卡',
+  figure: '图解',
   user_note: '我的笔记',
 }

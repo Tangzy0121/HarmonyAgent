@@ -528,6 +528,7 @@ function sseEventsFrom(responseText: string): Array<{ event: string; data: any }
 
 // 章 ch-1 页范围 1–2、ch-2 页范围 3–4、ch-3 页范围 5–6；
 // citation 引文必须逐字出自对应页文本（见 parsed 夹具）
+// 章级硬要求 ≥4 种块类型：必备三块之外补一个 example 块
 function chapterBlocksJson(page: number) {
   return {
     blocks: [
@@ -554,6 +555,12 @@ function chapterBlocksJson(page: number) {
         ],
         correctAnswerId: 'o1',
         feedback: `第${page}页讲解的是机器学习。`,
+      },
+      {
+        type: 'example',
+        title: '本章示例',
+        scenario: `第${page}页内容的应用示例。`,
+        takeaway: `第${page}页示例要点`,
       },
     ],
   }
@@ -606,6 +613,7 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
       'block',
       'block',
       'block',
+      'block',
       'chapter_done',
     ])
     expect(events[0].data).toEqual({ chapterId: 'ch-1' })
@@ -624,7 +632,8 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
       excerpt: '机器学习的第1部分讲解内容',
     }])
     expect(events[3].data.block).toMatchObject({ id: 'blk-quiz-1', type: 'quiz' })
-    expect(events[4].data).toEqual({ blockCount: 3, warnings: [] })
+    expect(events[4].data.block).toMatchObject({ id: 'blk-example-1', type: 'example' })
+    expect(events[5].data).toEqual({ blockCount: 4, warnings: [] })
 
     // 章节生成上游请求：4000 tokens / 0.2 / json_object / 流式
     const generateCall = fetchImpl.mock.calls.at(-1)!
@@ -642,11 +651,12 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     const saved = await bookStore.get(id)
     const chapter = saved?.chapters.find((entry) => entry.id === 'ch-1')
     expect(chapter?.status).toBe('ready')
-    expect(chapter?.blocks).toHaveLength(3)
+    expect(chapter?.blocks).toHaveLength(4)
     expect(chapter?.blocks.map((block) => block.id)).toEqual([
       'blk-explanation-1',
       'blk-citation-1',
       'blk-quiz-1',
+      'blk-example-1',
     ])
     const job = saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1')
     expect(job).toMatchObject({ status: 'ready', attempts: 1, lastError: null })
@@ -723,14 +733,15 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
       'block',
       'block',
       'block',
+      'block',
       'chapter_done',
     ])
 
     const saved = await bookStore.get(id)
     const chapter = saved?.chapters[0]
     expect(chapter?.status).toBe('ready')
-    // 陈旧块被清空，只保留本次重新生成的 3 块
-    expect(chapter?.blocks).toHaveLength(3)
+    // 陈旧块被清空，只保留本次重新生成的 4 块
+    expect(chapter?.blocks).toHaveLength(4)
     expect(chapter?.blocks.every((block) => block.title !== '陈旧块')).toBe(true)
     // attempts 跨轮累计：失败 2 次 + 重试 1 次
     expect(saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1'))
@@ -795,6 +806,7 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(res.status).toBe(200)
     expect(sseEventsFrom(res.text).map(({ event }) => event)).toEqual([
       'chapter_start',
+      'block',
       'block',
       'block',
       'block',
