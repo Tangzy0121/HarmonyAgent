@@ -5112,6 +5112,20 @@ button:disabled {
   display: none;
 }
 
+/* The third-batch shell clips its content, so book pages scroll themselves like other deep pages. */
+.prototype-app--third-batch-shell :is(
+  .book-proposal-page,
+  .interactive-book-page
+) {
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 .agent-workflow-label { display: inline-flex; width: fit-content; margin: 8px auto 0; padding: 5px 9px; border: 1px solid rgb(255 255 255 / 0.16); border-radius: 999px; color: rgb(255 255 255 / 0.66); font-size: 0.6rem; font-weight: 680; }
 .today-learning-evidence { margin: 12px 20px 0; padding: 11px 13px; border: 1px solid rgb(61 117 84 / 0.14); border-radius: 12px; color: #35684c; background: rgb(116 170 137 / 0.1); font-size: 0.7rem; font-weight: 680; }
 

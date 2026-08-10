@@ -19,4 +19,12 @@ describe('interactive book responsive shell', () => {
 
     expect(rule).toMatch(/min-height:\s*44px/)
   })
+
+  it('gives book pages their own scroll container inside the clipped shell', () => {
+    const rule = css.match(/\.prototype-app--third-batch-shell :is\(\s*\.book-proposal-page,\s*\.interactive-book-page\s*\)\s*\{([^}]*)\}/)?.[1]
+
+    expect(rule).toMatch(/height:\s*100%/)
+    expect(rule).toMatch(/min-height:\s*0/)
+    expect(rule).toMatch(/overflow-y:\s*auto/)
+  })
 })
