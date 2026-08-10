@@ -71,6 +71,24 @@ describe('documents routes', () => {
     expect(sanitizeFileName(undefined)).toBe('未命名.pdf')
   })
 
+  it('POST decodes a percent-encoded x-file-name header before saving', async () => {
+    const buf = await makePdf(['encoded file name'])
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Content-Type', 'application/pdf')
+      .set('x-file-name', encodeURIComponent('机器学习 第三章.pdf'))
+      .send(buf)
+
+    expect(res.status).toBe(200)
+    expect(res.body.fileName).toBe('机器学习 第三章.pdf')
+  })
+
+  it('sanitizeFileName decodes valid escapes and keeps invalid percent sequences as-is', () => {
+    expect(sanitizeFileName(encodeURIComponent('机器学习 第三章.pdf'))).toBe('机器学习 第三章.pdf')
+    expect(sanitizeFileName('100% 正确.pdf')).toBe('100% 正确.pdf')
+    expect(sanitizeFileName('%e6%9c')).toBe('%e6%9c')
+  })
+
   it('POST with a non-PDF Content-Type returns 400 invalid_content_type', async () => {
     const res = await request(app)
       .post('/api/documents')

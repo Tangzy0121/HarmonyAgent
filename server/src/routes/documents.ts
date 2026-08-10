@@ -21,8 +21,16 @@ const DELETE_NOTE = '原始文件与解析结果已删除'
 
 export function sanitizeFileName(value: unknown): string {
   if (typeof value !== 'string') return '未命名.pdf'
+  // 客户端经 HTTP 头传输时须百分号编码（头值仅 latin-1），落盘前先解码；
+  // 非法百分号序列保留原值，不炸。
+  let decoded = value
+  try {
+    decoded = decodeURIComponent(value)
+  } catch {
+    // Keep the raw value when it is not a valid percent-encoded string.
+  }
   // eslint-disable-next-line no-control-regex
-  const cleaned = value.replace(/[\u0000-\u001f\u007f]/gu, '').trim()
+  const cleaned = decoded.replace(/[\u0000-\u001f\u007f]/gu, '').trim()
   if (cleaned.length === 0) return '未命名.pdf'
   return cleaned.slice(0, MAX_FILE_NAME_LENGTH)
 }
