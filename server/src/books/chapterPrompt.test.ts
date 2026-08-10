@@ -39,6 +39,9 @@ describe('buildChapterMessages', () => {
     expect(system.content).toContain('blocks')
     // 章级硬要求：至少一个 explanation、citation、quiz
     expect(system.content).toMatch(/至少包含一个 explanation 块、一个 citation 块和一个 quiz 块/u)
+    // quiz 上限：每章 1 到 2 道快速验证题
+    expect(system.content).toMatch(/1\s*到\s*2\s*道/u)
+    expect(system.content).toContain('快速验证')
     // citation 引文必须逐字出自原文
     expect(system.content).toMatch(/逐字/u)
   })

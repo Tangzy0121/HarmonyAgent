@@ -670,6 +670,75 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
+  it('returns 409 chapter_not_generatable for a chapter in generating status', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const stored = (await bookStore.get(id))!
+    stored.chapters[0].status = 'generating'
+    await bookStore.save(stored)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'chapter_not_generatable' })
+    expect(fetchImpl).toHaveBeenCalledTimes(1) // 仅提案
+  })
+
+  it('regenerates an errored chapter: clears stale blocks, bumps attempts, flips ready', async () => {
+    // 前两次章节调用返回非法 JSON（章翻 error），第三次起返回合法块
+    const fetchImpl = chapterAwareFetch({
+      onChapter: (_body, chapterCalls) =>
+        (chapterCalls <= 2 ? '仍然不是 JSON' : chapterBlocksJson(1)),
+    })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const first = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(first.status).toBe(200)
+    expect(sseEventsFrom(first.text).at(-1)?.data.code).toBe('chapter_generation_failed')
+    const failed = await bookStore.get(id)
+    expect(failed?.chapters[0].status).toBe('error')
+    expect(failed?.status).toBe('partial')
+
+    // 人为残留一个陈旧 AI 块，验证重试时清空
+    const stale = (await bookStore.get(id))!
+    stale.chapters[0].blocks.push({
+      id: 'blk-explanation-1',
+      type: 'explanation',
+      status: 'ready',
+      title: '陈旧块',
+      revision: 1,
+      sourceAnchors: [],
+      body: '上次失败的残留',
+      keyPoint: '残留',
+    })
+    await bookStore.save(stale)
+
+    const retry = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(retry.status).toBe(200)
+    expect(retry.headers['content-type']).toContain('text/event-stream')
+    expect(sseEventsFrom(retry.text).map(({ event }) => event)).toEqual([
+      'chapter_start',
+      'block',
+      'block',
+      'block',
+      'chapter_done',
+    ])
+
+    const saved = await bookStore.get(id)
+    const chapter = saved?.chapters[0]
+    expect(chapter?.status).toBe('ready')
+    // 陈旧块被清空，只保留本次重新生成的 3 块
+    expect(chapter?.blocks).toHaveLength(3)
+    expect(chapter?.blocks.every((block) => block.title !== '陈旧块')).toBe(true)
+    // attempts 跨轮累计：失败 2 次 + 重试 1 次
+    expect(saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1'))
+      .toMatchObject({ status: 'ready', attempts: 3, lastError: null })
+    // 其余章仍 pending，书状态从 partial 回到 generating
+    expect(saved?.status).toBe('generating')
+  })
+
   it('returns 409 chapter_not_generatable when the book is still in proposal status', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(upstreamJsonStream(proposalJson))
     const app = appWith(fetchImpl)

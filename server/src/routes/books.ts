@@ -504,7 +504,11 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
     // 前置校验失败一律 JSON 409/404/503，不进入 SSE
-    if (book.status === 'proposal' || chapter.status !== 'pending') {
+    // pending 或 error 状态的章可（重新）生成；generating/ready 拒绝
+    if (
+      book.status === 'proposal' ||
+      (chapter.status !== 'pending' && chapter.status !== 'error')
+    ) {
       res.status(409).json({ error: 'chapter_not_generatable' })
       return
     }
@@ -577,6 +581,8 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
 
     try {
+      // error 章重试：清空既有 AI 块再重新生成（本阶段服务端无用户内容，无保留义务）
+      chapter.blocks = []
       chapter.status = 'generating'
       if (job !== undefined) job.status = 'generating'
       await persist()

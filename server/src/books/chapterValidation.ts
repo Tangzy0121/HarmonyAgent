@@ -264,7 +264,7 @@ export function normalizeChapterBlocks(
   if (!isRecord(record) || !Array.isArray(record.blocks)) invalid()
 
   const warnings: string[] = []
-  const blocks: BookBlock[] = []
+  let blocks: BookBlock[] = []
   const counters = new Map<string, number>()
 
   for (const entry of record.blocks) {
@@ -346,6 +346,19 @@ export function normalizeChapterBlocks(
       default:
         continue
     }
+  }
+
+  // quiz 每章 1–2 道：超出按输入顺序裁到前 2 个并记 warning（与预算截断同风格）
+  const quizCount = blocks.filter((block) => block.type === 'quiz').length
+  if (quizCount > 2) {
+    let seen = 0
+    const trimmed = blocks.filter((block) => {
+      if (block.type !== 'quiz') return true
+      seen += 1
+      return seen <= 2
+    })
+    warnings.push(`quiz 块超出每章 2 道上限，已按顺序裁剪 ${quizCount - 2} 个`)
+    blocks = trimmed
   }
 
   // 章级硬要求（先于预算截断判定：截断只负责限量，不改变章的合法性判定口径）

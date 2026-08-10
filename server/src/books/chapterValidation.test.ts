@@ -236,6 +236,27 @@ describe('normalizeChapterBlocks', () => {
     )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
   })
 
+  it('trims quiz blocks beyond the 2-per-chapter cap, with a warning', () => {
+    const { blocks, warnings } = normalizeChapterBlocks(
+      {
+        blocks: [
+          explanationBlock(),
+          citationBlock(),
+          quizBlock(),
+          quizBlock({ title: '第二题', question: '问题二？' }),
+          quizBlock({ title: '第三题', question: '问题三？' }),
+        ],
+      },
+      baseCtx,
+    )
+
+    const quizzes = blocks.filter((block) => block.type === 'quiz')
+    expect(quizzes).toHaveLength(2)
+    expect(quizzes.map((block) => block.title)).toEqual(['随堂小测', '第二题'])
+    expect(quizzes.map((block) => block.id)).toEqual(['blk-quiz-1', 'blk-quiz-2'])
+    expect(warnings.some((warning) => warning.includes('quiz'))).toBe(true)
+  })
+
   it('throws chapter_invalid for a quiz with 1 or 5 options, or a dangling correctAnswerId', () => {
     const oneOption = quizBlock({ options: [{ id: 'o1', text: '唯一选项' }] })
     expect(() => normalizeChapterBlocks(
