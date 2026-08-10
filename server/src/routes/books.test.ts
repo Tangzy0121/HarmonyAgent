@@ -159,6 +159,7 @@ describe('POST /api/books', () => {
       model: 'deepseek-v4-flash',
       stream: true,
       response_format: { type: 'json_object' },
+      max_completion_tokens: 1500,
     })
     const serializedMessages = JSON.stringify(providerBody.messages)
     expect(serializedMessages).toContain('【第1页】')
