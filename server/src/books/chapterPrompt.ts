@@ -27,7 +27,7 @@ function systemRules(): string {
     '- concept 块字段：concepts（概念数组：id、label、description）、relations（关系数组：sourceId、targetId、type、confidence）；关系 type 只能是 前置/包含/相似/对比/应用。',
     '- quiz 块字段：conceptId（考查的概念 id）、question（题干）、options（2 到 4 个选项：id、text）、correctAnswerId（正确选项 id）、feedback（解析）。',
     '- callout 块字段：kind（只能是 key_idea/pitfall/tip/insight）、body（不超过 400 字）。key_idea 用于关键概念，pitfall 用于常见易错点，tip 用于学习建议，insight 用于深入洞察。',
-    '- flash_cards 块字段：cards（3 到 8 张，每张含 front（不超过 120 字）、back（不超过 300 字），hint 可选）。用于定义、术语、需要记忆的内容。',
+    '- flash_cards 块字段：cards（3 到 8 张，每张含 front（不超过 120 字）、back（不超过 300 字），hint 可选、不超过 120 字）。用于定义、术语、需要记忆的内容。',
     '- figure 块字段：kind（只能是 flowchart/mindmap/timeline/sequence）、mermaid（合法 mermaid 源码，不超过 2000 字符，只用与 kind 对应的图型语法）、caption（图注，不超过 120 字）。',
     '你同时是本章的排版架构师：像优秀教科书一样组织内容，而不是写一篇连续文章。',
     '每章产出 6 到 10 个内容块，至少 4 种不同类型；同一类型不得连续出现超过 2 个。',

@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { Icon } from '../Icon'
+import { CalloutCard } from './CalloutCard'
+import { FlashCards } from './FlashCards'
+import { FigureBlockView } from './FigureBlockView'
 import type { BookBlock, LearningEvidence, QuizAttempt, UserNote } from '../../types/learningBook'
 
 interface BookBlockRendererProps {
@@ -81,6 +84,12 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
             onChange={(event) => onUpdateNote(block.noteId, event.target.value)}
           />
         </div>
+      case 'callout':
+        return <CalloutCard block={block} />
+      case 'flash_cards':
+        return <FlashCards block={block} />
+      case 'figure':
+        return <FigureBlockView block={block} />
       default:
         return <p className="book-block__unsupported" role="alert">这一内容块暂不受当前版本支持，请稍后重试或重新生成本章。</p>
     }

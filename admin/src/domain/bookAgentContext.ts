@@ -43,7 +43,7 @@ function blockText(block: BookBlock, noteBody: string): string {
     case 'callout':
       return block.body
     case 'flash_cards':
-      return block.cards.map((card) => `${card.front}：${card.back}`).join('\n')
+      return block.cards.map((card) => (card.hint ? `${card.front}\n${card.back}\n提示：${card.hint}` : `${card.front}\n${card.back}`)).join('\n')
     case 'figure':
       return `${block.caption}\n${block.mermaid}`
     case 'user_note':

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { learningBookFixture } from '../data/learningBook'
+import type { BookBlock } from '../types/learningBook'
 import { advanceGeneration } from './learningBook'
 import { buildBookAgentContext } from './bookAgentContext'
 
@@ -373,5 +374,70 @@ describe('buildBookAgentContext', () => {
       chapterId: 'ch-1',
       scope: 'chapter',
     })).toThrow('BOOK_AGENT_CONTEXT_BUDGET_EXCEEDED')
+  })
+})
+
+describe('buildBookAgentContext · 新内容块序列化', () => {
+  const newBlocks: BookBlock[] = [
+    {
+      id: 'blk-callout-1',
+      type: 'callout',
+      status: 'ready',
+      title: '易混提醒',
+      revision: 1,
+      sourceAnchors: [],
+      kind: 'pitfall',
+      body: '别混淆',
+    },
+    {
+      id: 'blk-flash-1',
+      type: 'flash_cards',
+      status: 'ready',
+      title: '术语速记',
+      revision: 1,
+      sourceAnchors: [],
+      cards: [
+        { front: '监督学习', back: '有目标标签', hint: '看标签' },
+        { front: '无监督学习', back: '无目标标签' },
+      ],
+    },
+    {
+      id: 'blk-figure-1',
+      type: 'figure',
+      status: 'ready',
+      title: '训练流程',
+      revision: 1,
+      sourceAnchors: [],
+      kind: 'flowchart',
+      mermaid: 'flowchart LR\n  A-->B',
+      caption: '训练流程示意',
+    },
+  ]
+  const bookWithNewBlocks = {
+    ...readyBook,
+    chapters: readyBook.chapters.map((chapter) => chapter.id === 'ch-1'
+      ? { ...chapter, blocks: newBlocks }
+      : chapter),
+  }
+
+  it('serializes callout as its body', () => {
+    const context = buildBookAgentContext(bookWithNewBlocks, { chapterId: 'ch-1' })
+
+    expect(context.chapters[0].blocks.find((block) => block.type === 'callout')?.content).toBe('别混淆')
+  })
+
+  it('serializes flash_cards as front/back lines and keeps the optional hint', () => {
+    const context = buildBookAgentContext(bookWithNewBlocks, { chapterId: 'ch-1' })
+    const flash = context.chapters[0].blocks.find((block) => block.type === 'flash_cards')
+
+    expect(flash?.content).toBe('监督学习\n有目标标签\n提示：看标签\n无监督学习\n无目标标签')
+  })
+
+  it('serializes figure as caption plus mermaid source', () => {
+    const context = buildBookAgentContext(bookWithNewBlocks, { chapterId: 'ch-1' })
+    const figure = context.chapters[0].blocks.find((block) => block.type === 'figure')
+
+    expect(figure?.content).toContain('flowchart LR')
+    expect(figure?.content).toContain('训练流程示意')
   })
 })

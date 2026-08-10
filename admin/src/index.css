@@ -5346,6 +5346,29 @@ button:disabled {
 .book-user-note { display: flex; gap: 10px; min-height: 88px; padding: 14px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 13px; color: rgb(35 31 29 / 0.58); background: rgb(255 248 213 / 0.25); }
 .book-user-note textarea { width: 100%; min-width: 0; min-height: 76px; resize: vertical; padding: 0; border: 0; outline: 0; color: rgb(35 31 29 / 0.72); background: transparent; font: inherit; font-size: 0.78rem; line-height: 1.65; }
 .book-user-note textarea::placeholder { color: rgb(35 31 29 / 0.4); }
+.book-callout { padding: 14px 16px; border-left: 3px solid #9c5848; border-radius: 13px; background: rgb(235 204 194 / 0.32); }
+.book-callout__kind { color: #ad6655; font-size: 0.6rem; font-weight: 780; letter-spacing: 0.05em; }
+.book-callout p { margin: 6px 0 0; color: rgb(35 31 29 / 0.76); font-size: 0.85rem; line-height: 1.75; }
+.book-callout--pitfall { border-left-color: #b66b58; background: rgb(235 204 194 / 0.45); }
+.book-callout--tip { border-left-color: #35684c; background: rgb(116 170 137 / 0.14); }
+.book-callout--insight { border-left-color: #282523; background: rgb(35 31 29 / 0.05); }
+.book-flashcards { display: grid; gap: 10px; }
+.book-flashcards__card { display: grid; width: 100%; min-height: 96px; gap: 6px; place-items: center; padding: 18px 16px; border: 1px solid rgb(35 31 29 / 0.1); border-radius: 14px; color: rgb(35 31 29 / 0.78); background: #fff; font: inherit; font-size: 0.9rem; line-height: 1.7; text-align: center; transition: background 0.25s var(--ease-fluid), border-color 0.25s var(--ease-fluid); }
+.book-flashcards__card.is-flipped { border-color: #bd725f; background: rgb(235 204 194 / 0.2); }
+.book-flashcards__side { color: #ad6655; font-size: 0.58rem; font-weight: 780; letter-spacing: 0.05em; }
+.book-flashcards__hint { color: rgb(35 31 29 / 0.45); font-size: 0.68rem; }
+.book-flashcards__controls { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.book-flashcards__controls button { display: grid; min-width: 44px; min-height: 44px; place-items: center; border: 1px solid rgb(35 31 29 / 0.1); border-radius: 12px; color: #9c5848; background: #fff; font-size: 1.05rem; }
+.book-flashcards__controls button:disabled { opacity: 0.34; }
+.book-flashcards__position { color: rgb(35 31 29 / 0.48); font-size: 0.68rem; font-weight: 690; }
+.book-figure { margin: 0; }
+.book-figure__canvas { max-width: 100%; overflow-x: auto; padding: 14px; border: 1px solid rgb(35 31 29 / 0.08); border-radius: 13px; background: #fff; }
+.book-figure__canvas svg { max-width: 100%; height: auto; }
+.book-figure__fallback { padding: 14px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 13px; background: rgb(35 31 29 / 0.04); }
+.book-figure__fallback p { margin: 0 0 8px; color: rgb(35 31 29 / 0.62); font-size: 0.78rem; line-height: 1.6; }
+.book-figure__fallback summary { color: #9c5848; font-size: 0.72rem; font-weight: 690; cursor: pointer; }
+.book-figure__fallback pre { overflow-x: auto; margin: 8px 0 0; padding: 10px; border-radius: 10px; color: rgb(35 31 29 / 0.72); background: rgb(255 255 255 / 0.72); font-size: 0.7rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+.book-figure figcaption { margin-top: 8px; color: rgb(35 31 29 / 0.48); font-size: 0.67rem; text-align: center; }
 .interactive-book-chapter__next { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 20px; padding: 18px; border-radius: 20px; color: #fff; background: #292624; }
 .interactive-book-chapter__next div { display: grid; gap: 3px; }
 .interactive-book-chapter__next span { color: rgb(255 255 255 / 0.46); font-size: 0.6rem; }

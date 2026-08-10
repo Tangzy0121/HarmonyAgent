@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { learningBookFixture } from '../data/learningBook'
+import type { BookBlock } from '../types/learningBook'
 import { BookApiError, parseLearningBook } from './learningBookApi'
 
 const INVALID = { name: 'BookApiError', code: 'invalid_book_payload' }
@@ -97,5 +98,80 @@ describe('BookApiError', () => {
       message: '文件过大',
     })
     expect(new BookApiError('pdf_too_large', '文件过大')).toBeInstanceOf(Error)
+  })
+})
+
+describe('parseLearningBook · 新内容块守卫', () => {
+  const [chapter] = storedPayload.chapters
+  const newBlocks: BookBlock[] = [
+    {
+      id: 'blk-callout-1',
+      type: 'callout',
+      status: 'ready',
+      title: '易混提醒',
+      revision: 1,
+      sourceAnchors: [],
+      kind: 'pitfall',
+      body: '别混淆训练信号与数据量。',
+    },
+    {
+      id: 'blk-flash-1',
+      type: 'flash_cards',
+      status: 'ready',
+      title: '术语速记',
+      revision: 1,
+      sourceAnchors: [],
+      cards: [
+        { front: '监督学习', back: '训练样本带目标标签。', hint: '看标签' },
+        { front: '无监督学习', back: '训练样本不带目标标签。' },
+      ],
+    },
+    {
+      id: 'blk-figure-1',
+      type: 'figure',
+      status: 'ready',
+      title: '训练流程',
+      revision: 1,
+      sourceAnchors: [],
+      kind: 'flowchart',
+      mermaid: 'flowchart LR\n  A-->B',
+      caption: '训练流程示意',
+    },
+  ]
+  const withNewBlocks = {
+    ...storedPayload,
+    chapters: [{ ...chapter, blocks: [...chapter.blocks, ...newBlocks] }],
+  }
+  const withBlocks = (blocks: unknown[]) => ({
+    ...storedPayload,
+    chapters: [{ ...chapter, blocks }],
+  })
+
+  it('accepts valid callout / flash_cards / figure blocks', () => {
+    expect(parseLearningBook(withNewBlocks).chapters[0].blocks).toHaveLength(chapter.blocks.length + 3)
+  })
+
+  it('rejects an unknown callout kind', () => {
+    expect(() => parseLearningBook(withBlocks([{ ...newBlocks[0], kind: 'warning' }])))
+      .toThrowError(expect.objectContaining(INVALID))
+  })
+
+  it('rejects a figure block missing mermaid source or with an unknown kind', () => {
+    const missingMermaid = { ...newBlocks[2] } as Record<string, unknown>
+    delete missingMermaid.mermaid
+
+    expect(() => parseLearningBook(withBlocks([missingMermaid]))).toThrowError(expect.objectContaining(INVALID))
+    expect(() => parseLearningBook(withBlocks([{ ...newBlocks[2], kind: 'pie' }])))
+      .toThrowError(expect.objectContaining(INVALID))
+  })
+
+  it('rejects flash_cards with malformed cards', () => {
+    const missingBack = { ...newBlocks[1], cards: [{ front: '监督学习' }] }
+    const badHint = { ...newBlocks[1], cards: [{ front: '监督学习', back: '有标签。', hint: 42 }] }
+    const notArray = { ...newBlocks[1], cards: '两张卡' }
+
+    expect(() => parseLearningBook(withBlocks([missingBack]))).toThrowError(expect.objectContaining(INVALID))
+    expect(() => parseLearningBook(withBlocks([badHint]))).toThrowError(expect.objectContaining(INVALID))
+    expect(() => parseLearningBook(withBlocks([notArray]))).toThrowError(expect.objectContaining(INVALID))
   })
 })

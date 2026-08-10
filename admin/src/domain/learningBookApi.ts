@@ -26,6 +26,8 @@ const LEARNING_STATES = ['暂无学习记录', '已学习', '待复习'] as cons
 const RELATION_TYPES = ['前置', '包含', '相似', '对比', '应用'] as const
 const RELATION_STATUSES = ['候选', '已确认', '已拒绝'] as const
 const EVIDENCE_OUTCOMES = ['mastered', 'review'] as const
+const CALLOUT_KINDS = ['key_idea', 'pitfall', 'tip', 'insight'] as const
+const FIGURE_KINDS = ['flowchart', 'mindmap', 'timeline', 'sequence'] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -103,6 +105,15 @@ export function isBookBlock(value: unknown): value is BookBlock {
         && isString(value.feedback)
     case 'user_note':
       return isString(value.noteId)
+    case 'callout':
+      return isOneOf(value.kind, CALLOUT_KINDS) && isString(value.body)
+    case 'flash_cards':
+      return Array.isArray(value.cards) && value.cards.every((item) => (
+        isRecord(item) && isString(item.front) && isString(item.back)
+        && (item.hint === undefined || isString(item.hint))
+      ))
+    case 'figure':
+      return isOneOf(value.kind, FIGURE_KINDS) && isString(value.mermaid) && isString(value.caption)
     default:
       return false
   }
