@@ -35,4 +35,29 @@ describe('interactive book responsive shell', () => {
     expect(rule).toMatch(/overflow-y:\s*auto/)
     expect(rule).toMatch(/calc\(120px \+ env\(safe-area-inset-bottom\)\)/)
   })
+
+  it('keeps pretest touch targets at the minimum 44px height', () => {
+    const entryButtons = css.match(/\.pretest-entry__primary,\s*\.pretest-entry__ghost\s*\{([^}]*)\}/)?.[1]
+    const option = css.match(/\.pretest-sheet__option\s*\{([^}]*)\}/)?.[1]
+    const submit = css.match(/\.pretest-sheet__submit\s*\{([^}]*)\}/)?.[1]
+
+    expect(entryButtons).toMatch(/min-height:\s*44px/)
+    expect(option).toMatch(/min-height:\s*44px/)
+    expect(submit).toMatch(/min-height:\s*44px/)
+  })
+
+  it('keeps the pretest entry card inside a 320px viewport', () => {
+    const rule = css.match(/\.pretest-entry\s*\{([^}]*)\}/)?.[1]
+
+    // 左右各留 12px：卡片宽度 = 视口 - 24px，320px 下不溢出
+    expect(rule).toMatch(/right:\s*12px/)
+    expect(rule).toMatch(/left:\s*12px/)
+  })
+
+  it('constrains the pretest sheet to the viewport width', () => {
+    const rule = css.match(/\.pretest-sheet\s*\{([^}]*)\}/)?.[1]
+
+    expect(rule).toMatch(/width:\s*100%/)
+    expect(rule).toMatch(/overflow-y:\s*auto/)
+  })
 })
