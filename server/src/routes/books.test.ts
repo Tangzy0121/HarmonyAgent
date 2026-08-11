@@ -587,16 +587,31 @@ const feynmanJson = {
   gap: '',
 }
 
+// 错题诊断夹具：四类之一 + 一句补救建议
+const diagnosisJson = {
+  type: 'application',
+  advice: '看例子块，把概念套到新场景。',
+}
+
 function chapterAwareFetch(impl: {
   onChapter?: (body: { messages: unknown }, chapterCalls: number) => unknown
   onPretest?: (body: { messages: unknown }, pretestCalls: number) => unknown
   onFeynman?: (body: { messages: unknown }, feynmanCalls: number) => unknown
+  onDiagnosis?: (body: { messages: unknown }, diagnosisCalls: number) => unknown
 } = {}) {
   let chapterCalls = 0
   let pretestCalls = 0
   let feynmanCalls = 0
+  let diagnosisCalls = 0
   return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
     const body = JSON.parse(String(init?.body))
+    if (body.max_completion_tokens === 300) {
+      diagnosisCalls += 1
+      const payload = impl.onDiagnosis?.(body, diagnosisCalls)
+      if (payload instanceof Response) return payload
+      if (payload !== undefined) return upstreamJsonStream(payload as string)
+      return upstreamJsonStream(diagnosisJson)
+    }
     if (body.max_completion_tokens === 800) {
       feynmanCalls += 1
       const payload = impl.onFeynman?.(body, feynmanCalls)
@@ -1441,6 +1456,111 @@ describe('POST /api/books/:id/attempts', () => {
     const stored = await bookStore.get(id)
     expect(stored?.reviewSchedule?.[quiz1.id]?.stage).toBe(1)
     expect(stored?.reviewSchedule?.[quiz2.id]).toBeUndefined()
+  })
+
+  it('答错时同步诊断并随 201 返回；诊断持久化到 attempt', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+
+    const response = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+
+    expect(response.status).toBe(201)
+    expect(response.body.diagnosis).toEqual(diagnosisJson)
+    expect(response.body.attempt.diagnosis).toEqual(diagnosisJson)
+
+    const saved = await bookStore.get(id)
+    expect(saved?.quizAttempts[0]?.diagnosis).toEqual(diagnosisJson)
+
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'attempt_diagnosed', bookId: id, chapterId: 'ch-1' }),
+    )
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(quiz.question)
+  })
+
+  it('上游失败时 diagnosis 为 null 且答题仍成功', async () => {
+    const fetchImpl = chapterAwareFetch({
+      onDiagnosis: () => new Response('upstream boom', { status: 500 }),
+    })
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+
+    const response = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+
+    expect(response.status).toBe(201)
+    expect(response.body.diagnosis).toBeNull()
+    expect(response.body.attempt.isCorrect).toBe(false)
+
+    const saved = await bookStore.get(id)
+    expect(saved?.quizAttempts[0]?.diagnosis ?? null).toBeNull()
+
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'attempt_diagnosis_failed', bookId: id, chapterId: 'ch-1' }),
+    )
+  })
+
+  it('诊断输出非法 JSON 时降级为 null 且答题仍成功', async () => {
+    const fetchImpl = chapterAwareFetch({ onDiagnosis: () => '这不是 JSON' })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+
+    const response = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+
+    expect(response.status).toBe(201)
+    expect(response.body.diagnosis).toBeNull()
+  })
+
+  it('未配置 LLM_API_KEY 时 diagnosis 为 null 且未发起诊断请求', async () => {
+    const setupApp = appWith(chapterAwareFetch())
+    const { id } = await createConfirmedBook(setupApp)
+    await request(setupApp).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+
+    const noKeyFetch = vi.fn<typeof fetch>()
+    const app = appWith(noKeyFetch, { apiKey: '' })
+    const response = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+
+    expect(response.status).toBe(201)
+    expect(response.body.diagnosis).toBeNull()
+    expect(noKeyFetch).not.toHaveBeenCalled()
+  })
+
+  it('答对时 diagnosis 为 null 且不调用上游', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const callsBefore = fetchImpl.mock.calls.length
+
+    const response = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: quiz.correctAnswerId })
+
+    expect(response.status).toBe(201)
+    expect(response.body.diagnosis).toBeNull()
+    expect(fetchImpl.mock.calls.length).toBe(callsBefore)
   })
 })
 

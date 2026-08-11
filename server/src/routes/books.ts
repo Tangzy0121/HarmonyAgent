@@ -8,6 +8,7 @@ import type { BookStore } from '../books/bookStore.js'
 import {
   LEARNING_GOALS,
   LEARNER_LEVELS,
+  type AttemptDiagnosis,
   type BookBlock,
   type LearnerLevel,
   type LearningEvidence,
@@ -18,6 +19,7 @@ import {
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
+import { buildDiagnosisMessages, normalizeDiagnosis } from '../books/diagnosisPrompt.js'
 import { computeMastery } from '../books/mastery.js'
 import {
   buildFeynmanMessages,
@@ -58,6 +60,8 @@ export interface BooksLogEvent {
     | 'book_created'
     | 'book_removed'
     | 'attempt_recorded'
+    | 'attempt_diagnosed'
+    | 'attempt_diagnosis_failed'
     | 'pretest_generated'
     | 'pretest_validation_failed'
     | 'pretest_result_submitted'
@@ -812,6 +816,34 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
 
     const now = new Date().toISOString()
     const isCorrect = answerId === block.correctAnswerId
+
+    // 错题四类诊断：仅答错且配置了 API key 时同步调一次上游；
+    // 未配置/上游失败/输出非法一律降级 diagnosis = null，不影响 201 落盘
+    let diagnosis: AttemptDiagnosis | null = null
+    const apiKey = env.LLM_API_KEY?.trim() ?? ''
+    if (!isCorrect && apiKey) {
+      try {
+        const conceptLabel = book.chapters
+          .flatMap((entry) => entry.blocks)
+          .flatMap((entry) => (entry.type === 'concept' ? entry.concepts : []))
+          .find((concept) => concept.id === block.conceptId)?.label ?? block.conceptId
+        const messages = buildDiagnosisMessages({
+          question: block.question,
+          options: block.options,
+          chosenAnswerId: answerId,
+          correctAnswerId: block.correctAnswerId,
+          conceptLabel,
+          chapterTitle: chapter.title,
+        })
+        const text = await callUpstream(messages, apiKey, 300)
+        diagnosis = normalizeDiagnosis(extractJsonObject(text))
+        emitLog(logger, { category: 'attempt_diagnosed', bookId: book.id, chapterId: chapter.id })
+      } catch {
+        diagnosis = null
+        emitLog(logger, { category: 'attempt_diagnosis_failed', bookId: book.id, chapterId: chapter.id })
+      }
+    }
+
     const attempt: QuizAttempt = {
       id: `attempt_${randomUUID()}`,
       chapterId: chapter.id,
@@ -819,6 +851,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       answerId,
       isCorrect,
       submittedAt: now,
+      diagnosis,
     }
     const evidence: LearningEvidence = {
       id: `evidence_${randomUUID()}`,
@@ -864,7 +897,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
-    res.status(201).json({ attempt, evidence, mastery, schedule: nextSchedule })
+    res.status(201).json({ attempt, evidence, mastery, schedule: nextSchedule, diagnosis })
   })
 
   router.get('/:id/review/due', async (req, res) => {

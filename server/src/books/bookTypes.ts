@@ -117,6 +117,16 @@ export interface QuizBlock extends BaseBookBlock {
   feedback: string
 }
 
+// 错题四类诊断：类型定义放本文件（diagnosisPrompt.ts 从这里 import），
+// 避免 diagnosisPrompt ↔ bookTypes 循环依赖
+export const DIAGNOSIS_TYPES = ['concept', 'application', 'misread', 'overconfident'] as const
+export type DiagnosisType = (typeof DIAGNOSIS_TYPES)[number]
+
+export interface AttemptDiagnosis {
+  type: DiagnosisType
+  advice: string
+}
+
 export interface UserNoteBlock extends BaseBookBlock {
   type: 'user_note'
   noteId: string
@@ -185,6 +195,8 @@ export interface QuizAttempt {
   answerId: string
   isCorrect: boolean
   submittedAt: string
+  /** 答错时的四类诊断；答对/未配置/诊断失败为 null */
+  diagnosis?: AttemptDiagnosis | null
 }
 
 export interface LearningEvidence {
