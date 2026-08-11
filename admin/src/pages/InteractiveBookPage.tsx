@@ -31,10 +31,12 @@ interface InteractiveBookPageProps {
   onOpenReview?: () => void
   /** 真实书掌握度看板入口（仅真实书透传给章节轨） */
   onOpenMasteryBoard?: () => void
+  /** 真实书闪卡自评（与复习 Sheet 同一条链路；仅真实书传入，mock 不渲染自评区） */
+  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => Promise<void>
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
@@ -115,6 +117,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                     onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
                     onStartDeepLearning={onStartDeepLearning}
                     onAskAgent={onAskAgent}
+                    onFlashGrade={isRealBook ? onFlashGrade : undefined}
                   />
                 )
               })}

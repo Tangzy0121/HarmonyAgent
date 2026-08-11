@@ -24,15 +24,19 @@ interface BookBlockRendererProps {
   onStartDeepLearning: (blockId: string) => void
   /** 缺省时隐藏「向 Agent 提问 / 带着诊断问 Agent」入口（如复习弹层内不复用 Agent 链路） */
   onAskAgent?: (blockId: string, draft?: string) => void
+  /** 闪卡自评（真实书接线，与复习 Sheet 同一条 submitFlashReview 链路）；缺省不渲染自评区 */
+  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => void | Promise<void>
 }
 
-export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRegenerate = true, allowQuizRetry = false, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent }: BookBlockRendererProps) {
+export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRegenerate = true, allowQuizRetry = false, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent, onFlashGrade }: BookBlockRendererProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(attempt?.answerId ?? '')
   // “重新作答”仅清除本次展示态：dismissedAttemptId 记录被点掉的作答，
   // 服务端返回新作答（id 不同）后自动回到结果视图
   const [dismissedAttemptId, setDismissedAttemptId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitFailed, setSubmitFailed] = useState(false)
+  // 闪卡自评的一行轻反馈（不打断阅读流，按钮保留可重评）
+  const [flashGradeFeedback, setFlashGradeFeedback] = useState<string | null>(null)
   const visibleAttempt = attempt && attempt.id !== dismissedAttemptId ? attempt : undefined
   const canRegenerate = allowBlockRegenerate && block.type !== 'citation' && block.type !== 'user_note'
 
@@ -136,8 +140,26 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
         </div>
       case 'callout':
         return <CalloutCard block={block} />
-      case 'flash_cards':
-        return <FlashCards block={block} />
+      case 'flash_cards': {
+        const gradeFlash = (result: 'remembered' | 'forgotten') => {
+          if (!onFlashGrade) return
+          Promise.resolve(onFlashGrade(block.id, result))
+            .then(() => setFlashGradeFeedback(result === 'forgotten' ? '已加入今日复习。' : '已安排复习。'))
+            .catch(() => setFlashGradeFeedback('自评提交失败，请稍后重试。'))
+        }
+        return <>
+          <FlashCards block={block} />
+          {onFlashGrade && (
+            <div className="review-sheet__grade">
+              <button type="button" className="review-sheet__grade-button" onClick={() => gradeFlash('forgotten')}>没记住</button>
+              <button type="button" className="review-sheet__grade-button is-remembered" onClick={() => gradeFlash('remembered')}>记住了</button>
+            </div>
+          )}
+          {flashGradeFeedback && (
+            <p className="book-flashcards__grade-feedback" role="status">{flashGradeFeedback}</p>
+          )}
+        </>
+      }
       case 'figure':
         return <FigureBlockView block={block} />
       default:

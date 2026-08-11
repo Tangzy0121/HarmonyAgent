@@ -514,6 +514,66 @@ describe('BookBlockRenderer · quiz 提交失败反馈', () => {
   })
 })
 
+describe('BookBlockRenderer · flash_cards 自评入队', () => {
+  async function flushAsync(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    flushSync(() => undefined)
+  }
+
+  function renderFlashWithGrade(onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => Promise<void>): FakeElement {
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(
+      <BookBlockRenderer
+        block={flashCardsBlock}
+        onRegenerate={() => undefined}
+        onSubmitQuiz={() => undefined}
+        onUpdateNote={() => undefined}
+        onStartDeepLearning={() => undefined}
+        onAskAgent={() => undefined}
+        onFlashGrade={onFlashGrade}
+      />,
+    ))
+    return container
+  }
+
+  function clickText(container: FakeElement, text: string): void {
+    const button = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes(text))
+    expect(button, `button containing "${text}"`).toBeDefined()
+    click(button as FakeElement)
+  }
+
+  it('书内闪卡块提供「没记住」自评并回调 onFlashGrade，自评后给一行轻反馈', async () => {
+    const onFlashGrade = vi.fn().mockResolvedValue(undefined)
+    const container = renderFlashWithGrade(onFlashGrade)
+
+    clickText(container, '没记住')
+    expect(onFlashGrade).toHaveBeenCalledTimes(1)
+    expect(onFlashGrade).toHaveBeenCalledWith('blk-flash-1', 'forgotten')
+
+    await flushAsync()
+    expect(container.textContent).toContain('已加入今日复习')
+  })
+
+  it('书内闪卡块提供「记住了」自评并反馈已安排复习', async () => {
+    const onFlashGrade = vi.fn().mockResolvedValue(undefined)
+    const container = renderFlashWithGrade(onFlashGrade)
+
+    clickText(container, '记住了')
+    expect(onFlashGrade).toHaveBeenCalledWith('blk-flash-1', 'remembered')
+
+    await flushAsync()
+    expect(container.textContent).toContain('已安排复习')
+  })
+
+  it('未提供 onFlashGrade 时不渲染自评区（mock 路径不回归）', () => {
+    const container = renderFlashWithGrade(undefined)
+
+    expect(container.textContent).toContain('正面一')
+    expect(container.textContent).not.toContain('没记住')
+    expect(container.textContent).not.toContain('记住了')
+  })
+})
+
 describe('BookBlockRenderer · quiz 诊断反馈', () => {
   const diagnosedQuiz: QuizBlock = {
     id: 'blk-quiz-d1',

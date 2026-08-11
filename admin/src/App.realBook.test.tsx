@@ -138,7 +138,7 @@ class FakeDocument {
     return element
   }
   createTextNode(value: string) { return new FakeText(value, this) }
-  getElementById(): null { return null }
+  getElementById(_id: string): FakeElement | null { return null }
 }
 
 interface FakeHistoryEntry {
@@ -1057,6 +1057,43 @@ describe('App · 真实学习书接线', () => {
     expect(sheet!.textContent).toContain('掌握度看板')
     expect(sheet!.textContent).toContain('监督学习')
     expect(sheet!.textContent).toContain('未学')
+  })
+
+  it('掌握度看板概念行跳转：看板关闭后才经下一帧调度滚动到概念块', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+    }))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    // 概念块滚动探针：记录滚动发生时看板是否已关闭（时序断言核心）
+    const sheetOpenAtScroll: boolean[] = []
+    const scrollIntoView = vi.fn(() => {
+      sheetOpenAtScroll.push(descendants(container).some((element) => element.className.split(' ').includes('mastery-sheet')))
+    })
+    const conceptElement = new FakeElement('article', windowStub.document)
+    conceptElement.setAttribute('id', 'blk-concept-1')
+    conceptElement.scrollIntoView = scrollIntoView
+    windowStub.document.getElementById = (id: string) => id === 'blk-concept-1' ? conceptElement : null
+
+    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
+    const footer = descendants(rail!).find((element) => element.className.split(' ').includes('book-generation-rail__review'))
+    clickWithin(footer!, '掌握度')
+    await flushEffects()
+    const sheet = () => descendants(container).find((element) => element.className.split(' ').includes('mastery-sheet'))
+    expect(sheet(), 'mastery board sheet').toBeDefined()
+
+    clickWithin(sheet()!, '监督学习')
+
+    // 点击后看板立即关闭、切章完成；滚动不在同一拍内同步发生（推迟到下一帧）
+    expect(sheet()).toBeUndefined()
+    expect(windowStub.location.hash).toBe('#book/book_x/ch-1')
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    await flushEffects()
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+    expect(sheetOpenAtScroll).toEqual([false])
   })
 
   it('mock 原型页不渲染掌握度入口', async () => {

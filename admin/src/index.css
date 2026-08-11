@@ -8197,6 +8197,14 @@ button:disabled {
   background: rgb(116 170 137 / 0.14);
 }
 
+/* 书内闪卡自评后的一行轻反馈（按钮复用 review-sheet__grade*，触控 ≥44px） */
+.book-flashcards__grade-feedback {
+  margin: 8px 0 0;
+  color: #35684c;
+  font-size: 0.72rem;
+  font-weight: 640;
+}
+
 /* quiz 答错诊断：复用 feedback 暖色系，附「带着诊断问 Agent」 */
 .book-quiz__diagnosis {
   display: grid;

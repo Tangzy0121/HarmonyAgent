@@ -606,7 +606,9 @@ function App() {
     changeBookChapter(chapterId)
     setIsMasteryBoardOpen(false)
     const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
-    scrollToElementWhenReady(blockId, { behavior })
+    // 滚动推迟到下一帧：与来源跳转「先关抽屉、popstate 后再滚动」的已验证时序对齐——
+    // 同一拍内同步启动的平滑滚动会被随后 Sheet 卸载的布局/绘制变化打断，导致停在章首
+    window.requestAnimationFrame(() => scrollToElementWhenReady(blockId, { behavior }))
   }
 
   const closeInteractiveBook = () => {
@@ -842,6 +844,7 @@ function App() {
               chapterReviewCount={reviewDue.filter((item) => item.chapterId === activeBookChapterId).length}
               onOpenReview={reviewDue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
               onOpenMasteryBoard={() => setIsMasteryBoardOpen(true)}
+              onFlashGrade={submitFlashReviewGrade}
             />
           )
         )}
