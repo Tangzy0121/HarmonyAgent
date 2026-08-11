@@ -1,31 +1,37 @@
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-  color: #1c1c1e;
-  background: #e9e9ee;
+  color: oklch(0.25 0.04 275);
+  background: oklch(0.955 0.008 275);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --canvas: #fff;
-  --app-background: #f2f2f7;
-  --surface: #fff;
-  --surface-muted: #e9e9ee;
-  --ink: #1c1c1e;
-  --on-ink: #fff;
-  --ink-56: rgb(28 28 30 / 0.56);
-  --ink-38: rgb(28 28 30 / 0.38);
-  --ink-22: rgb(28 28 30 / 0.22);
-  --ink-12: rgb(28 28 30 / 0.12);
-  --ink-07: rgb(28 28 30 / 0.07);
-  --ink-04: rgb(28 28 30 / 0.04);
+  --brand-ink: oklch(0.25 0.04 275);
+  --brand-ink-soft: oklch(0.36 0.032 275);
+  --brand: oklch(0.82 0.105 75);
+  --brand-strong: oklch(0.68 0.145 58);
+  --brand-soft: oklch(0.965 0.032 78);
+  --brand-shadow: oklch(0.62 0.105 63 / 0.2);
+  --canvas: oklch(0.995 0.002 275);
+  --app-background: oklch(0.955 0.008 275);
+  --surface: oklch(0.995 0.002 275);
+  --surface-muted: oklch(0.96 0.003 275);
+  --ink: var(--brand-ink);
+  --on-ink: oklch(0.985 0.006 82);
+  --ink-56: oklch(0.25 0.04 275 / 0.56);
+  --ink-38: oklch(0.25 0.04 275 / 0.38);
+  --ink-22: oklch(0.25 0.04 275 / 0.22);
+  --ink-12: oklch(0.25 0.04 275 / 0.12);
+  --ink-07: oklch(0.25 0.04 275 / 0.07);
+  --ink-04: oklch(0.25 0.04 275 / 0.04);
   --glass: rgb(255 255 255 / 0.68);
   --glass-thick: rgb(255 255 255 / 0.86);
   --glass-clear: rgb(255 255 255 / 0.62);
   --glass-edge: rgb(255 255 255 / 0.82);
   --glass-shadow: 0 18px 46px rgb(28 28 30 / 0.1), 0 2px 8px rgb(28 28 30 / 0.045);
-  --success: #30b864;
-  --warning: #ff9500;
-  --danger: #ff3b30;
-  --agent: #8b5cf6;
-  --cyan: #18a8ba;
+  --success: oklch(0.59 0.1 151);
+  --warning: var(--brand-strong);
+  --danger: oklch(0.58 0.17 29);
+  --agent: var(--brand-strong);
+  --cyan: var(--brand-strong);
   --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.2, 0.9, 0.22, 1.18);
   --shadow-float: 0 16px 44px rgb(0 0 0 / 0.12), 0 3px 12px rgb(0 0 0 / 0.06);
@@ -39,7 +45,7 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  background: #e9e9ee;
+  background: var(--app-background);
 }
 
 body {
@@ -47,7 +53,7 @@ body {
   min-height: 100%;
   margin: 0;
   overflow-x: hidden;
-  background: #e9e9ee;
+  background: var(--app-background);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -66,7 +72,7 @@ button {
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--brand-strong);
   outline-offset: 3px;
 }
 
@@ -90,14 +96,14 @@ button:disabled {
   margin: 0 auto;
   overflow: hidden;
   background: var(--canvas);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.04), 0 24px 80px rgb(0 0 0 / 0.08);
+  box-shadow: 0 0 0 1px oklch(0.25 0.04 275 / 0.035), 0 24px 80px oklch(0.25 0.04 275 / 0.08);
 }
 
 .prototype-app--lighting-pilot {
-  --pilot-control-surface: oklch(0.24 0.006 260 / 0.96);
-  --pilot-control-foreground: oklch(0.97 0.004 260);
-  --pilot-control-shadow: oklch(0.25 0.008 260 / 0.18);
-  background: #e3e3e8;
+  --pilot-control-surface: var(--brand-ink);
+  --pilot-control-foreground: var(--on-ink);
+  --pilot-control-shadow: oklch(0.25 0.04 275 / 0.2);
+  background: var(--app-background);
 }
 
 .app-shell__content {
@@ -371,7 +377,7 @@ button:disabled {
   position: absolute;
   inset: -35%;
   border-radius: 50%;
-  background: conic-gradient(from 40deg, transparent, rgb(255 255 255 / 0.55), transparent 35%, rgb(139 92 246 / 0.55), transparent 67%);
+  background: conic-gradient(from 40deg, transparent, rgb(255 255 255 / 0.55), transparent 35%, oklch(0.68 0.145 58 / 0.55), transparent 67%);
   content: "";
   animation: agent-halo-spin 7s linear infinite;
 }
@@ -436,7 +442,7 @@ button:disabled {
 }
 
 .prototype-app--lighting-pilot .agent-launcher::before {
-  background: conic-gradient(from 40deg, transparent, rgb(255 255 255 / 0.5), transparent 35%, rgb(139 92 246 / 0.44), transparent 67%);
+  background: conic-gradient(from 40deg, transparent, rgb(255 255 255 / 0.5), transparent 35%, oklch(0.68 0.145 58 / 0.44), transparent 67%);
 }
 
 .prototype-app--lighting-pilot .agent-launcher::after {
@@ -1032,7 +1038,7 @@ button:disabled {
   border: 1px solid var(--ink-12);
   border-radius: 50%;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   font-size: 0.8rem;
   font-weight: 700;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
@@ -1055,7 +1061,7 @@ button:disabled {
   background:
     radial-gradient(circle at 76% 18%, rgb(255 255 255 / 0.16), transparent 30%),
     radial-gradient(circle at 8% 48%, rgb(255 255 255 / 0.08), transparent 35%),
-    #000;
+    var(--brand-ink);
   box-shadow: 0 24px 54px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.22);
 }
 
@@ -1066,7 +1072,7 @@ button:disabled {
   padding: 24px;
   border-radius: 34px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: 0 24px 54px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.22);
   transition: min-height 420ms var(--ease-fluid);
 }
@@ -1301,7 +1307,7 @@ button:disabled {
   flex: 0 0 42px;
   place-items: center;
   border-radius: 50%;
-  color: #000;
+  color: var(--brand-ink);
   background: #fff;
   font-style: normal;
   transition: transform 220ms var(--ease-fluid);
@@ -1486,7 +1492,7 @@ button:disabled {
   padding: 0 18px;
   border: 0;
   border-radius: 17px;
-  color: #000;
+  color: var(--brand-ink);
   background: #fff;
   font-size: 0.9rem;
   font-weight: 700;
@@ -1514,7 +1520,7 @@ button:disabled {
 }
 
 .section-heading .section-label {
-  color: #000;
+  color: var(--brand-ink);
   font-size: 1.02rem;
   font-weight: 700;
   letter-spacing: -0.025em;
@@ -1598,7 +1604,7 @@ button:disabled {
   left: 50%;
   width: 42px;
   height: 3px;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: 0 13px 0 rgb(0 0 0 / 0.16), 0 25px 0 rgb(0 0 0 / 0.1);
   transform: translateX(-50%) rotate(-4deg);
 }
@@ -1858,7 +1864,7 @@ button:disabled {
 
 .page-inline-actions > button:active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   transform: scale(0.9);
 }
 
@@ -2267,7 +2273,7 @@ button:disabled {
 
 .document-detail__back:active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   transform: scale(0.94);
 }
 
@@ -2309,7 +2315,7 @@ button:disabled {
   overflow: hidden;
   border-radius: 22px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: 0 20px 42px rgb(0 0 0 / 0.2);
   view-transition-name: ml-document-cover;
 }
@@ -2361,7 +2367,7 @@ button:disabled {
   z-index: 2;
   width: 9px;
   height: 9px;
-  border: 2px solid #000;
+  border: 2px solid var(--brand-ink);
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.55);
@@ -2609,7 +2615,7 @@ button:disabled {
   place-items: center;
   border-radius: 13px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .document-source__trigger small,
@@ -2685,7 +2691,7 @@ button:disabled {
 
 .document-secondary-actions button:active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   transform: scale(0.97);
 }
 
@@ -2741,7 +2747,7 @@ button:disabled {
   border: 0;
   border-radius: 18px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   font-size: 0.76rem;
   font-weight: 700;
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.18);
@@ -2753,7 +2759,7 @@ button:disabled {
 }
 
 .document-primary-action__button--ready {
-  color: #000;
+  color: var(--brand-ink);
   background: #ececef;
   box-shadow: none;
 }
@@ -2850,7 +2856,7 @@ button:disabled {
 }
 
 .learning-reader__progress .learning-reader__progress-current {
-  background: #000;
+  background: var(--brand-ink);
   transform-origin: left;
   animation: learning-progress-enter 520ms var(--ease-fluid) both;
 }
@@ -2858,7 +2864,7 @@ button:disabled {
 .learning-objective {
   margin-top: 44px;
   padding: 17px 0 20px;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
   border-bottom: 1px solid var(--ink-12);
 }
 
@@ -2901,7 +2907,7 @@ button:disabled {
 
 .learning-article .learning-article__lead {
   margin: 0;
-  color: #000;
+  color: var(--brand-ink);
   font-size: 1.2rem;
   font-weight: 540;
   letter-spacing: -0.025em;
@@ -2916,7 +2922,7 @@ button:disabled {
   display: block;
   width: 100%;
   overflow: visible;
-  color: #000;
+  color: var(--brand-ink);
 }
 
 .learning-signal-diagram rect,
@@ -2930,11 +2936,11 @@ button:disabled {
 }
 
 .learning-signal-diagram .learning-signal-diagram__model {
-  fill: #000;
+  fill: var(--brand-ink);
 }
 
 .learning-signal-diagram text {
-  fill: #000;
+  fill: var(--brand-ink);
   font-family: inherit;
   font-size: 10px;
   font-weight: 650;
@@ -2974,7 +2980,7 @@ button:disabled {
   padding: 26px 24px 28px;
   border-radius: 24px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .learning-key-point span {
@@ -3065,7 +3071,7 @@ button:disabled {
 .learning-alternate {
   margin: 38px 0 0;
   padding: 22px 0;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
   border-bottom: 1px solid var(--ink-12);
   animation: source-excerpt-enter 280ms var(--ease-fluid) both;
 }
@@ -3108,7 +3114,7 @@ button:disabled {
   place-items: center;
   border-radius: 13px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .learning-source small,
@@ -3164,7 +3170,7 @@ button:disabled {
 .learning-reader__secondary-actions button[aria-pressed="true"],
 .learning-reader__secondary-actions button:active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   transform: scale(0.97);
 }
 
@@ -3196,7 +3202,7 @@ button:disabled {
 }
 
 .learning-reader__progress--complete .learning-reader__progress-current {
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .learning-reader__progress--complete .learning-reader__progress-current:last-child {
@@ -3206,7 +3212,7 @@ button:disabled {
 .learning-validation__question {
   margin-top: 44px;
   padding-top: 22px;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
 }
 
 .learning-validation__question-index {
@@ -3219,7 +3225,7 @@ button:disabled {
 }
 
 .learning-validation__question-index strong {
-  color: #000;
+  color: var(--brand-ink);
   font-size: 0.66rem;
   font-weight: 680;
 }
@@ -3288,12 +3294,12 @@ button:disabled {
   border-bottom-color: transparent;
   border-radius: 22px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .learning-validation__answer--selected > span {
   border-color: #fff;
-  color: #000;
+  color: var(--brand-ink);
   background: #fff;
 }
 
@@ -3314,7 +3320,7 @@ button:disabled {
 .learning-feedback {
   margin-top: 28px;
   padding-top: 28px;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
   animation: validation-feedback-enter 320ms var(--ease-fluid) both;
 }
 
@@ -3332,7 +3338,7 @@ button:disabled {
   place-items: center;
   border-radius: 14px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .learning-feedback--correct .learning-feedback__mark {
@@ -3406,7 +3412,7 @@ button:disabled {
   place-items: center;
   border-radius: 10px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .learning-validation__source > div p {
@@ -3447,7 +3453,7 @@ button:disabled {
 
 .learning-validation__agent-action:active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   transform: scale(0.98);
 }
 
@@ -3553,7 +3559,7 @@ button:disabled {
   place-items: center;
   border-radius: 18px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: 0 16px 34px rgb(0 0 0 / 0.16);
   animation: evidence-core-settle 520ms 90ms var(--ease-fluid) both;
 }
@@ -3593,7 +3599,7 @@ button:disabled {
   justify-content: space-between;
   gap: 16px;
   padding-bottom: 18px;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--brand-ink);
 }
 
 .learning-evidence-ledger__heading p {
@@ -3654,7 +3660,7 @@ button:disabled {
   padding: 26px 24px 24px;
   border-radius: 28px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: 0 22px 46px rgb(0 0 0 / 0.17);
   view-transition-name: learning-evidence-record;
 }
@@ -3711,7 +3717,7 @@ button:disabled {
 }
 
 .learning-record-preview__relation strong {
-  color: #000;
+  color: var(--brand-ink);
   background: #fff;
 }
 
@@ -3773,7 +3779,7 @@ button:disabled {
 
 .learning-completion__secondary-actions button:active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   transform: scale(0.97);
 }
 
@@ -3891,7 +3897,7 @@ button:disabled {
   height: 7px;
   border-radius: 50%;
   background: var(--cyan);
-  box-shadow: 0 0 0 4px rgb(24 168 186 / 0.1);
+  box-shadow: 0 0 0 4px oklch(0.82 0.105 75 / 0.14);
 }
 
 .map-filter-row {
@@ -3931,7 +3937,7 @@ button:disabled {
 
 .map-filter--active {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .map-filter:active {
@@ -3944,7 +3950,7 @@ button:disabled {
   overflow: hidden;
   background:
     radial-gradient(circle at 32% 32%, rgb(0 0 0 / 0.035), transparent 28%),
-    radial-gradient(circle at 76% 66%, rgb(139 92 246 / 0.045), transparent 30%),
+    radial-gradient(circle at 76% 66%, oklch(0.82 0.105 75 / 0.07), transparent 30%),
     #fff;
   cursor: grab;
   touch-action: none;
@@ -4308,7 +4314,7 @@ button:disabled {
 .map-node--recent-change::after {
   position: absolute;
   inset: -13px;
-  border: 2px solid rgb(24 168 186 / 0.68);
+  border: 2px solid oklch(0.68 0.145 58 / 0.68);
   border-radius: inherit;
   content: "";
   pointer-events: none;
@@ -4348,7 +4354,7 @@ button:disabled {
   padding: 0 9px;
   border: 1px solid var(--ink-12);
   border-radius: 9px;
-  color: #000;
+  color: var(--brand-ink);
   background: #fff;
   box-shadow: 0 7px 18px rgb(0 0 0 / 0.11);
   font-size: 0.58rem;
@@ -4391,7 +4397,7 @@ button:disabled {
 .legend-symbol {
   width: 12px;
   height: 12px;
-  border: 3px double #000;
+  border: 3px double var(--brand-ink);
   border-radius: 50%;
 }
 
@@ -4600,7 +4606,7 @@ button:disabled {
   align-items: center;
   gap: 7px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
 }
 
 .map-change-panel {
@@ -4670,7 +4676,7 @@ button:disabled {
   padding: 13px 15px;
   border-radius: 17px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   view-transition-name: learning-evidence-record;
 }
 
@@ -4698,7 +4704,7 @@ button:disabled {
   height: 7px;
   border-radius: 50%;
   background: var(--cyan);
-  box-shadow: 0 0 0 4px rgb(24 168 186 / 0.14);
+  box-shadow: 0 0 0 4px oklch(0.82 0.105 75 / 0.18);
 }
 
 .map-change-evidence__lead strong {
@@ -4772,7 +4778,7 @@ button:disabled {
   border: 0;
   border-radius: 15px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
   font-size: 0.7rem;
   font-weight: 720;
@@ -4784,7 +4790,7 @@ button:disabled {
 }
 
 .map-change-panel__primary--ready {
-  color: #000;
+  color: var(--brand-ink);
   background: #ececef;
   box-shadow: none;
 }
@@ -4920,7 +4926,7 @@ button:disabled {
 }
 
 .agent-conversation-toolbar button[aria-pressed="true"] {
-  color: #000;
+  color: var(--brand-ink);
 }
 
 .agent-conversation-toolbar button:active {
@@ -5031,7 +5037,7 @@ button:disabled {
 }
 
 .agent-message:first-child {
-  border-top-color: #000;
+  border-top-color: var(--brand-ink);
 }
 
 .agent-message--user {
@@ -5106,7 +5112,7 @@ button:disabled {
   padding: 13px 14px;
   border: 0;
   border-radius: 13px;
-  color: #000;
+  color: var(--brand-ink);
   background: #f1f1f3;
   text-align: left;
   transition: background 180ms ease, transform 180ms var(--ease-fluid);
@@ -5133,7 +5139,7 @@ button:disabled {
 
 .agent-followups {
   padding: 21px 0 12px;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
 }
 
 .agent-followups > p {
@@ -5182,7 +5188,7 @@ button:disabled {
 
 .agent-history__list {
   margin-top: 28px;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
 }
 
 .agent-history__list button {
@@ -5271,7 +5277,7 @@ button:disabled {
   gap: 0;
   max-width: 760px;
   margin: 34px auto 0;
-  border-top: 1px solid #000;
+  border-top: 1px solid var(--brand-ink);
 }
 
 .agent-drawer--full .prompt-list > p {
@@ -5343,7 +5349,7 @@ button:disabled {
   border: 0;
   border-radius: 18px;
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   font-size: 0.72rem;
   font-weight: 650;
   transition: opacity 180ms ease, transform 220ms var(--ease-spring);
@@ -5689,7 +5695,7 @@ button:disabled {
 
 .prototype-app--lighting-pilot .document-primary-action__button {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: none;
 }
 
@@ -5865,7 +5871,7 @@ button:disabled {
   .learning-completion-page
 ) .document-primary-action__button {
   color: #fff;
-  background: #000;
+  background: var(--brand-ink);
   box-shadow: none;
 }
 
@@ -5943,7 +5949,7 @@ button:disabled {
   border-top-color: var(--ink-12);
 }
 
-/* Learning map — quiet, diagram-like node language */
+/* Learning map: quiet, diagram-like node language */
 .learning-map,
 .prototype-app--lighting-pilot .learning-map {
   background: #f7f7f5;
@@ -6151,4 +6157,207 @@ button:disabled {
   right: auto;
   bottom: auto;
   left: 31px;
+}
+
+/* Soft brand palette: white canvas, ink-blue controls, apricot accents. */
+.prototype-app--lighting-pilot {
+  --pilot-page-background: var(--canvas);
+  --pilot-surface-high: oklch(0.995 0.002 275);
+  --pilot-surface-low: oklch(0.975 0.004 275);
+  --pilot-surface-edge: oklch(1 0 0 / 0.88);
+  --pilot-surface-shadow: oklch(0.25 0.04 275 / 0.12);
+  --pilot-surface-shadow-medium: oklch(0.25 0.04 275 / 0.075);
+}
+
+.prototype-app--lighting-pilot .today-page:not(.today-page--outcome),
+.prototype-app--lighting-pilot :is(.today-page, .library-page, .learning-page) {
+  background: var(--pilot-page-background);
+}
+
+.prototype-app--lighting-pilot :is(
+  .document-detail-page,
+  .learning-reader-page,
+  .learning-validation-page,
+  .learning-completion-page
+) {
+  background: var(--canvas);
+}
+
+.prototype-app--lighting-pilot .task-focus-card {
+  border: 0;
+  background: var(--surface);
+  box-shadow: 0 12px 34px oklch(0.25 0.04 275 / 0.1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.prototype-app--lighting-pilot .task-focus-card::after {
+  content: none;
+}
+
+.prototype-app--lighting-pilot .task-flower__petal {
+  background: oklch(0.965 0.004 275 / 0.78);
+  box-shadow: none;
+  filter: none;
+}
+
+.prototype-app--lighting-pilot .task-flower__center {
+  background: oklch(0.93 0.006 275 / 0.82);
+  box-shadow: none;
+}
+
+.prototype-app--lighting-pilot .navigation-item--active {
+  color: var(--brand-ink);
+  background: oklch(0.965 0.032 78 / 0.82);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    0 5px 14px oklch(0.62 0.105 63 / 0.12);
+}
+
+.prototype-app--lighting-pilot .agent-launcher {
+  border-color: oklch(1 0 0 / 0.92);
+  color: var(--on-ink);
+  background: var(--brand);
+  box-shadow:
+    0 12px 28px var(--brand-shadow),
+    inset 0 1px 0 oklch(1 0 0 / 0.42);
+}
+
+.prototype-app--lighting-pilot .agent-launcher::before {
+  background: conic-gradient(from 40deg, transparent, oklch(1 0 0 / 0.58), transparent 35%, oklch(0.68 0.145 58 / 0.72), transparent 68%);
+}
+
+.prototype-app--lighting-pilot .agent-launcher::after {
+  background: var(--brand);
+}
+
+.prototype-app--lighting-pilot .agent-launcher:active {
+  box-shadow: 0 8px 18px var(--brand-shadow);
+}
+
+.prototype-app--lighting-pilot .solid-button:active {
+  background: var(--brand-ink-soft);
+}
+
+.prototype-app--lighting-pilot :is(
+  .map-change-header__summary i,
+  .map-node__state--学习中,
+  .learning-reader__progress-current
+) {
+  background: var(--brand-strong);
+  box-shadow: 0 0 0 4px oklch(0.82 0.105 75 / 0.16);
+}
+
+.prototype-app--lighting-pilot .map-relationship--recent {
+  stroke: var(--brand-strong);
+}
+
+.prototype-app--lighting-pilot .map-node--recent-change::after {
+  border-color: oklch(0.68 0.145 58 / 0.72);
+}
+
+.prototype-app--lighting-pilot .library-row__type {
+  background: oklch(0.965 0.016 78 / 0.9);
+}
+
+.prototype-app--lighting-pilot .library-row__type--笔记 {
+  background: oklch(0.955 0.024 75 / 0.92);
+}
+
+/* Material consistency: flat white pages, selective elevation only. */
+.prototype-app--lighting-pilot :is(
+  .today-page,
+  .library-page,
+  .learning-page,
+  .learning-map,
+  .document-detail-page,
+  .learning-reader-page,
+  .learning-validation-page,
+  .learning-completion-page
+) {
+  background: var(--canvas);
+}
+
+.prototype-app--lighting-pilot :is(
+  .page-inline-actions > button,
+  .library-page .page-inline-actions > button,
+  .library-search,
+  .library-filters,
+  .map-filters
+) {
+  border-color: transparent;
+  background: var(--surface-muted);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.prototype-app--lighting-pilot .library-feature {
+  border: 0;
+  background: var(--surface);
+  box-shadow: 0 12px 34px oklch(0.25 0.04 275 / 0.09);
+}
+
+.prototype-app--lighting-pilot .library-feature::before,
+.prototype-app--lighting-pilot .library-feature::after {
+  content: none;
+}
+
+.prototype-app--lighting-pilot .library-list {
+  border-color: transparent;
+  background: oklch(0.982 0.003 275);
+  box-shadow: none;
+}
+
+.prototype-app--lighting-pilot :is(
+  .change-card--text,
+  .change-card__visual,
+  .change-card__visual--2
+) {
+  border-color: transparent;
+  background: var(--surface-muted);
+  box-shadow: none;
+}
+
+.prototype-app--lighting-pilot .today-outcome-card {
+  border: 0;
+  background: var(--surface);
+  box-shadow: 0 12px 34px oklch(0.25 0.04 275 / 0.09);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.prototype-app--lighting-pilot .today-outcome-card::after {
+  content: none;
+}
+
+.prototype-app--lighting-pilot :is(.map-change-header, .node-detail-panel, .map-change-panel) {
+  border: 0;
+  background: var(--surface);
+  box-shadow: 0 14px 36px oklch(0.25 0.04 275 / 0.11);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.prototype-app--lighting-pilot .map-change-evidence {
+  border-color: transparent;
+  background: var(--surface-muted);
+  box-shadow: none;
+}
+
+.prototype-app--lighting-pilot .bottom-navigation-surface {
+  border-color: transparent;
+  background: oklch(0.995 0.002 275 / 0.94);
+  box-shadow: 0 12px 34px oklch(0.25 0.04 275 / 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.prototype-app--lighting-pilot :is(
+  .profile-control,
+  .solid-button,
+  .today-outcome-card__primary,
+  .document-primary-action__button
+) {
+  box-shadow: none;
 }
