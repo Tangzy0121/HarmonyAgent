@@ -400,4 +400,55 @@ describe('AgentDrawer controlled learning-book mode', () => {
     expect(katexMock.renderToString).not.toHaveBeenCalledWith('L', { displayMode: false, throwOnError: false })
     expect(container.textContent).toContain('为什么 $L$ 会下降？')
   })
+
+  it('renders **bold** in assistant answers as strong emphasis without raw asterisks', () => {
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(<AgentDrawer
+      snap="full"
+      activeDestination="library"
+      draft=""
+      bookSession={session({
+        messages: [{ id: 'assistant-bold', role: 'assistant', content: '这正是 **核心依据** 没错。', status: 'complete', createdAt: '2026-08-09' }],
+      })}
+      onDraftChange={() => undefined}
+      onSnapChange={() => undefined}
+    />))
+    const strong = descendants(container).find((element) => element.tagName === 'STRONG')
+
+    expect(strong?.textContent).toBe('核心依据')
+    expect(container.textContent).not.toContain('**')
+  })
+
+  it('turns cited [S#] markers into clickable chips and leaves unknown ones as text', () => {
+    const onSourceOpen = vi.fn()
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(<AgentDrawer
+      snap="full"
+      activeDestination="library"
+      draft=""
+      bookSession={session({
+        messages: [{
+          id: 'assistant-inline-source',
+          role: 'assistant',
+          content: '依据见 [S2]，而 [S99] 不存在。',
+          status: 'complete',
+          createdAt: '2026-08-09',
+          sources: [knownSource, secondSource],
+        }],
+      })}
+      onDraftChange={() => undefined}
+      onSnapChange={() => undefined}
+      onSourceOpen={onSourceOpen}
+    />))
+    const chip = descendants(container).find((element) => element.tagName === 'BUTTON' && element.className.split(' ').includes('agent-inline-source'))
+
+    expect(chip).toBeDefined()
+    expect(chip?.textContent).toContain('S2')
+    invokeReactClick(chip!)
+    expect(onSourceOpen).toHaveBeenCalledTimes(1)
+    expect(onSourceOpen).toHaveBeenCalledWith(secondSource)
+    const allChips = descendants(container).filter((element) => element.tagName === 'BUTTON' && element.className.split(' ').includes('agent-inline-source'))
+    expect(allChips).toHaveLength(1)
+    expect(container.textContent).toContain('[S99]')
+  })
 })

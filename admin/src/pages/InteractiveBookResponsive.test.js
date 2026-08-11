@@ -74,4 +74,12 @@ describe('interactive book responsive shell', () => {
 
     expect(rule).toMatch(/overflow-y:\s*auto/)
   })
+
+  it('scopes the numbered-point counter to ordered lists so source cards stay clean', () => {
+    // 旧 mock 对话的要点编号（"01"）只能作用于 .agent-message 里的 ol，
+    // 不能污染 ul.agent-source-list 里的来源卡 li
+    expect(css).not.toMatch(/^\.agent-message li\s*\{/m)
+    expect(css).not.toMatch(/^\.agent-message li::before/m)
+    expect(css).toContain('.agent-message ol li')
+  })
 })

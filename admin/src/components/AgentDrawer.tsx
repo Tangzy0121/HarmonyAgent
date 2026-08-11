@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, FocusEvent, FormEvent, KeyboardEvent } from 'react'
+import type { CSSProperties, FocusEvent, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { agentConversation, agentPrompts, pageContext } from '../data/prototype'
 import type { BookAgentSessionState } from '../hooks/bookAgentSessionReducer'
 import { useDrawerGesture } from '../hooks/useDrawerGesture'
@@ -58,6 +58,32 @@ function referencedSources(content: string, sources: BookAgentSource[] | undefin
     if (source) referenced.push(source)
   }
   return referenced
+}
+
+/** 助手回答富文本：$...$ 公式、**加粗** 走 MathText；已知的 [S#] 渲染为可点击证据签条，未知编号保持原文。 */
+function AssistantContent({ content, sources, onSourceOpen }: {
+  content: string
+  sources: BookAgentSource[] | undefined
+  onSourceOpen?: (source: BookAgentSource) => void
+}) {
+  const parts: ReactNode[] = []
+  const sourceById = new Map((sources ?? []).map((source) => [source.id, source]))
+  let last = 0
+  for (const match of content.matchAll(/\[(S[1-9]\d*)\]/gu)) {
+    const source = sourceById.get(match[1] as BookAgentSource['id'])
+    if (!source) continue
+    if (match.index > last) parts.push(<MathText key={`text-${match.index}`} text={content.slice(last, match.index)} />)
+    parts.push(<button
+      key={`source-${match.index}`}
+      type="button"
+      className="agent-inline-source"
+      aria-label={`查看证据 ${source.id}：${source.fileName} ${source.pageRange}`}
+      onClick={() => onSourceOpen?.(source)}
+    >{source.id}</button>)
+    last = match.index + match[0].length
+  }
+  if (last < content.length) parts.push(<MathText key={`text-${last}`} text={content.slice(last)} />)
+  return <>{parts}</>
 }
 
 function preferredScrollBehavior(): ScrollBehavior {
@@ -280,7 +306,11 @@ export function AgentDrawer({
                     </header>
                     <p aria-live={message.status === 'streaming' ? 'polite' : undefined} aria-atomic={message.status === 'streaming' ? 'false' : undefined}>
                       {message.role === 'assistant'
-                        ? <MathText text={message.content || (message.status === 'streaming' ? '正在查找依据…' : '')} />
+                        ? <AssistantContent
+                            content={message.content || (message.status === 'streaming' ? '正在查找依据…' : '')}
+                            sources={message.sources}
+                            onSourceOpen={onSourceOpen}
+                          />
                         : (message.content || (message.status === 'streaming' ? '正在查找依据…' : ''))}
                     </p>
                     {message.status === 'cancelled' && <span className="agent-message__status">已停止</span>}

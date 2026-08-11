@@ -4532,7 +4532,7 @@ button:disabled {
   list-style: none;
 }
 
-.agent-message li {
+.agent-message ol li {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   gap: 8px;
@@ -4543,7 +4543,7 @@ button:disabled {
   counter-increment: agent-point;
 }
 
-.agent-message li::before {
+.agent-message ol li::before {
   color: var(--ink-38);
   font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
@@ -9793,6 +9793,22 @@ button:disabled {
 
 .agent-source-list > li {
   min-width: 0;
+}
+
+.agent-inline-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin: 0 2px;
+  padding: 0 7px;
+  border: 1px solid rgb(164 92 73 / 0.35);
+  border-radius: 999px;
+  color: #a45c49;
+  background: rgb(235 204 194 / 0.25);
+  font-size: 0.68rem;
+  font-weight: 760;
+  vertical-align: baseline;
+  cursor: pointer;
 }
 
 .agent-source-card {
