@@ -23,8 +23,8 @@ interface InteractiveBookPageProps {
   chapterProgress?: { blocksReceived: number } | null
   /** 真实书失败章重试：重新发起该章的流式生成 */
   onRetryChapter?: (chapterId: string) => void
-  /** 真实书：答题提交走服务端持久化（异步）；缺省时走本地 mock 逻辑 */
-  onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<void>
+  /** 真实书：答题提交走服务端持久化（异步，false 表示失败）；缺省时走本地 mock 逻辑 */
+  onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<boolean>
   /** 真实书错题复习：全书/本章待复习错题数（>0 且提供 onOpenReview 时渲染对应入口） */
   reviewCount?: number
   chapterReviewCount?: number

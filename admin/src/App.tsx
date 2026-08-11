@@ -451,10 +451,10 @@ function App() {
   }
 
   // 真实书答题：走服务端持久化，返回的 attempt/evidence 合并进当前书状态；
-  // 失败不破坏当前书状态（渲染层提交态复位后可直接重试）
-  const submitRealQuizAttempt = (blockId: string, answerId: string): Promise<void> => {
+  // 失败返回 false（不破坏当前书状态），由答题组件显示可重试的错误提示
+  const submitRealQuizAttempt = (blockId: string, answerId: string): Promise<boolean> => {
     const bookId = activeRealBookIdRef.current
-    if (!bookId) return Promise.resolve()
+    if (!bookId) return Promise.resolve(false)
     return submitAttempt(bookId, blockId, answerId)
       .then((result) => {
         setLearningBook((current) => current.id === bookId
@@ -464,8 +464,9 @@ function App() {
               evidence: [...current.evidence, result.evidence],
             }
           : current)
+        return true
       })
-      .catch(() => undefined)
+      .catch(() => false)
   }
 
   const openRealBook = (bookId: string) => {

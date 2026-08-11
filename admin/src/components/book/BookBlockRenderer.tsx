@@ -18,7 +18,8 @@ interface BookBlockRendererProps {
   /** 答错后提供“重新作答”（真实书走服务端多次记录；mock 书保持单次作答） */
   allowQuizRetry?: boolean
   onRegenerate: (blockId: string) => void
-  onSubmitQuiz: (blockId: string, answerId: string) => void | Promise<void>
+  /** 返回 Promise 且 resolve false 或 reject 时视为提交失败（组件显示可重试的错误提示） */
+  onSubmitQuiz: (blockId: string, answerId: string) => void | Promise<boolean | void>
   onUpdateNote: (noteId: string, body: string) => void
   onStartDeepLearning: (blockId: string) => void
   onAskAgent: (blockId: string) => void
@@ -30,6 +31,7 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
   // 服务端返回新作答（id 不同）后自动回到结果视图
   const [dismissedAttemptId, setDismissedAttemptId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitFailed, setSubmitFailed] = useState(false)
   const visibleAttempt = attempt && attempt.id !== dismissedAttemptId ? attempt : undefined
   const canRegenerate = allowBlockRegenerate && block.type !== 'citation' && block.type !== 'user_note'
 
@@ -59,9 +61,11 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
       case 'quiz': {
         const submitAnswer = () => {
           setIsSubmitting(true)
-          // mock 路径同步返回 undefined，真实书路径返回 Promise；统一成 Promise 跟踪提交态
+          setSubmitFailed(false)
+          // mock 路径同步返回 undefined，真实书路径返回 Promise<boolean>；统一成 Promise 跟踪提交态与失败信号
           Promise.resolve(onSubmitQuiz(block.id, selectedAnswer))
-            .catch(() => undefined)
+            .then((ok) => { if (ok === false) setSubmitFailed(true) })
+            .catch(() => setSubmitFailed(true))
             .finally(() => setIsSubmitting(false))
         }
         return <div className="book-quiz">
@@ -97,7 +101,12 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
               )}
             </>
           ) : (
-            <button type="button" className="book-block__primary" disabled={!selectedAnswer || isSubmitting} onClick={submitAnswer}>提交答案</button>
+            <>
+              {submitFailed && (
+                <p className="book-quiz__feedback" role="alert">提交失败，请检查网络后重试。</p>
+              )}
+              <button type="button" className="book-block__primary" disabled={!selectedAnswer || isSubmitting} onClick={submitAnswer}>提交答案</button>
+            </>
           )}
         </div>
       }

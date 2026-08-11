@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import mermaid from 'mermaid'
 import katex from 'katex'
-import type { BookBlock, CalloutBlock, FigureBlock, FlashCardsBlock, FormulaBlock } from '../../types/learningBook'
+import type { BookBlock, CalloutBlock, FigureBlock, FlashCardsBlock, FormulaBlock, QuizBlock } from '../../types/learningBook'
 import { BookBlockRenderer } from './BookBlockRenderer'
 
 vi.mock('mermaid', () => ({
@@ -421,6 +421,96 @@ describe('BookBlockRenderer · figure 大图', () => {
     const reset = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === '重置缩放')
     click(reset as FakeElement)
     expect(zoomContent().style.transform).toBe('translate(0px, 0px) scale(1)')
+  })
+})
+
+describe('BookBlockRenderer · quiz 提交失败反馈', () => {
+  const quizBlock: QuizBlock = {
+    id: 'blk-quiz-t1',
+    type: 'quiz',
+    status: 'ready',
+    title: '快速验证',
+    revision: 1,
+    sourceAnchors: [],
+    conceptId: 'concept-x',
+    question: '这是一个问题吗？',
+    options: [
+      { id: 'opt-a', marker: 'A', text: '选项甲。' },
+      { id: 'opt-b', marker: 'B', text: '选项乙。' },
+    ],
+    correctAnswerId: 'opt-b',
+    feedback: '解析文案。',
+  }
+
+  async function flushAsync(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    flushSync(() => undefined)
+  }
+
+  it('提交失败时显示 role=alert 错误文案，恢复后可重新提交且文案消失', async () => {
+    const container = mountEnvironment()
+    const onSubmitQuiz = vi.fn()
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(true)
+    flushSync(() => mountedRoot?.render(
+      <BookBlockRenderer
+        block={quizBlock}
+        allowQuizRetry
+        onRegenerate={() => undefined}
+        onSubmitQuiz={onSubmitQuiz}
+        onUpdateNote={() => undefined}
+        onStartDeepLearning={() => undefined}
+        onAskAgent={() => undefined}
+      />,
+    ))
+    const clickText = (text: string) => {
+      const button = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes(text))
+      expect(button, `button containing "${text}"`).toBeDefined()
+      flushSync(() => Simulate.click(button as unknown as Element))
+    }
+
+    clickText('选项乙。')
+    clickText('提交答案')
+    await flushAsync()
+
+    const alert = descendants(container).find((element) => element.getAttribute('role') === 'alert')
+    expect(alert, 'error alert after failed submit').toBeDefined()
+    expect(alert!.textContent).toContain('提交失败，请检查网络后重试。')
+
+    // 按钮恢复可重试：再次提交（本次成功）后错误文案消失
+    clickText('提交答案')
+    await flushAsync()
+
+    expect(onSubmitQuiz).toHaveBeenCalledTimes(2)
+    expect(onSubmitQuiz).toHaveBeenLastCalledWith('blk-quiz-t1', 'opt-b')
+    expect(container.textContent).not.toContain('提交失败，请检查网络后重试。')
+  })
+
+  it('onSubmitQuiz 返回 false 同样视为失败并显示错误文案', async () => {
+    const container = mountEnvironment()
+    const onSubmitQuiz = vi.fn().mockResolvedValue(false)
+    flushSync(() => mountedRoot?.render(
+      <BookBlockRenderer
+        block={quizBlock}
+        allowQuizRetry
+        onRegenerate={() => undefined}
+        onSubmitQuiz={onSubmitQuiz}
+        onUpdateNote={() => undefined}
+        onStartDeepLearning={() => undefined}
+        onAskAgent={() => undefined}
+      />,
+    ))
+    const clickText = (text: string) => {
+      const button = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes(text))
+      expect(button, `button containing "${text}"`).toBeDefined()
+      flushSync(() => Simulate.click(button as unknown as Element))
+    }
+
+    clickText('选项甲。')
+    clickText('提交答案')
+    await flushAsync()
+
+    expect(container.textContent).toContain('提交失败，请检查网络后重试。')
   })
 })
 
