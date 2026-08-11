@@ -14,6 +14,8 @@ import { useBookAgentSessions } from './hooks/useBookAgentSessions'
 import { useBookGeneration, type BookGenerationEvent } from './hooks/useBookGeneration'
 import { UploadBookSheet, type UploadBookSubmission } from './components/book/UploadBookSheet'
 import { PretestSheet } from './components/book/PretestSheet'
+import { ReviewQueueSheet } from './components/book/ReviewQueueSheet'
+import { buildReviewQueue } from './domain/reviewQueue'
 import { BookApiError, confirmBook, createBook, getBook, listBooks, submitAttempt, updateProposal, uploadDocument, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
@@ -134,6 +136,7 @@ function App() {
   const [isUploadSheetOpen, setIsUploadSheetOpen] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isPretestSheetOpen, setIsPretestSheetOpen] = useState(false)
+  const [isReviewSheetOpen, setIsReviewSheetOpen] = useState(false)
   // 摸底入口按书记忆“已选择”：直接开始生成/从建议章节开始后不再出现，换书重置
   const [pretestEntryDismissedFor, setPretestEntryDismissedFor] = useState<string | null>(null)
   const [isConfirmingRealBook, setIsConfirmingRealBook] = useState(false)
@@ -219,6 +222,8 @@ function App() {
     return focusBlock ? `${base} · 聚焦：${focusBlock.title}` : base
   })()
   const isRealBookLoaded = activeRealBookId !== null && learningBook.id === activeRealBookId
+  // 错题复习队列：仅真实书从已持久化 attempts 派生（mock 原型页恒为空，不渲染入口）
+  const reviewQueue = isInteractiveBook && isRealBookLoaded ? buildReviewQueue(learningBook) : []
   const isRealProposal = activeRealBookId !== null && !isInteractiveBook
   // 摸底入口：真实书全部章节待生成且尚未开始生成时出现；换书/已选择后不再出现
   const showPretestEntry = isInteractiveBook
@@ -789,6 +794,9 @@ function App() {
               chapterProgress={realBookGeneration.progress && realBookGeneration.progress.chapterId === activeBookChapterId ? { blocksReceived: realBookGeneration.progress.blocksReceived } : null}
               onRetryChapter={realBookGeneration.retryChapter}
               onSubmitQuizAttempt={submitRealQuizAttempt}
+              reviewCount={reviewQueue.length}
+              chapterReviewCount={reviewQueue.filter((item) => item.chapterId === activeBookChapterId).length}
+              onOpenReview={reviewQueue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
             />
           )
         )}
@@ -853,6 +861,14 @@ function App() {
             onResolved={(book) => setLearningBook(book)}
             onStartFromChapter={(chapterId) => dismissPretestEntryAndStart(chapterId)}
             onClose={() => setIsPretestSheetOpen(false)}
+          />
+        )}
+        {isReviewSheetOpen && isInteractiveBook && activeRealBookId !== null && isRealBookLoaded && (
+          <ReviewQueueSheet
+            key={activeRealBookId}
+            book={learningBook}
+            onSubmitQuiz={submitRealQuizAttempt}
+            onClose={() => setIsReviewSheetOpen(false)}
           />
         )}
     </AppShell>

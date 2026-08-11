@@ -24,10 +24,14 @@ interface InteractiveBookPageProps {
   onRetryChapter?: (chapterId: string) => void
   /** 真实书：答题提交走服务端持久化（异步）；缺省时走本地 mock 逻辑 */
   onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<void>
+  /** 真实书错题复习：全书/本章待复习错题数（>0 且提供 onOpenReview 时渲染对应入口） */
+  reviewCount?: number
+  chapterReviewCount?: number
+  onOpenReview?: () => void
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
@@ -49,7 +53,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
       </header>
 
-      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} />
+      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} reviewCount={isRealBook ? reviewCount : 0} onOpenReview={isRealBook ? onOpenReview : undefined} />
 
       <main className="interactive-book-reader">
         <BookContextBar contextScope={contextScope} onContextScopeChange={onContextScopeChange} onAskAgent={onAskAgent} />
@@ -112,6 +116,12 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                 )
               })}
             </div>
+            {isRealBook && chapterReviewCount > 0 && onOpenReview && (
+              <footer className="interactive-book-chapter__review">
+                <div><span>错题复习</span><strong>本章还有 {chapterReviewCount} 道错题待复习</strong></div>
+                <button type="button" onClick={onOpenReview}>复习本章错题 <Icon name="arrow" size={17} /></button>
+              </footer>
+            )}
             {nextChapter && (
               <footer className="interactive-book-chapter__next">
                 <div><span>接下来</span><strong>{nextChapter.title}</strong></div>

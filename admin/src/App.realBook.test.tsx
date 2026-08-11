@@ -889,4 +889,114 @@ describe('App · 真实学习书接线', () => {
     expect(container.textContent).toContain(expectedText)
     expect(container.textContent).not.toContain('学习资料服务暂时不可用')
   })
+
+  it('真实书答错后出现章尾与章节轨复习入口；复习视图中答对后出队', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+    }))
+    vi.mocked(submitAttempt)
+      .mockResolvedValueOnce({
+        attempt: {
+          id: 'attempt_wrong',
+          chapterId: 'ch-1',
+          blockId: 'blk-quiz-1',
+          answerId: 'answer-a',
+          isCorrect: false,
+          submittedAt: '2026-08-11T01:00:00.000Z',
+        },
+        evidence: {
+          id: 'evidence_wrong',
+          chapterId: 'ch-1',
+          conceptId: 'supervised-learning',
+          sourceBlockId: 'blk-quiz-1',
+          statement: '答错待复习：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+          outcome: 'review',
+          createdAt: '2026-08-11T01:00:00.000Z',
+        },
+        mastery: { chapter: 0, concept: 0 },
+      })
+      .mockResolvedValueOnce({
+        attempt: {
+          id: 'attempt_correct',
+          chapterId: 'ch-1',
+          blockId: 'blk-quiz-1',
+          answerId: 'answer-b',
+          isCorrect: true,
+          submittedAt: '2026-08-11T02:00:00.000Z',
+        },
+        evidence: {
+          id: 'evidence_correct',
+          chapterId: 'ch-1',
+          conceptId: 'supervised-learning',
+          sourceBlockId: 'blk-quiz-1',
+          statement: '答对：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+          outcome: 'mastered',
+          createdAt: '2026-08-11T02:00:00.000Z',
+        },
+        mastery: { chapter: 0.512821, concept: 0.512821 },
+      })
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    // 无错题时不渲染任何复习入口
+    expect(container.textContent).not.toContain('复习错题')
+
+    const quizBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-quiz-1')
+    clickWithin(quizBlock!, '属于，因为数据量足够大。')
+    clickWithin(quizBlock!, '提交答案')
+    await flushEffects()
+
+    // 章尾入口（本章有错题）+ 章节轨书级入口（全书有错题）
+    expect(container.textContent).toContain('复习本章错题')
+    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
+    expect(rail!.textContent).toContain('复习错题（1）')
+
+    // 切到无错题的章节：章尾入口消失，书级入口仍在
+    click('从误差到参数更新')
+    expect(container.textContent).not.toContain('复习本章错题')
+    expect(rail!.textContent).toContain('复习错题（1）')
+
+    // 书级入口打开复习视图：只含错题块
+    click('复习错题（1）')
+    await flushEffects()
+    const sheet = () => {
+      const element = descendants(container).find((candidate) => candidate.className.split(' ').includes('review-sheet'))
+      expect(element, 'review sheet').toBeDefined()
+      return element as FakeElement
+    }
+    expect(sheet().textContent).toContain('待复习 1 题')
+    expect(sheet().textContent).toContain('没有标签的邮件被模型自动分组，这属于监督学习吗？')
+
+    // 复习视图中重新作答并答对：该项出队，视图进入完成态，入口消失
+    clickWithin(sheet(), '重新作答')
+    clickWithin(sheet(), '不属于，因为没有目标标签形成监督信号。')
+    clickWithin(sheet(), '提交答案')
+    await flushEffects()
+
+    expect(submitAttempt).toHaveBeenCalledTimes(2)
+    expect(submitAttempt).toHaveBeenLastCalledWith('book_x', 'blk-quiz-1', 'answer-b')
+    expect(sheet().textContent).toContain('错题都已答对，复习完成')
+    expect(container.textContent).not.toContain('复习错题')
+
+    clickAriaLabel('关闭错题复习')
+    await flushEffects()
+    expect(container.textContent).not.toContain('错题复习')
+  })
+
+  it('mock 原型页答错也不显示错题复习入口', async () => {
+    mountApp('#library/ml-chapter-03')
+    await flushEffects()
+
+    click('确认目录并生成')
+    click('完成本章生成')
+    const quizBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-quiz-1')
+    clickWithin(quizBlock!, '属于，因为数据量足够大。')
+    clickWithin(quizBlock!, '提交答案')
+    await flushEffects()
+
+    expect(quizBlock!.textContent).toContain('这次还没有答对。')
+    expect(container.textContent).not.toContain('复习错题')
+    expect(submitAttempt).not.toHaveBeenCalled()
+  })
 })

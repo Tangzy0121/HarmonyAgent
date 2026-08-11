@@ -60,4 +60,18 @@ describe('interactive book responsive shell', () => {
     expect(rule).toMatch(/width:\s*100%/)
     expect(rule).toMatch(/overflow-y:\s*auto/)
   })
+
+  it('keeps review entry buttons at the minimum 44px touch target height', () => {
+    const railEntry = css.match(/\.book-generation-rail__review button\s*\{([^}]*)\}/)?.[1]
+    const chapterEntry = css.match(/\.interactive-book-chapter__review button\s*\{([^}]*)\}/)?.[1]
+
+    expect(railEntry).toMatch(/min-height:\s*44px/)
+    expect(chapterEntry).toMatch(/min-height:\s*45px/)
+  })
+
+  it('keeps the review sheet quiz list scrollable inside the reused sheet shell', () => {
+    const rule = css.match(/\.review-sheet__blocks\s*\{([^}]*)\}/)?.[1]
+
+    expect(rule).toMatch(/overflow-y:\s*auto/)
+  })
 })
