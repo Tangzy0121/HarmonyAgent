@@ -10,11 +10,14 @@ import {
   LEARNER_LEVELS,
   type BookBlock,
   type LearnerLevel,
+  type LearningEvidence,
   type LearningGoal,
+  type QuizAttempt,
   type StoredBook,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
+import { computeMastery } from '../books/mastery.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
 import {
@@ -43,6 +46,7 @@ export interface BooksLogEvent {
     | 'chapter_error'
     | 'book_created'
     | 'book_removed'
+    | 'attempt_recorded'
   status?: number
   name?: string
   attempt?: number
@@ -751,6 +755,92 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       req.removeListener('aborted', onClientAbort)
       res.removeListener('close', onResponseClose)
     }
+  })
+
+  router.post('/:id/attempts', async (req, res) => {
+    const body: unknown = req.body
+    const blockId = isRecord(body) ? body.blockId : undefined
+    const answerId = isRecord(body) ? body.answerId : undefined
+    if (
+      typeof blockId !== 'string' || !blockId.trim() ||
+      typeof answerId !== 'string' || !answerId.trim()
+    ) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+
+    // 无 LLM 调用：直接读写 bookStore；允许同一块多次作答（复习需要）
+    const chapter = book.chapters.find((entry) => entry.blocks.some((block) => block.id === blockId))
+    const block = chapter?.blocks.find((entry) => entry.id === blockId)
+    if (chapter === undefined || block === undefined || block.type !== 'quiz') {
+      res.status(409).json({ error: 'quiz_not_found' })
+      return
+    }
+    if (!block.options.some((option) => option.id === answerId)) {
+      res.status(409).json({ error: 'invalid_answer' })
+      return
+    }
+
+    const now = new Date().toISOString()
+    const isCorrect = answerId === block.correctAnswerId
+    const attempt: QuizAttempt = {
+      id: `attempt_${randomUUID()}`,
+      chapterId: chapter.id,
+      blockId: block.id,
+      answerId,
+      isCorrect,
+      submittedAt: now,
+    }
+    const evidence: LearningEvidence = {
+      id: `evidence_${randomUUID()}`,
+      chapterId: chapter.id,
+      conceptId: block.conceptId,
+      sourceBlockId: block.id,
+      statement: `${isCorrect ? '答对' : '答错待复习'}：${block.question.slice(0, 80)}`,
+      outcome: isCorrect ? 'mastered' : 'review',
+      createdAt: now,
+    }
+    book.quizAttempts.push(attempt)
+    book.evidence.push(evidence)
+    book.updatedAt = now
+
+    // chapter 范围 = 该章全部 quiz 块的 attempts；
+    // concept 范围 = 同 conceptId 的 quiz 块的 attempts
+    //（conceptId 为空串时只用本块 attempts，避免无关空串块跨块混算）
+    const chapterAttempts = book.quizAttempts.filter((entry) => entry.chapterId === chapter.id)
+    const conceptBlockIds = new Set(
+      block.conceptId === ''
+        ? [block.id]
+        : book.chapters
+            .flatMap((entry) => entry.blocks)
+            .filter((entry) => entry.type === 'quiz' && entry.conceptId === block.conceptId)
+            .map((entry) => entry.id),
+    )
+    const mastery = {
+      chapter: computeMastery(chapterAttempts),
+      concept: computeMastery(book.quizAttempts.filter((entry) => conceptBlockIds.has(entry.blockId))),
+    }
+
+    try {
+      await bookStore.save(book)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
+    res.status(201).json({ attempt, evidence, mastery })
   })
 
   const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {

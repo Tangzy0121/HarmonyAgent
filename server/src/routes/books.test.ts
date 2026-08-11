@@ -9,6 +9,7 @@ import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createBookStore, type BookStore } from '../books/bookStore.js'
+import type { QuizBlock } from '../books/bookTypes.js'
 import { createDocumentStore, type DocumentStore } from '../documents/documentStore.js'
 import type { ParsedDocument } from '../documents/pdfParser.js'
 import { BOOK_BLOCK_BUDGET, CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
@@ -1153,5 +1154,202 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     // 章节生成按 max(4, floor((40 - 已用块数) / 剩余章数)) 均分预留，
     // 保证 3–6 章书的末章也留得出 ≥4 块（替代旧「4 章 × 10 块」摊算）
     expect(BOOK_BLOCK_BUDGET).toBe(40)
+  })
+})
+
+async function quizBlockOf(bookId: string, chapterId: string): Promise<QuizBlock> {
+  const book = await bookStore.get(bookId)
+  const block = book?.chapters.find((entry) => entry.id === chapterId)
+    ?.blocks.find((entry) => entry.type === 'quiz')
+  expect(block).toBeDefined()
+  return block as QuizBlock
+}
+
+describe('POST /api/books/:id/attempts', () => {
+  it('答对：201 返回 attempt/evidence/mastery 并落盘（刷新后可恢复）', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+
+    const res = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: quiz.correctAnswerId })
+
+    expect(res.status).toBe(201)
+    const { attempt, evidence, mastery } = res.body
+    expect(attempt.id).toMatch(/^attempt_/u)
+    expect(attempt).toMatchObject({
+      chapterId: 'ch-1',
+      blockId: quiz.id,
+      answerId: quiz.correctAnswerId,
+      isCorrect: true,
+    })
+    expect(Number.isNaN(Date.parse(attempt.submittedAt))).toBe(false)
+    expect(evidence.id).toMatch(/^evidence_/u)
+    expect(evidence).toMatchObject({
+      chapterId: 'ch-1',
+      conceptId: quiz.conceptId,
+      sourceBlockId: quiz.id,
+      statement: `答对：${quiz.question}`,
+      outcome: 'mastered',
+    })
+    // 首次作答封顶 0.5
+    expect(mastery).toEqual({ chapter: 0.5, concept: 0.5 })
+
+    // 落盘核实：bookStore 里的 quizAttempts/evidence 包含新记录
+    const saved = await bookStore.get(id)
+    expect(saved?.quizAttempts).toHaveLength(1)
+    expect(saved?.quizAttempts[0]).toMatchObject({ id: attempt.id, isCorrect: true })
+    expect(saved?.evidence).toHaveLength(1)
+    expect(saved?.evidence[0]).toMatchObject({ id: evidence.id, outcome: 'mastered' })
+
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'attempt_recorded', bookId: id, chapterId: 'ch-1' }),
+    )
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
+  })
+
+  it('允许同一块多次作答：第二次全对返回新 attempt，掌握度封顶 0.8', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+
+    const first = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: quiz.correctAnswerId })
+    const second = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: quiz.correctAnswerId })
+
+    expect(first.status).toBe(201)
+    expect(second.status).toBe(201)
+    expect(second.body.attempt.id).not.toBe(first.body.attempt.id)
+    expect(second.body.mastery).toEqual({ chapter: 0.8, concept: 0.8 })
+
+    const saved = await bookStore.get(id)
+    expect(saved?.quizAttempts).toHaveLength(2)
+    expect(saved?.evidence).toHaveLength(2)
+  })
+
+  it('答错后再答对：掌握度按最近作答重算，答错证据标 review', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+
+    const wrong = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+    expect(wrong.status).toBe(201)
+    expect(wrong.body.attempt.isCorrect).toBe(false)
+    expect(wrong.body.evidence).toMatchObject({
+      statement: `答错待复习：${quiz.question}`,
+      outcome: 'review',
+    })
+    expect(wrong.body.mastery).toEqual({ chapter: 0, concept: 0 })
+
+    const right = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: quiz.correctAnswerId })
+    expect(right.status).toBe(201)
+    // 两次作答：(1*1 + 0*0.95) / (1 + 0.95)，封顶 0.8 不触发
+    expect(right.body.mastery.chapter).toBeCloseTo(1 / 1.95, 5)
+    expect(right.body.mastery.concept).toBeCloseTo(1 / 1.95, 5)
+
+    const saved = await bookStore.get(id)
+    expect(saved?.quizAttempts.map((entry) => entry.isCorrect)).toEqual([false, true])
+    expect(saved?.evidence.map((entry) => entry.outcome)).toEqual(['review', 'mastered'])
+  })
+
+  it('concept 掌握度跨章汇总同一 conceptId 的 quiz 块，chapter 只算本章', async () => {
+    // chapterBlocksJson 各章 quiz 的 conceptId 都是 'c1'
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    await request(app).post(`/api/books/${id}/chapters/ch-2/generate`)
+    const quiz1 = await quizBlockOf(id, 'ch-1')
+    const quiz2 = await quizBlockOf(id, 'ch-2')
+
+    await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz1.id, answerId: quiz1.correctAnswerId })
+    const second = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz2.id, answerId: quiz2.correctAnswerId })
+
+    expect(second.status).toBe(201)
+    // ch-2 本章只有 1 次作答 → 封顶 0.5；concept c1 跨章 2 次全对 → 封顶 0.8
+    expect(second.body.mastery).toEqual({ chapter: 0.5, concept: 0.8 })
+  })
+
+  it('returns 409 quiz_not_found for a missing or non-quiz blockId', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+
+    const missing = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: 'blk-ch-1-quiz-99', answerId: 'o1' })
+    expect(missing.status).toBe(409)
+    expect(missing.body).toEqual({ error: 'quiz_not_found' })
+
+    const nonQuiz = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: 'blk-ch-1-explanation-1', answerId: 'o1' })
+    expect(nonQuiz.status).toBe(409)
+    expect(nonQuiz.body).toEqual({ error: 'quiz_not_found' })
+
+    expect((await bookStore.get(id))?.quizAttempts).toEqual([])
+  })
+
+  it('returns 409 invalid_answer when answerId is not among the quiz options', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+
+    const res = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: 'o99' })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'invalid_answer' })
+    expect((await bookStore.get(id))?.quizAttempts).toEqual([])
+  })
+
+  it('returns 404 book_not_found for an unknown book id', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+
+    const res = await request(app)
+      .post('/api/books/book_missing-1/attempts')
+      .send({ blockId: 'blk-ch-1-quiz-1', answerId: 'o1' })
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'book_not_found' })
+  })
+
+  it('returns 400 invalid_request for missing blockId or answerId', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: '' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_request' })
+    expect(fetchImpl).toHaveBeenCalledTimes(1) // 仅提案
   })
 })
