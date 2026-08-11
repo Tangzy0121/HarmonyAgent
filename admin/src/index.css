@@ -5362,13 +5362,23 @@ button:disabled {
 .book-flashcards__controls button:disabled { opacity: 0.34; }
 .book-flashcards__position { color: rgb(35 31 29 / 0.48); font-size: 0.68rem; font-weight: 690; }
 .book-figure { margin: 0; }
-.book-figure__canvas { max-width: 100%; overflow-x: auto; padding: 14px; border: 1px solid rgb(35 31 29 / 0.08); border-radius: 13px; background: #fff; }
+.book-figure__canvas { display: block; width: 100%; max-width: 100%; overflow-x: auto; padding: 14px; border: 1px solid rgb(35 31 29 / 0.08); border-radius: 13px; background: #fff; cursor: zoom-in; font: inherit; text-align: inherit; }
+.book-figure__canvas:disabled { cursor: default; }
 .book-figure__canvas svg { max-width: 100%; height: auto; }
 .book-figure__fallback { padding: 14px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 13px; background: rgb(35 31 29 / 0.04); }
 .book-figure__fallback p { margin: 0 0 8px; color: rgb(35 31 29 / 0.62); font-size: 0.78rem; line-height: 1.6; }
 .book-figure__fallback summary { color: #9c5848; font-size: 0.72rem; font-weight: 690; cursor: pointer; }
 .book-figure__fallback pre { overflow-x: auto; margin: 8px 0 0; padding: 10px; border-radius: 10px; color: rgb(35 31 29 / 0.72); background: rgb(255 255 255 / 0.72); font-size: 0.7rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
 .book-figure figcaption { margin-top: 8px; color: rgb(35 31 29 / 0.48); font-size: 0.67rem; text-align: center; }
+.book-figure-zoom { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: rgb(24 21 19 / 0.86); }
+.book-figure-zoom__toolbar { display: flex; gap: 10px; justify-content: center; padding: 14px; }
+.book-figure-zoom__toolbar button { min-width: 44px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; color: #fff; background: rgb(255 255 255 / 0.14); font-size: 0.92rem; font-weight: 650; cursor: pointer; }
+.book-figure-zoom__toolbar button:disabled { opacity: 0.4; cursor: default; }
+.book-figure-zoom__stage { flex: 1; overflow: auto; display: grid; place-items: center; padding: 10px 16px 26px; }
+.book-figure-zoom__content { padding: 22px; border-radius: 16px; background: #fff; transform-origin: center center; }
+.book-figure-zoom__content svg { max-width: none; }
+.katex-host--display { display: block; overflow-x: auto; }
+.book-block__formula .katex-host { color: inherit; }
 .interactive-book-chapter__next { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 20px; padding: 18px; border-radius: 20px; color: #fff; background: #292624; }
 .interactive-book-chapter__next div { display: grid; gap: 3px; }
 .interactive-book-chapter__next span { color: rgb(255 255 255 / 0.46); font-size: 0.6rem; }

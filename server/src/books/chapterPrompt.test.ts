@@ -88,6 +88,14 @@ describe('buildChapterMessages', () => {
     expect(system.content).toContain('逐字')
   })
 
+  it('requires LaTeX source for formula blocks and $...$ for inline math', () => {
+    const [system] = buildChapterMessages(input)
+
+    expect(system.content).toContain('LaTeX')
+    expect(system.content).toContain('不要 $ 或 $$ 定界符')
+    expect(system.content).toContain('行内公式用 $...$ 包裹')
+  })
+
   it('never embeds secret-shaped material in any message', () => {
     const text = serialized(buildChapterMessages(input))
 

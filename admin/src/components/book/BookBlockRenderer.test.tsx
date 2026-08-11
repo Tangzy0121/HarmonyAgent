@@ -4,7 +4,8 @@ import { Simulate } from 'react-dom/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import mermaid from 'mermaid'
-import type { BookBlock, CalloutBlock, FigureBlock, FlashCardsBlock } from '../../types/learningBook'
+import katex from 'katex'
+import type { BookBlock, CalloutBlock, FigureBlock, FlashCardsBlock, FormulaBlock } from '../../types/learningBook'
 import { BookBlockRenderer } from './BookBlockRenderer'
 
 vi.mock('mermaid', () => ({
@@ -15,7 +16,14 @@ vi.mock('mermaid', () => ({
   },
 }))
 
+vi.mock('katex', () => ({
+  default: {
+    renderToString: vi.fn((tex: string) => `<span class="katex-mock">${tex}</span>`),
+  },
+}))
+
 const mermaidMock = vi.mocked(mermaid)
+const katexMock = vi.mocked(katex)
 
 class FakeText {
   nodeType = 3
@@ -282,6 +290,77 @@ describe('BookBlockRenderer · figure', () => {
     const details = descendants(container).find((element) => element.tagName === 'DETAILS')
     expect(details, 'fallback details').toBeDefined()
     expect(details!.textContent).toContain('flowchart LR')
+  })
+})
+
+describe('BookBlockRenderer · formula（KaTeX）', () => {
+  const formulaBlock: FormulaBlock = {
+    id: 'blk-formula-1',
+    type: 'formula',
+    status: 'ready',
+    title: '均方误差',
+    revision: 1,
+    sourceAnchors: [],
+    formula: 'L = \\frac{1}{n} \\sum_{i=1}^{n} (y_i - \\hat{y}_i)^2',
+    explanation: '误差越小越好。',
+  }
+
+  it('lazy-loads katex and renders the formula in display mode without throwing on error', async () => {
+    const container = renderBlock(formulaBlock)
+
+    await vi.waitFor(() => {
+      expect(findByClass(container, 'katex-host--display').innerHTML).toContain('katex-mock')
+    })
+    expect(katexMock.renderToString).toHaveBeenCalledWith(formulaBlock.formula, { displayMode: true, throwOnError: false })
+    expect(container.textContent).toContain('误差越小越好。')
+  })
+
+  it('renders inline $...$ segments in explanation body via katex', async () => {
+    const explanation: BookBlock = {
+      id: 'blk-explanation-math',
+      type: 'explanation',
+      status: 'ready',
+      title: '参数更新',
+      revision: 1,
+      sourceAnchors: [],
+      body: '梯度下降按 $\\theta \\leftarrow \\theta - \\eta \\nabla L$ 迭代更新参数。',
+      keyPoint: '沿着负梯度走。',
+    }
+    renderBlock(explanation)
+
+    await vi.waitFor(() => {
+      expect(katexMock.renderToString).toHaveBeenCalledWith('\\theta \\leftarrow \\theta - \\eta \\nabla L', { displayMode: false, throwOnError: false })
+    })
+  })
+})
+
+describe('BookBlockRenderer · figure 大图', () => {
+  it('opens a zoom dialog on canvas click, scales with 继续放大, and closes via 关闭大图', async () => {
+    const container = renderBlock(figureBlock)
+    await vi.waitFor(() => {
+      expect(findByClass(container, 'book-figure__canvas').innerHTML).toContain('<svg')
+    })
+
+    const canvas = findByClass(container, 'book-figure__canvas')
+    expect(canvas.tagName).toBe('BUTTON')
+    expect(canvas.getAttribute('aria-label')).toBe('放大查看训练流程示意')
+    click(canvas)
+
+    const dialog = findByClass(container, 'book-figure-zoom')
+    expect(dialog.getAttribute('role')).toBe('dialog')
+    const zoomContent = () => findByClass(container, 'book-figure-zoom__content')
+    expect(zoomContent().style.transform).toBe('scale(1)')
+    expect(zoomContent().innerHTML).toContain('<svg')
+
+    const zoomIn = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === '继续放大')
+    expect(zoomIn, 'zoom in button').toBeDefined()
+    click(zoomIn as FakeElement)
+    expect(zoomContent().style.transform).toBe('scale(1.5)')
+
+    const close = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === '关闭大图')
+    expect(close, 'close button').toBeDefined()
+    click(close as FakeElement)
+    expect(descendants(container).some((element) => element.className.split(' ').includes('book-figure-zoom'))).toBe(false)
   })
 })
 
