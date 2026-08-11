@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBookStore, type BookStore } from '../books/bookStore.js'
 import { createDocumentStore, type DocumentStore } from '../documents/documentStore.js'
 import type { ParsedDocument } from '../documents/pdfParser.js'
-import { CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
+import { BOOK_BLOCK_BUDGET, CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
 
 const API_KEY = 'test-only-secret-key'
 
@@ -971,5 +971,11 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
 
   it('章节生成默认超时必须比提案 60s 预算更长（6000 token 章节在真实上游常超过 60s）', () => {
     expect(CHAPTER_UPSTREAM_TIMEOUT_MS).toBeGreaterThan(UPSTREAM_TIMEOUT_MS)
+  })
+
+  it('全书块预算需容纳新提示词的章节块密度，且不超过 Agent 上下文 40 块硬顶', () => {
+    // 排版架构师提示词要求每章 6–10 块：4 章 × 10 块 = 40；bookAgentContract MAX_BLOCKS = 40 是 Agent 问答的上下文硬顶
+    expect(BOOK_BLOCK_BUDGET).toBeGreaterThanOrEqual(40)
+    expect(BOOK_BLOCK_BUDGET).toBeLessThanOrEqual(40)
   })
 })

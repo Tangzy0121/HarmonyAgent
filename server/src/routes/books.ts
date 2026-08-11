@@ -68,7 +68,8 @@ export const UPSTREAM_TIMEOUT_MS = 60_000
 // 章节输出预算 6000 tokens，真实上游生成常超过提案用的 60s，章节路径单独放宽到 180s
 export const CHAPTER_UPSTREAM_TIMEOUT_MS = 180_000
 const SAFE_ERROR_NAMES = new Set(['Error', 'TypeError', 'TimeoutError', 'OpenAIStreamParseError'])
-const BOOK_BLOCK_BUDGET = 30
+// 排版架构师提示词每章 6–10 块：预算需覆盖 4 章 × 10 块；40 同时是 Agent 问答上下文（bookAgentContract MAX_BLOCKS）的硬顶，不能再高
+export const BOOK_BLOCK_BUDGET = 40
 const CHAPTER_FAILURE_MESSAGE = '章节生成失败，请稍后重试。'
 
 class UpstreamCallError extends Error {
