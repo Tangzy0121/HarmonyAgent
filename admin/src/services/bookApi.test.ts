@@ -7,10 +7,12 @@ import {
   createBook,
   getBook,
   getPretest,
+  getReviewDue,
   listBooks,
   streamChapterGeneration,
   submitAttempt,
   submitFeynman,
+  submitFlashReview,
   submitPretest,
   updateProposal,
   uploadDocument,
@@ -204,6 +206,10 @@ describe('submitAttempt', () => {
       answerId: 'answer-b',
       isCorrect: true,
       submittedAt: '2026-08-11T01:00:00.000Z',
+      diagnosis: {
+        type: 'application',
+        advice: '先把概念套到一个新例子里，再判断适用条件。',
+      },
     },
     evidence: {
       id: 'evidence_9f1c',
@@ -215,6 +221,17 @@ describe('submitAttempt', () => {
       createdAt: '2026-08-11T01:00:00.000Z',
     },
     mastery: { chapter: 0.5, concept: 0.5 },
+    schedule: {
+      kind: 'quiz',
+      stage: 0,
+      lapses: 1,
+      dueAt: '2026-08-12T01:00:00.000Z',
+      updatedAt: '2026-08-11T01:00:00.000Z',
+    },
+    diagnosis: {
+      type: 'application',
+      advice: '先把概念套到一个新例子里，再判断适用条件。',
+    },
   }
 
   it('posts blockId/answerId to the attempts endpoint and parses the 201 payload', async () => {
@@ -232,6 +249,18 @@ describe('submitAttempt', () => {
     expect(actualInit?.method).toBe('POST')
     expect(JSON.parse(String(actualInit?.body))).toEqual({ blockId: 'blk-quiz-1', answerId: 'answer-b' })
     expect(result).toEqual(attemptResult)
+    expect(result.schedule).toMatchObject({ kind: 'quiz', stage: 0 })
+    expect(result.diagnosis).toMatchObject({ type: 'application' })
+  })
+
+  it('accepts null schedule and diagnosis for a correct answer without review entry', async () => {
+    const payload = { ...attemptResult, schedule: null, diagnosis: null }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, 201)))
+
+    const result = await submitAttempt('book-1', 'blk-quiz-1', 'answer-b')
+
+    expect(result.schedule).toBeNull()
+    expect(result.diagnosis).toBeNull()
   })
 
   it.each([
@@ -245,14 +274,99 @@ describe('submitAttempt', () => {
   })
 
   it.each([
-    ['missing evidence and mastery', { attempt: attemptResult.attempt }],
+    ['missing evidence and mastery', { attempt: attemptResult.attempt, schedule: null, diagnosis: null }],
     ['non-numeric mastery', { ...attemptResult, mastery: { chapter: '0.5', concept: 0.5 } }],
     ['unknown evidence outcome', { ...attemptResult, evidence: { ...attemptResult.evidence, outcome: 'unknown' } }],
+    ['missing schedule key', (({ schedule: _schedule, ...rest }) => rest)(attemptResult)],
+    ['missing diagnosis key', (({ diagnosis: _diagnosis, ...rest }) => rest)(attemptResult)],
+    ['unknown schedule kind', { ...attemptResult, schedule: { ...attemptResult.schedule, kind: 'video' } }],
+    ['unknown diagnosis type', { ...attemptResult, diagnosis: { ...attemptResult.diagnosis, type: 'guessing' } }],
+    ['empty diagnosis advice', { ...attemptResult, diagnosis: { ...attemptResult.diagnosis, advice: '' } }],
+    ['invalid attempt diagnosis', { ...attemptResult, attempt: { ...attemptResult.attempt, diagnosis: { type: 'typo', advice: 'x' } } }],
   ])('rejects a malformed 201 payload (%s)', async (_label, payload) => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, 201)))
 
     await expect(submitAttempt('book-1', 'blk-quiz-1', 'answer-b'))
       .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_attempt_payload' })
+  })
+})
+
+describe('review endpoints', () => {
+  const dueItem = {
+    blockId: 'blk-f1',
+    chapterId: 'ch-1',
+    kind: 'flash_cards',
+    title: '核心闪卡',
+    dueAt: '2026-08-11T06:00:00.000Z',
+    stage: 1,
+    lapses: 0,
+  }
+  const scheduleEntry = {
+    kind: 'flash_cards',
+    stage: 2,
+    lapses: 0,
+    dueAt: '2026-08-14T06:00:00.000Z',
+    updatedAt: '2026-08-11T06:00:00.000Z',
+  }
+
+  it('getReviewDue reads the due list and returns the items array', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ items: [dueItem] })
+    }))
+
+    const items = await getReviewDue('book_1')
+
+    expect(actualUrl).toBe('/api/books/book_1/review/due')
+    expect(items).toHaveLength(1)
+    expect(items[0]).toEqual(dueItem)
+  })
+
+  it.each([
+    ['items is not an array', { items: 'nope' }],
+    ['missing items key', {}],
+    ['item with unknown kind', { items: [{ ...dueItem, kind: 'video' }] }],
+    ['item missing dueAt', { items: [((({ dueAt: _dueAt, ...rest }) => rest)(dueItem))] }],
+  ])('getReviewDue rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getReviewDue('book_1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_review_due_payload' })
+  })
+
+  it('submitFlashReview posts the result and parses a graduated null schedule', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ schedule: null })
+    }))
+
+    await expect(submitFlashReview('book_1', 'blk-f1', 'remembered')).resolves.toBeNull()
+    expect(actualUrl).toBe('/api/books/book_1/review/blk-f1/result')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ result: 'remembered' })
+  })
+
+  it('submitFlashReview parses an updated schedule entry', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ schedule: scheduleEntry })))
+
+    const result = await submitFlashReview('book_1', 'blk-f1', 'forgotten')
+
+    expect(result).toEqual(scheduleEntry)
+  })
+
+  it.each([
+    ['missing schedule key', {}],
+    ['schedule with unknown kind', { schedule: { ...scheduleEntry, kind: 'video' } }],
+    ['schedule missing stage', { schedule: (({ stage: _stage, ...rest }) => rest)(scheduleEntry) }],
+  ])('submitFlashReview rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(submitFlashReview('book_1', 'blk-f1', 'remembered'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_review_result_payload' })
   })
 })
 

@@ -1,10 +1,13 @@
 import type {
+  AttemptDiagnosis,
   BookBlock,
   BookChapter,
   BookPretest,
   LearningBook,
+  ReviewScheduleEntry,
   SourceAnchor,
 } from '../types/learningBook'
+import { DIAGNOSIS_TYPES } from '../types/learningBook'
 
 export class BookApiError extends Error {
   readonly code: string
@@ -29,6 +32,7 @@ const RELATION_STATUSES = ['候选', '已确认', '已拒绝'] as const
 const EVIDENCE_OUTCOMES = ['mastered', 'review'] as const
 const CALLOUT_KINDS = ['key_idea', 'pitfall', 'tip', 'insight'] as const
 const FIGURE_KINDS = ['flowchart', 'mindmap', 'timeline', 'sequence'] as const
+const REVIEW_KINDS = ['quiz', 'flash_cards'] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -44,6 +48,23 @@ function isNumber(value: unknown): value is number {
 
 function isOneOf<T extends string>(value: unknown, options: readonly T[]): value is T {
   return typeof value === 'string' && (options as readonly string[]).includes(value)
+}
+
+/** 错题四类诊断：type 限定四类、advice 必须是非空字符串。 */
+export function isAttemptDiagnosis(value: unknown): value is AttemptDiagnosis {
+  return isRecord(value)
+    && isOneOf(value.type, DIAGNOSIS_TYPES)
+    && isString(value.advice)
+    && value.advice.length > 0
+}
+
+export function isReviewScheduleEntry(value: unknown): value is ReviewScheduleEntry {
+  return isRecord(value)
+    && isOneOf(value.kind, REVIEW_KINDS)
+    && isNumber(value.stage)
+    && isNumber(value.lapses)
+    && isString(value.dueAt)
+    && isString(value.updatedAt)
 }
 
 function isSourceAnchor(value: unknown): value is SourceAnchor {
@@ -207,6 +228,7 @@ export function parseLearningBook(value: unknown): LearningBook {
       && isString(item.answerId)
       && typeof item.isCorrect === 'boolean'
       && isString(item.submittedAt)
+      && (item.diagnosis === undefined || item.diagnosis === null || isAttemptDiagnosis(item.diagnosis))
     ))
     && Array.isArray(value.evidence) && value.evidence.every((item) => (
       isRecord(item)
@@ -219,6 +241,10 @@ export function parseLearningBook(value: unknown): LearningBook {
       && isString(item.createdAt)
     ))
     && (value.pretest === undefined || isBookPretest(value.pretest))
+    && (value.reviewSchedule === undefined || (
+      isRecord(value.reviewSchedule)
+      && Object.values(value.reviewSchedule).every(isReviewScheduleEntry)
+    ))
   if (!valid) throw new BookApiError('invalid_book_payload', INVALID_BOOK_PAYLOAD_MESSAGE)
   // 章节按服务端返回顺序（服务端已按 order 排序）归一化为 0 基下标
   for (const [index, chapter] of (value.chapters as BookChapter[]).entries()) chapter.order = index

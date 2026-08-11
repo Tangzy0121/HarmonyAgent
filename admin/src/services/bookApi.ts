@@ -1,9 +1,12 @@
 import {
   BookApiError,
+  isAttemptDiagnosis,
   isBookBlock,
+  isReviewScheduleEntry,
   parseLearningBook,
 } from '../domain/learningBookApi'
 import type {
+  AttemptDiagnosis,
   BookBlock,
   BookPretest,
   LearningBook,
@@ -12,6 +15,8 @@ import type {
   LearnerLevel,
   PretestQuestion,
   QuizAttempt,
+  ReviewKind,
+  ReviewScheduleEntry,
 } from '../types/learningBook'
 import {
   createSseFrameParserState,
@@ -167,6 +172,8 @@ export interface SubmitAttemptResult {
   attempt: QuizAttempt
   evidence: LearningEvidence
   mastery: { chapter: number; concept: number }
+  schedule: ReviewScheduleEntry | null
+  diagnosis: AttemptDiagnosis | null
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -181,6 +188,7 @@ function isQuizAttemptPayload(value: unknown): value is QuizAttempt {
     && typeof value.answerId === 'string'
     && typeof value.isCorrect === 'boolean'
     && typeof value.submittedAt === 'string'
+    && (value.diagnosis === undefined || value.diagnosis === null || isAttemptDiagnosis(value.diagnosis))
 }
 
 function isLearningEvidencePayload(value: unknown): value is LearningEvidence {
@@ -202,11 +210,17 @@ function parseAttemptResult(value: unknown): SubmitAttemptResult {
     && isRecord(value.mastery)
     && isFiniteNumber(value.mastery.chapter)
     && isFiniteNumber(value.mastery.concept)
+    && 'schedule' in value
+    && (value.schedule === null || isReviewScheduleEntry(value.schedule))
+    && 'diagnosis' in value
+    && (value.diagnosis === null || isAttemptDiagnosis(value.diagnosis))
   ) {
     return {
       attempt: value.attempt,
       evidence: value.evidence,
       mastery: { chapter: value.mastery.chapter, concept: value.mastery.concept },
+      schedule: value.schedule,
+      diagnosis: value.diagnosis,
     }
   }
   throw new BookApiError('invalid_attempt_payload', SAFE_HTTP_MESSAGE)
@@ -220,6 +234,64 @@ export async function submitAttempt(bookId: string, blockId: string, answerId: s
   })
   if (!response.ok) throw await readHttpError(response)
   return parseAttemptResult(await readJson(response))
+}
+
+export interface DueItem {
+  blockId: string
+  chapterId: string
+  kind: ReviewKind
+  title: string
+  dueAt: string
+  stage: number
+  lapses: number
+}
+
+function isDueItemPayload(value: unknown): value is DueItem {
+  return isRecord(value)
+    && typeof value.blockId === 'string'
+    && typeof value.chapterId === 'string'
+    && (value.kind === 'quiz' || value.kind === 'flash_cards')
+    && typeof value.title === 'string'
+    && typeof value.dueAt === 'string'
+    && isFiniteNumber(value.stage)
+    && isFiniteNumber(value.lapses)
+}
+
+function parseReviewDuePayload(value: unknown): DueItem[] {
+  if (isRecord(value) && Array.isArray(value.items) && value.items.every(isDueItemPayload)) {
+    return value.items
+  }
+  throw new BookApiError('invalid_review_due_payload', SAFE_HTTP_MESSAGE)
+}
+
+export async function getReviewDue(bookId: string): Promise<DueItem[]> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/review/due`)
+  if (!response.ok) throw await readHttpError(response)
+  return parseReviewDuePayload(await readJson(response))
+}
+
+function parseReviewResultPayload(value: unknown): ReviewScheduleEntry | null {
+  if (isRecord(value) && 'schedule' in value && (value.schedule === null || isReviewScheduleEntry(value.schedule))) {
+    return value.schedule
+  }
+  throw new BookApiError('invalid_review_result_payload', SAFE_HTTP_MESSAGE)
+}
+
+export async function submitFlashReview(
+  bookId: string,
+  blockId: string,
+  result: 'remembered' | 'forgotten',
+): Promise<ReviewScheduleEntry | null> {
+  const response = await fetch(
+    `/api/books/${encodeURIComponent(bookId)}/review/${encodeURIComponent(blockId)}/result`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result }),
+    },
+  )
+  if (!response.ok) throw await readHttpError(response)
+  return parseReviewResultPayload(await readJson(response))
 }
 
 export interface FeynmanResult {

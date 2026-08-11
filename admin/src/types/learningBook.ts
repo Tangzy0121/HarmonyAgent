@@ -97,6 +97,14 @@ export interface QuizOption {
   text: string
 }
 
+export const DIAGNOSIS_TYPES = ['concept', 'application', 'misread', 'overconfident'] as const
+export type DiagnosisType = (typeof DIAGNOSIS_TYPES)[number]
+
+export interface AttemptDiagnosis {
+  type: DiagnosisType
+  advice: string
+}
+
 export interface QuizBlock extends BaseBookBlock {
   type: 'quiz'
   conceptId: string
@@ -164,6 +172,8 @@ export interface QuizAttempt {
   answerId: string
   isCorrect: boolean
   submittedAt: string
+  /** 答错时的四类诊断；答对/未配置/诊断失败为 null */
+  diagnosis?: AttemptDiagnosis | null
 }
 
 export interface LearningEvidence {
@@ -197,6 +207,16 @@ export interface BookPretest {
   result: PretestResult | null
 }
 
+export type ReviewKind = 'quiz' | 'flash_cards'
+
+export interface ReviewScheduleEntry {
+  kind: ReviewKind
+  stage: number
+  lapses: number
+  dueAt: string
+  updatedAt: string
+}
+
 export interface LearningBook {
   id: string
   source: SourceDocument
@@ -210,6 +230,7 @@ export interface LearningBook {
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest
+  reviewSchedule?: Record<string, ReviewScheduleEntry>
 }
 
 export interface AgentContext {

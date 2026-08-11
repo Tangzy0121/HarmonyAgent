@@ -640,6 +640,8 @@ describe('App · 真实学习书接线', () => {
         createdAt: '2026-08-11T01:00:00.000Z',
       },
       mastery: { chapter: 0.5, concept: 0.5 },
+      schedule: null,
+      diagnosis: null,
     })
     mountApp('#book/book_x/ch-1')
     await flushEffects()
@@ -719,6 +721,8 @@ describe('App · 真实学习书接线', () => {
           createdAt: '2026-08-11T01:00:00.000Z',
         },
         mastery: { chapter: 0, concept: 0 },
+        schedule: null,
+        diagnosis: null,
       })
       .mockResolvedValueOnce({
         attempt: {
@@ -739,6 +743,8 @@ describe('App · 真实学习书接线', () => {
           createdAt: '2026-08-11T02:00:00.000Z',
         },
         mastery: { chapter: 0.512821, concept: 0.512821 },
+        schedule: null,
+        diagnosis: null,
       })
     mountApp('#book/book_x/ch-1')
     await flushEffects()
@@ -915,6 +921,8 @@ describe('App · 真实学习书接线', () => {
           createdAt: '2026-08-11T01:00:00.000Z',
         },
         mastery: { chapter: 0, concept: 0 },
+        schedule: null,
+        diagnosis: null,
       })
       .mockResolvedValueOnce({
         attempt: {
@@ -935,6 +943,8 @@ describe('App · 真实学习书接线', () => {
           createdAt: '2026-08-11T02:00:00.000Z',
         },
         mastery: { chapter: 0.512821, concept: 0.512821 },
+        schedule: null,
+        diagnosis: null,
       })
     mountApp('#book/book_x/ch-1')
     await flushEffects()
