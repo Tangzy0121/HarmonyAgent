@@ -858,7 +858,8 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     const fetchImpl = chapterAwareFetch({
       onChapter: (_body, chapterCalls) => (chapterCalls === 1 ? threeTypeBlocks : chapterBlocksJson(1)),
     })
-    const app = appWith(fetchImpl)
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
     const { id } = await createConfirmedBook(app)
 
     const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
@@ -870,6 +871,15 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(lastMessage.role).toBe('user')
     expect(lastMessage.content).toBe(
       '上次输出未通过校验：chapter_invalid（需要至少 4 种不同块类型），请修正后只输出合法 JSON。',
+    )
+
+    // 审计日志同步携带失败原因，便于定位真实生成中的校验失败
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'chapter_validation_failed',
+        attempt: 1,
+        reason: '需要至少 4 种不同块类型',
+      }),
     )
   })
 

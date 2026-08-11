@@ -49,6 +49,8 @@ export interface BooksLogEvent {
   bookId?: string
   chapterId?: string
   documentId?: string
+  /** 校验失败的内部原因（固定中文短语，不含原文/密钥） */
+  reason?: string
 }
 
 export type BooksLogger = (event: BooksLogEvent) => void
@@ -658,6 +660,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
             attempt,
             bookId: book.id,
             chapterId: chapter.id,
+            ...(error instanceof ChapterValidationError && error.reason ? { reason: error.reason } : {}),
           })
           const reason = error instanceof ChapterValidationError ? error.reason : undefined
           attemptMessages = [
