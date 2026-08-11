@@ -1390,6 +1390,58 @@ describe('POST /api/books/:id/attempts', () => {
     expect(res.body).toEqual({ error: 'invalid_request' })
     expect(fetchImpl).toHaveBeenCalledTimes(1) // 仅提案
   })
+
+  it('答错后将该 quiz 块写入调度并在响应中返回 schedule', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+
+    const response = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+
+    expect(response.status).toBe(201)
+    expect(response.body.schedule).toMatchObject({ kind: 'quiz', stage: 0, lapses: 1 })
+    // 持久化生效
+    const stored = await bookStore.get(id)
+    expect(stored?.reviewSchedule?.[quiz.id]?.stage).toBe(0)
+  })
+
+  it('答对调度中的块会推进档位；首次答对（从未答错）schedule 为 null', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    await request(app).post(`/api/books/${id}/chapters/ch-2/generate`)
+    const quiz1 = await quizBlockOf(id, 'ch-1')
+    const quiz2 = await quizBlockOf(id, 'ch-2')
+    const wrongAnswer = quiz1.options.find((option) => option.id !== quiz1.correctAnswerId)!.id
+
+    // 先答错一次 → 再答对：schedule.stage === 1，dueAt 在未来
+    await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz1.id, answerId: wrongAnswer })
+    const graded = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz1.id, answerId: quiz1.correctAnswerId })
+    expect(graded.status).toBe(201)
+    expect(graded.body.schedule).toMatchObject({ kind: 'quiz', stage: 1, lapses: 1 })
+    expect(Date.parse(graded.body.schedule.dueAt)).toBeGreaterThan(Date.now())
+
+    // 另取一个从未答错的 quiz 块直接答对：schedule 为 null，且不入调度
+    const fresh = await request(app)
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz2.id, answerId: quiz2.correctAnswerId })
+    expect(fresh.status).toBe(201)
+    expect(fresh.body.schedule).toBeNull()
+
+    const stored = await bookStore.get(id)
+    expect(stored?.reviewSchedule?.[quiz1.id]?.stage).toBe(1)
+    expect(stored?.reviewSchedule?.[quiz2.id]).toBeUndefined()
+  })
 })
 
 describe('POST /api/books/:id/pretest', () => {

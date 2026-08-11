@@ -30,6 +30,7 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
+import { applyReviewGrade } from '../books/schedule.js'
 import {
   extractJsonObject,
   normalizeProposal,
@@ -832,6 +833,13 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     book.evidence.push(evidence)
     book.updatedAt = now
 
+    // 间隔重复调度：答错入队/重置，答对推进或毕业（never-wrong 的块不入调度）
+    const scheduleMap = { ...(book.reviewSchedule ?? {}) }
+    const nextSchedule = applyReviewGrade(scheduleMap[block.id], 'quiz', isCorrect, new Date(now))
+    if (nextSchedule === null) delete scheduleMap[block.id]
+    else scheduleMap[block.id] = nextSchedule
+    book.reviewSchedule = scheduleMap
+
     // chapter 范围 = 该章全部 quiz 块的 attempts；
     // concept 范围 = 同 conceptId 的 quiz 块的 attempts
     //（conceptId 为空串时只用本块 attempts，避免无关空串块跨块混算）
@@ -856,7 +864,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
-    res.status(201).json({ attempt, evidence, mastery })
+    res.status(201).json({ attempt, evidence, mastery, schedule: nextSchedule })
   })
 
   router.post('/:id/pretest', async (req, res) => {
