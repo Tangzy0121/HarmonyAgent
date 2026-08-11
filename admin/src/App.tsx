@@ -15,8 +15,7 @@ import { useBookGeneration, type BookGenerationEvent } from './hooks/useBookGene
 import { UploadBookSheet, type UploadBookSubmission } from './components/book/UploadBookSheet'
 import { PretestSheet } from './components/book/PretestSheet'
 import { ReviewQueueSheet } from './components/book/ReviewQueueSheet'
-import { buildReviewQueue } from './domain/reviewQueue'
-import { BookApiError, confirmBook, createBook, getBook, listBooks, submitAttempt, updateProposal, uploadDocument, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, confirmBook, createBook, getBook, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -25,7 +24,7 @@ import { LearningVerificationPage } from './pages/LearningVerificationPage'
 import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
 import { TodayPage } from './pages/TodayPage'
-import type { AgentContextScope, LearningBook } from './types/learningBook'
+import type { AgentContextScope, LearningBook, ReviewScheduleEntry } from './types/learningBook'
 import type { BookAgentSource } from './types/bookAgent'
 import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
 
@@ -222,8 +221,19 @@ function App() {
     return focusBlock ? `${base} · 聚焦：${focusBlock.title}` : base
   })()
   const isRealBookLoaded = activeRealBookId !== null && learningBook.id === activeRealBookId
-  // 错题复习队列：仅真实书从已持久化 attempts 派生（mock 原型页恒为空，不渲染入口）
-  const reviewQueue = isInteractiveBook && isRealBookLoaded ? buildReviewQueue(learningBook) : []
+  // 今日复习到期项：仅真实书经 getReviewDue 拉取（mock 原型页恒为空，不渲染入口）
+  const [reviewDue, setReviewDue] = useState<DueItem[]>([])
+  // 到期项刷新：失败静默保持旧值
+  const refreshReviewDue = useCallback((bookId: string) => {
+    getReviewDue(bookId).then(setReviewDue).catch(() => undefined)
+  }, [])
+  // 作答/自评返回的调度并入书状态：null 表示该块不再调度（删 key）
+  const mergeReviewSchedule = (current: LearningBook, blockId: string, schedule: ReviewScheduleEntry | null): LearningBook => {
+    const reviewSchedule = { ...(current.reviewSchedule ?? {}) }
+    if (schedule) reviewSchedule[blockId] = schedule
+    else delete reviewSchedule[blockId]
+    return { ...current, reviewSchedule }
+  }
   const isRealProposal = activeRealBookId !== null && !isInteractiveBook
   // 摸底入口：真实书全部章节待生成且尚未开始生成时出现；换书/已选择后不再出现
   const showPretestEntry = isInteractiveBook
@@ -351,15 +361,20 @@ function App() {
   useEffect(() => {
     if (!activeRealBookId) {
       setRealBookLoadError(null)
+      setReviewDue([])
       return
     }
     let cancelled = false
     setRealBookLoadError(null)
     getBook(activeRealBookId)
-      .then((book) => { if (!cancelled) setLearningBook(book) })
+      .then((book) => {
+        if (cancelled) return
+        setLearningBook(book)
+        refreshReviewDue(book.id)
+      })
       .catch(() => { if (!cancelled) setRealBookLoadError('学习书加载失败，请返回知识库重试。') })
     return () => { cancelled = true }
-  }, [activeRealBookId])
+  }, [activeRealBookId, refreshReviewDue])
 
   // 知识库真实书列表：挂载时拉取一次，失败静默为空列表
   useEffect(() => {
@@ -450,23 +465,39 @@ function App() {
     })()
   }
 
-  // 真实书答题：走服务端持久化，返回的 attempt/evidence 合并进当前书状态；
+  // 真实书答题：走服务端持久化，返回的 attempt/evidence/schedule 合并进当前书状态并刷新到期复习项；
   // 失败返回 false（不破坏当前书状态），由答题组件显示可重试的错误提示
   const submitRealQuizAttempt = (blockId: string, answerId: string): Promise<boolean> => {
     const bookId = activeRealBookIdRef.current
     if (!bookId) return Promise.resolve(false)
     return submitAttempt(bookId, blockId, answerId)
       .then((result) => {
-        setLearningBook((current) => current.id === bookId
-          ? {
-              ...current,
-              quizAttempts: [...current.quizAttempts, result.attempt],
-              evidence: [...current.evidence, result.evidence],
-            }
-          : current)
+        setLearningBook((current) => {
+          if (current.id !== bookId) return current
+          const merged = mergeReviewSchedule(current, blockId, result.schedule)
+          return {
+            ...merged,
+            quizAttempts: [...merged.quizAttempts, result.attempt],
+            evidence: [...merged.evidence, result.evidence],
+          }
+        })
+        refreshReviewDue(bookId)
         return true
       })
       .catch(() => false)
+  }
+
+  // 闪卡自评：提交服务端调度结果，合并进书状态并刷新到期复习项；失败静默保持现状
+  const submitFlashReviewGrade = async (blockId: string, result: 'remembered' | 'forgotten'): Promise<void> => {
+    const bookId = activeRealBookIdRef.current
+    if (!bookId) return
+    try {
+      const schedule = await submitFlashReview(bookId, blockId, result)
+      setLearningBook((current) => current.id === bookId ? mergeReviewSchedule(current, blockId, schedule) : current)
+      refreshReviewDue(bookId)
+    } catch {
+      // 自评失败不打断复习流程：到期列表保持旧值，下次进入/作答时再刷新
+    }
   }
 
   const openRealBook = (bookId: string) => {
@@ -537,7 +568,7 @@ function App() {
     realBookGeneration.start()
   }
 
-  const askBookAgent = (focusBlockId?: string) => {
+  const askBookAgent = (focusBlockId?: string, draft?: string) => {
     const executionPlan = orchestrateAgentRequest({
       intent: 'ask_question',
       bookId: learningBook.id,
@@ -545,6 +576,7 @@ function App() {
       contextScope: bookContextScope,
     })
     bookAgent.setFocusBlockId(focusBlockId)
+    if (draft) setAgentDraft(draft)
     setAgentModeLabel(executionPlan.workflow === 'free_qa' ? '自由问答工作流 · 只读学习状态' : undefined)
     openAgent()
   }
@@ -795,9 +827,9 @@ function App() {
               chapterProgress={realBookGeneration.progress && realBookGeneration.progress.chapterId === activeBookChapterId ? { blocksReceived: realBookGeneration.progress.blocksReceived } : null}
               onRetryChapter={realBookGeneration.retryChapter}
               onSubmitQuizAttempt={submitRealQuizAttempt}
-              reviewCount={reviewQueue.length}
-              chapterReviewCount={reviewQueue.filter((item) => item.chapterId === activeBookChapterId).length}
-              onOpenReview={reviewQueue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
+              reviewCount={reviewDue.length}
+              chapterReviewCount={reviewDue.filter((item) => item.chapterId === activeBookChapterId).length}
+              onOpenReview={reviewDue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
             />
           )
         )}
@@ -868,7 +900,9 @@ function App() {
           <ReviewQueueSheet
             key={activeRealBookId}
             book={learningBook}
+            dueItems={reviewDue}
             onSubmitQuiz={submitRealQuizAttempt}
+            onFlashGrade={submitFlashReviewGrade}
             onClose={() => setIsReviewSheetOpen(false)}
           />
         )}

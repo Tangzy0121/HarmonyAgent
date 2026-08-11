@@ -9,7 +9,7 @@ interface BookGenerationRailProps {
   masteryByChapterId?: Partial<Record<string, number>>
   /** 摸底结论（仅真实书有 result 时传入）：标注可跳过章与建议起点 */
   pretestResult?: PretestResult | null
-  /** 全书待复习错题数（仅真实书传入；>0 且提供 onOpenReview 时显示书级复习入口） */
+  /** 全书到期复习项数（仅真实书传入；>0 且提供 onOpenReview 时显示书级复习入口） */
   reviewCount?: number
   onOpenReview?: () => void
 }
@@ -64,7 +64,7 @@ export function BookGenerationRail({ chapters, activeChapterId, onChapterChange,
       </ol>
       {reviewCount > 0 && onOpenReview && (
         <footer className="book-generation-rail__review">
-          <button type="button" onClick={onOpenReview}>复习错题（{reviewCount}）</button>
+          <button type="button" onClick={onOpenReview}>今日复习（{reviewCount}）</button>
         </footer>
       )}
     </aside>

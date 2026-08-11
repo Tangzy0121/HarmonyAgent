@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import mermaid from 'mermaid'
 import katex from 'katex'
-import type { BookBlock, CalloutBlock, FigureBlock, FlashCardsBlock, FormulaBlock, QuizBlock } from '../../types/learningBook'
+import type { BookBlock, CalloutBlock, FigureBlock, FlashCardsBlock, FormulaBlock, QuizAttempt, QuizBlock } from '../../types/learningBook'
 import { BookBlockRenderer } from './BookBlockRenderer'
 
 vi.mock('mermaid', () => ({
@@ -511,6 +511,79 @@ describe('BookBlockRenderer · quiz 提交失败反馈', () => {
     await flushAsync()
 
     expect(container.textContent).toContain('提交失败，请检查网络后重试。')
+  })
+})
+
+describe('BookBlockRenderer · quiz 诊断反馈', () => {
+  const diagnosedQuiz: QuizBlock = {
+    id: 'blk-quiz-d1',
+    type: 'quiz',
+    status: 'ready',
+    title: '快速验证',
+    revision: 1,
+    sourceAnchors: [],
+    conceptId: 'concept-x',
+    question: '监督学习和无监督学习的区别是什么？',
+    options: [
+      { id: 'opt-a', marker: 'A', text: '有无目标标签。' },
+      { id: 'opt-b', marker: 'B', text: '数据量大小。' },
+    ],
+    correctAnswerId: 'opt-a',
+    feedback: '解析文案。',
+  }
+
+  const diagnosedAttempt: QuizAttempt = {
+    id: 'attempt_diag',
+    chapterId: 'ch-1',
+    blockId: 'blk-quiz-d1',
+    answerId: 'opt-b',
+    isCorrect: false,
+    submittedAt: '2026-08-11T01:00:00.000Z',
+    diagnosis: { type: 'concept', advice: '回到概念块，先弄清目标标签的作用。' },
+  }
+
+  function renderQuizWithAttempt(attempt: QuizAttempt, onAskAgent: (blockId: string, draft?: string) => void): FakeElement {
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(
+      <BookBlockRenderer
+        block={diagnosedQuiz}
+        attempt={attempt}
+        allowQuizRetry
+        onRegenerate={() => undefined}
+        onSubmitQuiz={() => undefined}
+        onUpdateNote={() => undefined}
+        onStartDeepLearning={() => undefined}
+        onAskAgent={onAskAgent}
+      />,
+    ))
+    return container
+  }
+
+  it('答错反馈展示诊断标签与建议，并提供带着诊断问 Agent', () => {
+    const onAskAgent = vi.fn()
+    const container = renderQuizWithAttempt(diagnosedAttempt, onAskAgent)
+
+    expect(container.textContent).toContain('概念不清')
+    expect(container.textContent).toContain('回到概念块，先弄清目标标签的作用。')
+
+    const button = descendants(container).find((element) => element.tagName === 'BUTTON' && element.textContent.includes('带着诊断问 Agent'))
+    expect(button, 'diagnosis ask button').toBeDefined()
+    click(button as FakeElement)
+
+    expect(onAskAgent).toHaveBeenCalledTimes(1)
+    const [blockId, draft] = onAskAgent.mock.calls[0] as [string, string]
+    expect(blockId).toBe('blk-quiz-d1')
+    expect(draft).toContain('监督学习和无监督学习的区别是什么？')
+    expect(draft).toContain('概念不清')
+  })
+
+  it('答错但无诊断时不显示诊断区', () => {
+    const onAskAgent = vi.fn()
+    const container = renderQuizWithAttempt({ ...diagnosedAttempt, diagnosis: null }, onAskAgent)
+
+    expect(container.textContent).toContain('这次还没有答对。')
+    expect(container.textContent).not.toContain('带着诊断问 Agent')
+    expect(descendants(container).some((element) => element.className.split(' ').includes('book-quiz__diagnosis'))).toBe(false)
   })
 })
 

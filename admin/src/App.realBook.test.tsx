@@ -11,12 +11,15 @@ import {
   createBook,
   getBook,
   getPretest,
+  getReviewDue,
   listBooks,
   streamChapterGeneration,
   submitAttempt,
+  submitFlashReview,
   submitPretest,
   updateProposal,
   uploadDocument,
+  type DueItem,
   type StoredBook,
   type StreamChapterGenerationOptions,
 } from './services/bookApi'
@@ -35,6 +38,8 @@ vi.mock('./services/bookApi', async (importOriginal) => {
     submitAttempt: vi.fn(),
     getPretest: vi.fn(),
     submitPretest: vi.fn(),
+    getReviewDue: vi.fn(),
+    submitFlashReview: vi.fn(),
   }
 })
 
@@ -401,6 +406,14 @@ function clickAriaLabel(label: string): void {
   flushSync(() => Simulate.click(button as unknown as Element))
 }
 
+// 复习入口（章节轨书级 + 章尾本章级）按 class 定位：全容器文本会撞到底层 TodayPage 的“今日复习”文案
+function reviewEntryElements(): FakeElement[] {
+  return descendants(container).filter((element) => {
+    const classes = element.className.split(' ')
+    return classes.includes('book-generation-rail__review') || classes.includes('interactive-book-chapter__review')
+  })
+}
+
 function selectFile(file: File): void {
   const input = descendants(container).find((element) => element.tagName === 'INPUT' && element.getAttribute('type') === 'file')
   expect(input, 'file input').toBeDefined()
@@ -434,6 +447,8 @@ beforeEach(() => {
     status: 'generating',
     pretest: { questions: pretestQuestions, result: pretestResultPayload },
   }))
+  vi.mocked(getReviewDue).mockResolvedValue([])
+  vi.mocked(submitFlashReview).mockResolvedValue(null)
 })
 
 afterEach(async () => {
@@ -896,7 +911,9 @@ describe('App · 真实学习书接线', () => {
     expect(container.textContent).not.toContain('学习资料服务暂时不可用')
   })
 
-  it('真实书答错后出现章尾与章节轨复习入口；复习视图中答对后出队', async () => {
+  it('真实书出现到期复习后显示章尾与章节轨入口；复习视图中答对后出队', async () => {
+    let due: DueItem[] = []
+    vi.mocked(getReviewDue).mockImplementation(() => Promise.resolve(due))
     vi.mocked(getBook).mockResolvedValue(realBookFixture({
       status: 'ready',
       chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
@@ -949,36 +966,39 @@ describe('App · 真实学习书接线', () => {
     mountApp('#book/book_x/ch-1')
     await flushEffects()
 
-    // 无错题时不渲染任何复习入口
-    expect(container.textContent).not.toContain('复习错题')
+    // 无到期项时不渲染任何复习入口
+    expect(getReviewDue).toHaveBeenCalledWith('book_x')
+    expect(reviewEntryElements()).toHaveLength(0)
 
     const quizBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-quiz-1')
+    due = [{ blockId: 'blk-quiz-1', chapterId: 'ch-1', kind: 'quiz', title: '快速验证', dueAt: '2026-08-11T01:30:00.000Z', stage: 0, lapses: 1 }]
     clickWithin(quizBlock!, '属于，因为数据量足够大。')
     clickWithin(quizBlock!, '提交答案')
     await flushEffects()
 
-    // 章尾入口（本章有错题）+ 章节轨书级入口（全书有错题）
-    expect(container.textContent).toContain('复习本章错题')
+    // 章尾入口（本章有到期项）+ 章节轨书级入口（全书有到期项）
+    expect(container.textContent).toContain('本章还有 1 项到期复习')
     const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
-    expect(rail!.textContent).toContain('复习错题（1）')
+    expect(rail!.textContent).toContain('今日复习（1）')
 
-    // 切到无错题的章节：章尾入口消失，书级入口仍在
+    // 切到无到期项的章节：章尾入口消失，书级入口仍在
     click('从误差到参数更新')
-    expect(container.textContent).not.toContain('复习本章错题')
-    expect(rail!.textContent).toContain('复习错题（1）')
+    expect(container.textContent).not.toContain('本章还有 1 项到期复习')
+    expect(rail!.textContent).toContain('今日复习（1）')
 
-    // 书级入口打开复习视图：只含错题块
-    click('复习错题（1）')
+    // 书级入口打开复习视图：只含到期块
+    click('今日复习（1）')
     await flushEffects()
     const sheet = () => {
       const element = descendants(container).find((candidate) => candidate.className.split(' ').includes('review-sheet'))
       expect(element, 'review sheet').toBeDefined()
       return element as FakeElement
     }
-    expect(sheet().textContent).toContain('待复习 1 题')
+    expect(sheet().textContent).toContain('待复习 1 项')
     expect(sheet().textContent).toContain('没有标签的邮件被模型自动分组，这属于监督学习吗？')
 
     // 复习视图中重新作答并答对：该项出队，视图进入完成态，入口消失
+    due = []
     clickWithin(sheet(), '重新作答')
     clickWithin(sheet(), '不属于，因为没有目标标签形成监督信号。')
     clickWithin(sheet(), '提交答案')
@@ -986,15 +1006,15 @@ describe('App · 真实学习书接线', () => {
 
     expect(submitAttempt).toHaveBeenCalledTimes(2)
     expect(submitAttempt).toHaveBeenLastCalledWith('book_x', 'blk-quiz-1', 'answer-b')
-    expect(sheet().textContent).toContain('错题都已答对，复习完成')
-    expect(container.textContent).not.toContain('复习错题')
+    expect(sheet().textContent).toContain('今天的复习都完成了')
+    expect(reviewEntryElements()).toHaveLength(0)
 
-    clickAriaLabel('关闭错题复习')
+    clickAriaLabel('关闭复习')
     await flushEffects()
-    expect(container.textContent).not.toContain('错题复习')
+    expect(descendants(container).some((element) => element.className.split(' ').includes('review-sheet'))).toBe(false)
   })
 
-  it('mock 原型页答错也不显示错题复习入口', async () => {
+  it('mock 原型页答错也不显示复习入口', async () => {
     mountApp('#library/ml-chapter-03')
     await flushEffects()
 
@@ -1006,7 +1026,8 @@ describe('App · 真实学习书接线', () => {
     await flushEffects()
 
     expect(quizBlock!.textContent).toContain('这次还没有答对。')
-    expect(container.textContent).not.toContain('复习错题')
+    expect(reviewEntryElements()).toHaveLength(0)
     expect(submitAttempt).not.toHaveBeenCalled()
+    expect(getReviewDue).not.toHaveBeenCalled()
   })
 })

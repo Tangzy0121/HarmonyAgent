@@ -5,7 +5,7 @@ import { FlashCards } from './FlashCards'
 import { FigureBlockView } from './FigureBlockView'
 import { KatexView } from './KatexView'
 import { MathText } from './MathText'
-import type { BookBlock, LearningEvidence, QuizAttempt, UserNote } from '../../types/learningBook'
+import type { AttemptDiagnosis, BookBlock, DiagnosisType, LearningEvidence, QuizAttempt, QuizBlock, UserNote } from '../../types/learningBook'
 
 interface BookBlockRendererProps {
   block: BookBlock
@@ -22,7 +22,8 @@ interface BookBlockRendererProps {
   onSubmitQuiz: (blockId: string, answerId: string) => void | Promise<boolean | void>
   onUpdateNote: (noteId: string, body: string) => void
   onStartDeepLearning: (blockId: string) => void
-  onAskAgent: (blockId: string) => void
+  /** 缺省时隐藏「向 Agent 提问 / 带着诊断问 Agent」入口（如复习弹层内不复用 Agent 链路） */
+  onAskAgent?: (blockId: string, draft?: string) => void
 }
 
 export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRegenerate = true, allowQuizRetry = false, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent }: BookBlockRendererProps) {
@@ -89,6 +90,19 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
               {evidence && (
                 <p className="book-quiz__evidence" role="status">已记录学习证据：{evidence.statement}</p>
               )}
+              {!visibleAttempt.isCorrect && visibleAttempt.diagnosis && (
+                <div className="book-quiz__diagnosis">
+                  <span className="book-quiz__diagnosis-label">{DIAGNOSIS_LABELS[visibleAttempt.diagnosis.type]}</span>
+                  <p>{visibleAttempt.diagnosis.advice}</p>
+                  {onAskAgent && (
+                    <button
+                      type="button"
+                      className="book-quiz__diagnosis-ask"
+                      onClick={() => onAskAgent(block.id, diagnosisDraft(block, visibleAttempt.diagnosis!))}
+                    >带着诊断问 Agent <Icon name="agent" size={15} /></button>
+                  )}
+                </div>
+              )}
               {!visibleAttempt.isCorrect && allowQuizRetry && (
                 <button
                   type="button"
@@ -138,7 +152,7 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
         {canRegenerate && <button type="button" onClick={() => onRegenerate(block.id)} aria-label={`重新生成${block.title}`}><Icon name="refresh" size={16} />重生成</button>}
       </header>
       {content}
-      {block.type !== 'quiz' && block.type !== 'user_note' && (
+      {onAskAgent && block.type !== 'quiz' && block.type !== 'user_note' && (
         <footer>
           <button type="button" onClick={() => onStartDeepLearning(block.id)}>深入学习这一段 <Icon name="arrow" size={15} /></button>
           <button type="button" className="book-block__ask-agent" onClick={() => onAskAgent(block.id)}>向 Agent 提问 <Icon name="agent" size={15} /></button>
@@ -146,6 +160,19 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
       )}
     </article>
   )
+}
+
+/** 答错诊断的四类标签（与服务端 AttemptDiagnosis.type 对齐） */
+const DIAGNOSIS_LABELS: Record<DiagnosisType, string> = {
+  concept: '概念不清',
+  application: '应用偏差',
+  misread: '审题偏差',
+  overconfident: '会但做错',
+}
+
+/** 「带着诊断问 Agent」的预填草稿：题干截断 + 诊断标签，要求引导式提问而非直接给答案 */
+function diagnosisDraft(block: QuizBlock, diagnosis: AttemptDiagnosis): string {
+  return `我刚才在这道题答错了：「${block.question.slice(0, 60)}」。错误类型是${DIAGNOSIS_LABELS[diagnosis.type]}。请用提问引导我，不要直接给答案。`
 }
 
 const blockTypeLabel: Record<BookBlock['type'], string> = {

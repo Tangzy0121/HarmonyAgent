@@ -8165,6 +8165,70 @@ button:disabled {
   font-weight: 640;
 }
 
+/* 今日复习：闪卡到期项的翻卡 + 自评 */
+.review-sheet__flash-title {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.review-sheet__grade {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.review-sheet__grade-button {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid rgb(182 107 88 / 0.35);
+  border-radius: 12px;
+  color: #814e43;
+  background: rgb(229 194 182 / 0.18);
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+.review-sheet__grade-button.is-remembered {
+  border-color: rgb(116 170 137 / 0.4);
+  color: #35684c;
+  background: rgb(116 170 137 / 0.14);
+}
+
+/* quiz 答错诊断：复用 feedback 暖色系，附「带着诊断问 Agent」 */
+.book-quiz__diagnosis {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 11px;
+  color: #814e43;
+  background: rgb(229 194 182 / 0.25);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.book-quiz__diagnosis p { margin: 0; }
+
+.book-quiz__diagnosis-label {
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+.book-quiz__diagnosis-ask {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid rgb(182 107 88 / 0.35);
+  border-radius: 12px;
+  color: #814e43;
+  background: rgb(255 255 255 / 0.5);
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
 /* Third-batch migration: learning map surface, preserving the diagram structure */
 .prototype-app--third-batch-shell .learning-page:not(.learning-page--change-focus) {
   height: 100%;

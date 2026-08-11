@@ -14,7 +14,7 @@ interface InteractiveBookPageProps {
   onBookChange: (book: LearningBook) => void
   onChapterChange: (chapterId: string) => void
   onContextScopeChange: (scope: AgentContextScope) => void
-  onAskAgent: (focusBlockId?: string) => void
+  onAskAgent: (focusBlockId?: string, draft?: string) => void
   onBack: () => void
   onStartDeepLearning: (blockId: string) => void
   /** 真实书：生成中视图显示流式进度、隐藏 mock 的“完成本章生成”，块级重生成不渲染 */
@@ -25,7 +25,7 @@ interface InteractiveBookPageProps {
   onRetryChapter?: (chapterId: string) => void
   /** 真实书：答题提交走服务端持久化（异步，false 表示失败）；缺省时走本地 mock 逻辑 */
   onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<boolean>
-  /** 真实书错题复习：全书/本章待复习错题数（>0 且提供 onOpenReview 时渲染对应入口） */
+  /** 真实书今日复习：全书/本章到期复习项数（>0 且提供 onOpenReview 时渲染对应入口） */
   reviewCount?: number
   chapterReviewCount?: number
   onOpenReview?: () => void
@@ -132,8 +132,8 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
             )}
             {isRealBook && chapterReviewCount > 0 && onOpenReview && (
               <footer className="interactive-book-chapter__review">
-                <div><span>错题复习</span><strong>本章还有 {chapterReviewCount} 道错题待复习</strong></div>
-                <button type="button" onClick={onOpenReview}>复习本章错题 <Icon name="arrow" size={17} /></button>
+                <div><span>今日复习</span><strong>本章还有 {chapterReviewCount} 项到期复习</strong></div>
+                <button type="button" onClick={onOpenReview}>复习本章到期内容 <Icon name="arrow" size={17} /></button>
               </footer>
             )}
             {nextChapter && (
