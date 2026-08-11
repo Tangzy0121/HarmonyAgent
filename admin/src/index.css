@@ -7657,6 +7657,329 @@ button:disabled {
   background: var(--ink-07);
 }
 
+/* 摸底诊断：确认目录后的可选入口卡片 + 底部弹层（视觉沿用 upload-book-sheet 体系） */
+.pretest-entry {
+  position: fixed;
+  z-index: 30;
+  right: 12px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--ink-12);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow-sheet);
+}
+
+.pretest-entry__copy {
+  display: grid;
+  gap: 3px;
+}
+
+.pretest-entry__copy strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
+.pretest-entry__copy span {
+  color: var(--ink-56);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.pretest-entry__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pretest-entry__primary,
+.pretest-entry__ghost {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 0.8rem;
+  font-weight: 620;
+}
+
+.pretest-entry__primary {
+  border: 0;
+  color: #fff;
+  background: #b66b58;
+}
+
+.pretest-entry__ghost {
+  border: 1px solid var(--ink-12);
+  color: var(--ink);
+  background: transparent;
+}
+
+@media (min-width: 860px) {
+  .pretest-entry {
+    right: 24px;
+    bottom: 24px;
+    left: auto;
+    width: 340px;
+  }
+}
+
+.pretest-sheet__scrim {
+  position: fixed;
+  z-index: 41;
+  inset: 0;
+  border: 0;
+  background: rgb(28 28 32 / 0.16);
+  backdrop-filter: blur(2px);
+  animation: scrim-enter 220ms ease-out both;
+}
+
+.pretest-sheet {
+  position: fixed;
+  z-index: 42;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-height: 82dvh;
+  padding: 9px 20px calc(120px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border-top: 1px solid var(--ink-12);
+  border-radius: 28px 28px 0 0;
+  background: #fff;
+  box-shadow: var(--shadow-sheet);
+  animation: map-change-panel-enter 480ms var(--ease-fluid) both;
+}
+
+.pretest-sheet__grip {
+  width: 38px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 99px;
+  background: var(--ink-12);
+}
+
+.pretest-sheet__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.pretest-sheet__heading p,
+.pretest-sheet__heading h2 {
+  margin: 0;
+}
+
+.pretest-sheet__heading p {
+  color: var(--ink-56);
+  font-size: 0.62rem;
+}
+
+.pretest-sheet__heading h2 {
+  margin-top: 4px;
+  font-size: 1.45rem;
+  font-weight: 740;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.pretest-sheet__close {
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--ink-12);
+  border-radius: 50%;
+  color: var(--ink-56);
+  background: transparent;
+}
+
+.pretest-sheet__status {
+  margin: 18px 0 4px;
+  color: var(--ink-56);
+  font-size: 0.78rem;
+}
+
+.pretest-sheet__status p {
+  margin: 0;
+}
+
+.pretest-sheet__retry {
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 10px 18px;
+  border: 1px solid var(--ink-12);
+  border-radius: 14px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.pretest-sheet__questions {
+  display: grid;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pretest-sheet__question h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 640;
+  line-height: 1.5;
+}
+
+.pretest-sheet__options {
+  display: grid;
+  gap: 8px;
+}
+
+.pretest-sheet__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--ink-12);
+  border-radius: 13px;
+  color: var(--ink);
+  background: var(--ink-04);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.pretest-sheet__option strong {
+  display: grid;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--ink-07);
+  font-size: 0.66rem;
+}
+
+.pretest-sheet__option[aria-pressed="true"] {
+  border-color: rgb(189 114 95 / 0.55);
+  background: rgb(189 114 95 / 0.1);
+}
+
+.pretest-sheet__option[aria-pressed="true"] strong {
+  color: #fff;
+  background: #b66b58;
+}
+
+.pretest-sheet__error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 0.72rem;
+}
+
+.pretest-sheet__submit {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--on-ink);
+  background: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 620;
+}
+
+.pretest-sheet__submit:disabled {
+  color: var(--ink-38);
+  background: var(--ink-07);
+}
+
+.pretest-sheet__result {
+  margin-top: 16px;
+}
+
+.pretest-sheet__score {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pretest-sheet__advice {
+  margin: 0;
+  color: var(--ink-56);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.pretest-sheet__skippable {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pretest-sheet__skippable li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 11px;
+  color: var(--ink);
+  background: rgb(46 107 80 / 0.08);
+  font-size: 0.76rem;
+}
+
+.pretest-sheet__skippable li > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pretest-sheet__skippable em {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: #2e6b50;
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 640;
+}
+
+/* 章节轨上的摸底标注 */
+.book-generation-rail__pretest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.book-generation-rail__pretest em {
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 0.56rem;
+  font-style: normal;
+  font-weight: 640;
+  white-space: nowrap;
+}
+
+.book-generation-rail__pretest-skip {
+  color: #2e6b50;
+  background: rgb(46 107 80 / 0.12);
+}
+
+.book-generation-rail__pretest-start {
+  color: #b66b58;
+  background: rgb(182 107 88 / 0.12);
+}
+
 /* Third-batch migration: learning map surface, preserving the diagram structure */
 .prototype-app--third-batch-shell .learning-page:not(.learning-page--change-focus) {
   height: 100%;

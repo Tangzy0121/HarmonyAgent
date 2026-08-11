@@ -10,9 +10,11 @@ import {
   confirmBook,
   createBook,
   getBook,
+  getPretest,
   listBooks,
   streamChapterGeneration,
   submitAttempt,
+  submitPretest,
   updateProposal,
   uploadDocument,
   type StoredBook,
@@ -31,6 +33,8 @@ vi.mock('./services/bookApi', async (importOriginal) => {
     confirmBook: vi.fn(),
     streamChapterGeneration: vi.fn(),
     submitAttempt: vi.fn(),
+    getPretest: vi.fn(),
+    submitPretest: vi.fn(),
   }
 })
 
@@ -260,6 +264,78 @@ function realBookFixture(overrides: Partial<StoredBook> = {}): StoredBook {
 }
 
 const proposalBook = realBookFixture()
+
+// 摸底 fixture：五题覆盖四章，结论为跳过 ch-1、建议从 ch-2 开始
+const pretestQuestions = [
+  {
+    id: 'pq-1',
+    chapterId: 'ch-1',
+    question: '监督学习需要什么信号？',
+    options: [
+      { id: 'pq-1-a', marker: 'A', text: '目标标签' },
+      { id: 'pq-1-b', marker: 'B', text: '更多数据' },
+    ],
+    correctAnswerId: 'pq-1-a',
+    explanation: '监督学习依赖目标标签。',
+  },
+  {
+    id: 'pq-2',
+    chapterId: 'ch-2',
+    question: '损失函数的作用是什么？',
+    options: [
+      { id: 'pq-2-a', marker: 'A', text: '衡量预测误差' },
+      { id: 'pq-2-b', marker: 'B', text: '增加参数数量' },
+    ],
+    correctAnswerId: 'pq-2-a',
+    explanation: '损失衡量预测与目标的差距。',
+  },
+  {
+    id: 'pq-3',
+    chapterId: 'ch-3',
+    question: '聚类属于哪一类学习任务？',
+    options: [
+      { id: 'pq-3-a', marker: 'A', text: '无监督学习' },
+      { id: 'pq-3-b', marker: 'B', text: '监督学习' },
+    ],
+    correctAnswerId: 'pq-3-a',
+    explanation: '聚类没有目标标签。',
+  },
+  {
+    id: 'pq-4',
+    chapterId: 'ch-4',
+    question: '验证集用来做什么？',
+    options: [
+      { id: 'pq-4-a', marker: 'A', text: '评估泛化能力' },
+      { id: 'pq-4-b', marker: 'B', text: '直接训练参数' },
+    ],
+    correctAnswerId: 'pq-4-a',
+    explanation: '验证集评估泛化。',
+  },
+  {
+    id: 'pq-5',
+    chapterId: 'ch-1',
+    question: '垃圾邮件过滤是有监督任务吗？',
+    options: [
+      { id: 'pq-5-a', marker: 'A', text: '是，有标签分类' },
+      { id: 'pq-5-b', marker: 'B', text: '否，没有标签' },
+    ],
+    correctAnswerId: 'pq-5-a',
+    explanation: '垃圾邮件过滤是有标签的分类任务。',
+  },
+]
+
+const pretestResultPayload = {
+  answers: {
+    'pq-1': 'pq-1-a',
+    'pq-2': 'pq-2-a',
+    'pq-3': 'pq-3-a',
+    'pq-4': 'pq-4-a',
+    'pq-5': 'pq-5-a',
+  },
+  suggestedStartChapterId: 'ch-2',
+  skippableChapterIds: ['ch-1'],
+  submittedAt: '2026-08-11T03:00:00.000Z',
+}
 const documentMeta = {
   id: 'doc-1',
   fileName: '机器学习 · 第三章.pdf',
@@ -319,6 +395,12 @@ function clickWithin(rootElement: FakeElement, text: string): void {
   flushSync(() => Simulate.click(button as unknown as Element))
 }
 
+function clickAriaLabel(label: string): void {
+  const button = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === label)
+  expect(button, `button with aria-label "${label}"`).toBeDefined()
+  flushSync(() => Simulate.click(button as unknown as Element))
+}
+
 function selectFile(file: File): void {
   const input = descendants(container).find((element) => element.tagName === 'INPUT' && element.getAttribute('type') === 'file')
   expect(input, 'file input').toBeDefined()
@@ -346,6 +428,11 @@ beforeEach(() => {
   vi.mocked(streamChapterGeneration).mockImplementation((bookId, chapterId, options) => new Promise<void>((resolve, reject) => {
     streams.push({ bookId, chapterId, options, resolve, reject })
     options.signal?.addEventListener('abort', () => reject(new DOMException('stopped', 'AbortError')), { once: true })
+  }))
+  vi.mocked(getPretest).mockResolvedValue({ questions: pretestQuestions, result: null })
+  vi.mocked(submitPretest).mockImplementation(async () => realBookFixture({
+    status: 'generating',
+    pretest: { questions: pretestQuestions, result: pretestResultPayload },
   }))
 })
 
@@ -382,6 +469,13 @@ describe('App · 真实学习书接线', () => {
     }))
     expect(confirmBook).toHaveBeenCalledWith('book_x')
     expect(windowStub.location.hash).toBe('#book/book_x/ch-1')
+    // 确认后先出现摸底入口，不自动开始生成；跳过摸底不阻塞直接生成
+    expect(streamChapterGeneration).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('先摸底（5 题）')
+
+    click('直接开始生成')
+    await flushEffects()
+    expect(getPretest).not.toHaveBeenCalled()
     expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-1'])
 
     // chapter_start 到达后进入生成中视图：真实书显示“已生成 N 块”、无“完成本章生成”
@@ -439,6 +533,87 @@ describe('App · 真实学习书接线', () => {
     streams[4].resolve()
     await flushEffects()
     expect(container.textContent).not.toContain('这一章生成失败了')
+  })
+
+  it('先摸底：5 题提交后结论展示建议起点，章节轨标注可跳过/建议从这里开始', async () => {
+    mountApp('#proposal/book_x')
+    await flushEffects()
+
+    click('确认目录并生成')
+    await flushEffects()
+    expect(streamChapterGeneration).not.toHaveBeenCalled()
+
+    click('先摸底（5 题）')
+    await flushEffects()
+    expect(getPretest).toHaveBeenCalledWith('book_x')
+    expect(container.textContent).toContain('监督学习需要什么信号？')
+
+    // 选项文案可能与底层页面按钮撞文本，点击范围限定在摸底弹层内
+    const sheet = () => {
+      const element = descendants(container).find((candidate) => candidate.className.split(' ').includes('pretest-sheet'))
+      expect(element, 'pretest sheet').toBeDefined()
+      return element as FakeElement
+    }
+    for (const text of ['目标标签', '衡量预测误差', '无监督学习', '评估泛化能力', '是，有标签分类']) {
+      clickWithin(sheet(), text)
+    }
+    clickWithin(sheet(), '提交摸底答案')
+    await flushEffects()
+
+    expect(submitPretest).toHaveBeenCalledWith('book_x', pretestResultPayload.answers)
+    expect(container.textContent).toContain('摸底完成')
+    expect(container.textContent).toContain('建议从第 2 章「从误差到参数更新」开始')
+
+    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
+    expect(rail, 'chapter rail').toBeDefined()
+    expect(rail!.textContent).toContain('可跳过')
+    expect(rail!.textContent).toContain('建议从这里开始')
+
+    clickWithin(sheet(), '从建议章节开始')
+    await flushEffects()
+
+    expect(windowStub.location.hash).toBe('#book/book_x/ch-2')
+    expect(container.textContent).not.toContain('先摸底（5 题）')
+    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-1'])
+  })
+
+  it('摸底弹层关闭后回到入口，直接开始生成不受影响', async () => {
+    mountApp('#proposal/book_x')
+    await flushEffects()
+
+    click('确认目录并生成')
+    await flushEffects()
+    click('先摸底（5 题）')
+    await flushEffects()
+    expect(container.textContent).toContain('监督学习需要什么信号？')
+
+    clickAriaLabel('关闭摸底面板')
+    await flushEffects()
+    expect(container.textContent).not.toContain('监督学习需要什么信号？')
+    expect(container.textContent).toContain('先摸底（5 题）')
+    expect(streamChapterGeneration).not.toHaveBeenCalled()
+
+    click('直接开始生成')
+    await flushEffects()
+    expect(submitPretest).not.toHaveBeenCalled()
+    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-1'])
+  })
+
+  it('打开已有摸底结论的书：章节轨直接展示标注，不重复请求摸底', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+      pretest: { questions: pretestQuestions, result: pretestResultPayload },
+    }))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
+    expect(rail, 'chapter rail').toBeDefined()
+    expect(rail!.textContent).toContain('可跳过')
+    expect(rail!.textContent).toContain('建议从这里开始')
+    expect(getPretest).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('先摸底（5 题）')
   })
 
   it('真实书答题走服务端：提交后展示最近一次结果、学习证据与章节掌握度', async () => {

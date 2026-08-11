@@ -5,10 +5,12 @@ import {
 } from '../domain/learningBookApi'
 import type {
   BookBlock,
+  BookPretest,
   LearningBook,
   LearningEvidence,
   LearningGoal,
   LearnerLevel,
+  PretestQuestion,
   QuizAttempt,
 } from '../types/learningBook'
 import {
@@ -218,6 +220,55 @@ export async function submitAttempt(bookId: string, blockId: string, answerId: s
   })
   if (!response.ok) throw await readHttpError(response)
   return parseAttemptResult(await readJson(response))
+}
+
+function isPretestQuestionPayload(value: unknown): value is PretestQuestion {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.chapterId === 'string'
+    && typeof value.question === 'string'
+    && Array.isArray(value.options) && value.options.every((option) => (
+      isRecord(option)
+      && typeof option.id === 'string'
+      && typeof option.marker === 'string'
+      && typeof option.text === 'string'
+    ))
+    && typeof value.correctAnswerId === 'string'
+    && typeof value.explanation === 'string'
+}
+
+// pretest 端点返回本体（非 { book } 信封）：{ questions, result }，result 为 null 或完整判定记录
+function parsePretestPayload(value: unknown): BookPretest {
+  const valid = isRecord(value)
+    && Array.isArray(value.questions)
+    && value.questions.every(isPretestQuestionPayload)
+    && (value.result === null || (
+      isRecord(value.result)
+      && isRecord(value.result.answers)
+      && Object.values(value.result.answers).every((answer) => typeof answer === 'string')
+      && typeof value.result.suggestedStartChapterId === 'string'
+      && Array.isArray(value.result.skippableChapterIds)
+      && value.result.skippableChapterIds.every((id) => typeof id === 'string')
+      && typeof value.result.submittedAt === 'string'
+    ))
+  if (!valid) throw new BookApiError('invalid_pretest_payload', SAFE_HTTP_MESSAGE)
+  return value as unknown as BookPretest
+}
+
+export async function getPretest(bookId: string): Promise<BookPretest> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/pretest`, { method: 'POST' })
+  if (!response.ok) throw await readHttpError(response)
+  return parsePretestPayload(await readJson(response))
+}
+
+export async function submitPretest(bookId: string, answers: Record<string, string>): Promise<LearningBook> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/pretest/result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers }),
+  })
+  if (!response.ok) throw await readHttpError(response)
+  return parseBookEnvelope(await readJson(response))
 }
 
 export async function updateProposal(id: string, edits: ProposalEdits): Promise<LearningBook> {

@@ -49,7 +49,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
       </header>
 
-      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} />
+      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} />
 
       <main className="interactive-book-reader">
         <BookContextBar contextScope={contextScope} onContextScopeChange={onContextScopeChange} onAskAgent={onAskAgent} />

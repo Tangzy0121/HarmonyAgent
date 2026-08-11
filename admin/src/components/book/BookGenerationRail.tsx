@@ -1,5 +1,5 @@
 import { Icon } from '../Icon'
-import type { BookChapter } from '../../types/learningBook'
+import type { BookChapter, PretestResult } from '../../types/learningBook'
 
 interface BookGenerationRailProps {
   chapters: BookChapter[]
@@ -7,6 +7,8 @@ interface BookGenerationRailProps {
   onChapterChange: (chapterId: string) => void
   /** 各章掌握度（0..1，仅真实书在有 attempts 时传入；缺省不展示） */
   masteryByChapterId?: Partial<Record<string, number>>
+  /** 摸底结论（仅真实书有 result 时传入）：标注可跳过章与建议起点 */
+  pretestResult?: PretestResult | null
 }
 
 const statusLabel = {
@@ -17,7 +19,7 @@ const statusLabel = {
   error: '生成失败',
 } as const
 
-export function BookGenerationRail({ chapters, activeChapterId, onChapterChange, masteryByChapterId }: BookGenerationRailProps) {
+export function BookGenerationRail({ chapters, activeChapterId, onChapterChange, masteryByChapterId, pretestResult }: BookGenerationRailProps) {
   return (
     <aside className="book-generation-rail" aria-label="互动学习书目录">
       <header>
@@ -42,6 +44,16 @@ export function BookGenerationRail({ chapters, activeChapterId, onChapterChange,
                   {statusLabel[chapter.status]} · {chapter.estimatedMinutes} 分钟
                   {masteryByChapterId?.[chapter.id] !== undefined && ` · 掌握度 ${Math.round(masteryByChapterId[chapter.id]! * 100)}%`}
                 </small>
+                {pretestResult && (pretestResult.skippableChapterIds.includes(chapter.id) || pretestResult.suggestedStartChapterId === chapter.id) && (
+                  <span className="book-generation-rail__pretest">
+                    {pretestResult.skippableChapterIds.includes(chapter.id) && (
+                      <em className="book-generation-rail__pretest-skip">可跳过</em>
+                    )}
+                    {pretestResult.suggestedStartChapterId === chapter.id && (
+                      <em className="book-generation-rail__pretest-start">建议从这里开始</em>
+                    )}
+                  </span>
+                )}
               </span>
             </button>
           </li>

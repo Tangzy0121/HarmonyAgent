@@ -6,9 +6,11 @@ import {
   confirmBook,
   createBook,
   getBook,
+  getPretest,
   listBooks,
   streamChapterGeneration,
   submitAttempt,
+  submitPretest,
   updateProposal,
   uploadDocument,
   type ChapterGenerationEvent,
@@ -250,6 +252,109 @@ describe('submitAttempt', () => {
 
     await expect(submitAttempt('book-1', 'blk-quiz-1', 'answer-b'))
       .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_attempt_payload' })
+  })
+})
+
+describe('pretest endpoints', () => {
+  const pretestQuestions = [
+    {
+      id: 'pq-1',
+      chapterId: 'ch-1',
+      question: '监督学习需要什么信号？',
+      options: [
+        { id: 'pq-1-a', marker: 'A', text: '目标标签' },
+        { id: 'pq-1-b', marker: 'B', text: '更多数据' },
+      ],
+      correctAnswerId: 'pq-1-a',
+      explanation: '监督学习依赖目标标签。',
+    },
+    {
+      id: 'pq-2',
+      chapterId: 'ch-2',
+      question: '损失函数的作用是什么？',
+      options: [
+        { id: 'pq-2-a', marker: 'A', text: '衡量误差' },
+        { id: 'pq-2-b', marker: 'B', text: '增加参数' },
+      ],
+      correctAnswerId: 'pq-2-a',
+      explanation: '损失衡量预测与目标的差距。',
+    },
+  ]
+  const pretestResult = {
+    answers: { 'pq-1': 'pq-1-a', 'pq-2': 'pq-2-b' },
+    suggestedStartChapterId: 'ch-2',
+    skippableChapterIds: ['ch-1'],
+    submittedAt: '2026-08-11T03:00:00.000Z',
+  }
+
+  it('getPretest posts to the pretest endpoint and parses the bare payload', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ questions: pretestQuestions, result: null })
+    }))
+
+    const pretest = await getPretest('book-1')
+
+    expect(actualUrl).toBe('/api/books/book-1/pretest')
+    expect(actualInit?.method).toBe('POST')
+    expect(pretest).toEqual({ questions: pretestQuestions, result: null })
+  })
+
+  it('getPretest returns an existing result when the server responds idempotently', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ questions: pretestQuestions, result: pretestResult })))
+
+    const pretest = await getPretest('book-1')
+
+    expect(pretest.result).toEqual(pretestResult)
+  })
+
+  it('getPretest passes through 409 pretest_unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'pretest_unavailable' }, 409)))
+
+    await expect(getPretest('book-1')).rejects.toMatchObject({ name: 'BookApiError', code: 'pretest_unavailable' })
+  })
+
+  it.each([
+    ['questions is not an array', { questions: 'nope', result: null }],
+    ['option misses marker', { questions: [{ ...pretestQuestions[0], options: [{ id: 'pq-1-a', text: '目标标签' }] }], result: null }],
+    ['result misses skippableChapterIds', { questions: pretestQuestions, result: { answers: {}, suggestedStartChapterId: 'ch-2', submittedAt: '2026-08-11T03:00:00.000Z' } }],
+  ])('getPretest rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getPretest('book-1')).rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_pretest_payload' })
+  })
+
+  it('submitPretest posts answers and parses the { book } envelope with the pretest result', async () => {
+    const resolvedBook = { ...storedBook, pretest: { questions: pretestQuestions, result: pretestResult } }
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ book: resolvedBook })
+    }))
+
+    const book = await submitPretest('book-1', pretestResult.answers)
+
+    expect(actualUrl).toBe('/api/books/book-1/pretest/result')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ answers: pretestResult.answers })
+    expect(book.pretest?.result).toEqual(pretestResult)
+  })
+
+  it('submitPretest passes through 409 pretest_unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'pretest_unavailable' }, 409)))
+
+    await expect(submitPretest('book-1', {})).rejects.toMatchObject({ name: 'BookApiError', code: 'pretest_unavailable' })
+  })
+
+  it('submitPretest rejects when the returned book fails the guard', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ book: { ...storedBook, chapters: 'not-an-array' } })))
+
+    await expect(submitPretest('book-1', {})).rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_book_payload' })
   })
 })
 
