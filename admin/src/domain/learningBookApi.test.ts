@@ -30,6 +30,19 @@ describe('parseLearningBook', () => {
     }
   })
 
+  it('normalizes server 1-based chapter order to the 0-based indexing the reading UI expects', () => {
+    // 服务端 proposalEdits 把章节 order 归一化为 1..N；前端阅读页/导航把 order 当 0 基数组下标用
+    const oneBased = {
+      ...storedPayload,
+      chapters: storedPayload.chapters.map((chapter, index) => ({ ...chapter, order: index + 1 })),
+    }
+
+    const parsed = parseLearningBook(oneBased)
+
+    expect(parsed.chapters.map((chapter) => chapter.order)).toEqual(storedPayload.chapters.map((_, index) => index))
+    expect(parsed.chapters.map((chapter) => chapter.id)).toEqual(storedPayload.chapters.map((chapter) => chapter.id))
+  })
+
   it('rejects a payload without chapters or with non-array chapters', () => {
     const withoutChapters = { ...storedPayload } as Record<string, unknown>
     delete withoutChapters.chapters

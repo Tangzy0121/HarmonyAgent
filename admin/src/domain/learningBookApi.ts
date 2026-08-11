@@ -134,9 +134,11 @@ function isBookChapter(value: unknown): value is BookChapter {
 }
 
 /**
- * 校验服务端学习书载荷的 LearningBook 必需字段，通过后原样返回——
+ * 校验服务端学习书载荷的 LearningBook 必需字段——
  * StoredBook 多出的 createdAt/updatedAt/generationJobs 等落盘字段随之透传，
  * 类型上由调用方自行取舍。
+ * 唯一的归一化：服务端章节 order 为 1..N（proposalEdits 归一化），
+ * 而前端阅读页/导航把 order 当 0 基数组下标使用，这里统一降为 0 基。
  */
 export function parseLearningBook(value: unknown): LearningBook {
   const valid = isRecord(value)
@@ -187,5 +189,7 @@ export function parseLearningBook(value: unknown): LearningBook {
       && isString(item.createdAt)
     ))
   if (!valid) throw new BookApiError('invalid_book_payload', INVALID_BOOK_PAYLOAD_MESSAGE)
+  // 章节按服务端返回顺序（服务端已按 order 排序）归一化为 0 基下标
+  for (const [index, chapter] of (value.chapters as BookChapter[]).entries()) chapter.order = index
   return value as unknown as LearningBook
 }
