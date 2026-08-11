@@ -226,6 +226,16 @@ export interface BookPretest {
   result: PretestResult | null
 }
 
+export type ReviewKind = 'quiz' | 'flash_cards'
+
+export interface ReviewScheduleEntry {
+  kind: ReviewKind
+  stage: number
+  lapses: number
+  dueAt: string
+  updatedAt: string
+}
+
 export interface StoredBook {
   id: string
   source: SourceDocument
@@ -239,6 +249,7 @@ export interface StoredBook {
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest
+  reviewSchedule?: Record<string, ReviewScheduleEntry>
   createdAt: string
   updatedAt: string
   generationJobs: GenerationJob[]
