@@ -188,3 +188,52 @@ describe('parseLearningBook · 新内容块守卫', () => {
     expect(() => parseLearningBook(withBlocks([notArray]))).toThrowError(expect.objectContaining(INVALID))
   })
 })
+
+describe('parseLearningBook · pretest 守卫', () => {
+  const pretestQuestion = {
+    id: 'pq-1',
+    chapterId: 'ch-1',
+    question: '第一章的核心概念是什么？',
+    options: [
+      { id: 'a', marker: 'A', text: '机器学习' },
+      { id: 'b', marker: 'B', text: '烹饪技巧' },
+    ],
+    correctAnswerId: 'a',
+    explanation: '第一章讲解机器学习基础。',
+  }
+  const pretestResult = {
+    answers: { 'pq-1': 'a' },
+    suggestedStartChapterId: 'ch-2',
+    skippableChapterIds: ['ch-1'],
+    submittedAt: '2026-08-11T03:00:00.000Z',
+  }
+
+  it('旧书无 pretest 字段照常通过', () => {
+    expect(parseLearningBook(storedPayload).pretest).toBeUndefined()
+  })
+
+  it('接受 result 为 null 或已判定的合法 pretest', () => {
+    const withNull = { ...storedPayload, pretest: { questions: [pretestQuestion], result: null } }
+    expect(parseLearningBook(withNull).pretest?.result).toBeNull()
+
+    const withResult = { ...storedPayload, pretest: { questions: [pretestQuestion], result: pretestResult } }
+    expect(parseLearningBook(withResult).pretest?.result?.suggestedStartChapterId).toBe('ch-2')
+  })
+
+  it('拒绝形状非法的 pretest', () => {
+    expect(() => parseLearningBook({ ...storedPayload, pretest: { questions: '五道题', result: null } }))
+      .toThrowError(expect.objectContaining(INVALID))
+    expect(() => parseLearningBook({
+      ...storedPayload,
+      pretest: { questions: [{ ...pretestQuestion, correctAnswerId: 1 }], result: null },
+    })).toThrowError(expect.objectContaining(INVALID))
+    expect(() => parseLearningBook({
+      ...storedPayload,
+      pretest: { questions: [pretestQuestion], result: { ...pretestResult, skippableChapterIds: 'ch-1' } },
+    })).toThrowError(expect.objectContaining(INVALID))
+    expect(() => parseLearningBook({
+      ...storedPayload,
+      pretest: { questions: [pretestQuestion], result: { ...pretestResult, answers: { 'pq-1': 1 } } },
+    })).toThrowError(expect.objectContaining(INVALID))
+  })
+})

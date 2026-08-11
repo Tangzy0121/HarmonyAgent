@@ -12,12 +12,15 @@ import {
   type LearnerLevel,
   type LearningEvidence,
   type LearningGoal,
+  type PretestQuestion,
   type QuizAttempt,
   type StoredBook,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
 import { computeMastery } from '../books/mastery.js'
+import { buildPretestMessages } from '../books/pretestPrompt.js'
+import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
 import {
@@ -47,6 +50,9 @@ export interface BooksLogEvent {
     | 'book_created'
     | 'book_removed'
     | 'attempt_recorded'
+    | 'pretest_generated'
+    | 'pretest_validation_failed'
+    | 'pretest_result_submitted'
   status?: number
   name?: string
   attempt?: number
@@ -841,6 +847,155 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
     res.status(201).json({ attempt, evidence, mastery })
+  })
+
+  router.post('/:id/pretest', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    // 目录未确认（proposal）时章节骨架还可能被改，不出摸底题
+    if (book.status === 'proposal') {
+      res.status(409).json({ error: 'pretest_unavailable' })
+      return
+    }
+    // 幂等：已生成直接返回现存量（含已提交的 result）
+    if (book.pretest !== undefined) {
+      res.status(200).json(book.pretest)
+      return
+    }
+    const apiKey = env.LLM_API_KEY?.trim() ?? ''
+    if (!apiKey) {
+      res.status(503).json({ error: 'pretest_not_configured' })
+      return
+    }
+
+    const chapters = [...book.chapters].sort((a, b) => a.order - b.order)
+    const messages = buildPretestMessages({
+      bookTitle: book.proposal.title,
+      chapters: chapters.map((entry) => ({ id: entry.id, title: entry.title, objective: entry.objective })),
+    })
+
+    // 失败分类：上游传输/HTTP/流错误直接失败；解析或校验失败带修正指令重试一次
+    let questions: PretestQuestion[] | null = null
+    let attemptMessages = messages
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      let text: string
+      try {
+        text = await callUpstream(attemptMessages, apiKey)
+      } catch {
+        res.status(502).json({ error: 'upstream_unavailable' })
+        return
+      }
+      try {
+        questions = normalizePretestQuestions(extractJsonObject(text), chapters.map((entry) => entry.id))
+        break
+      } catch (error) {
+        if (
+          !(error instanceof ProposalValidationError) &&
+          !(error instanceof PretestValidationError)
+        ) {
+          throw error
+        }
+        const reason = error instanceof PretestValidationError ? error.reason : undefined
+        emitLog(logger, {
+          category: 'pretest_validation_failed',
+          attempt,
+          bookId: book.id,
+          ...(reason ? { reason } : {}),
+        })
+        attemptMessages = [
+          ...messages,
+          { role: 'assistant', content: text },
+          {
+            role: 'user',
+            content: reason === undefined
+              ? '上次输出未通过校验：pretest_invalid，请只输出合法 JSON。'
+              : `上次输出未通过校验：pretest_invalid（${reason}），请修正后只输出合法 JSON。`,
+          },
+        ]
+      }
+    }
+
+    if (questions === null) {
+      res.status(502).json({ error: 'upstream_unavailable' })
+      return
+    }
+
+    book.pretest = { questions, result: null }
+    book.updatedAt = new Date().toISOString()
+    try {
+      await bookStore.save(book)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'pretest_generated', bookId: book.id })
+    res.status(200).json(book.pretest)
+  })
+
+  router.post('/:id/pretest/result', async (req, res) => {
+    const body: unknown = req.body
+    const answers = isRecord(body) ? body.answers : undefined
+    if (
+      !isRecord(answers) ||
+      !Object.values(answers).every((value) => typeof value === 'string')
+    ) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    if (book.pretest === undefined) {
+      res.status(409).json({ error: 'pretest_unavailable' })
+      return
+    }
+
+    // 判定：某章关联题全对 → 可跳过；无关联题的章不得进 skippable。
+    // 缺答/错答均算不对；suggestedStartChapterId = 第一个非可跳过章（全可跳过则为最后一章）
+    const chapters = [...book.chapters].sort((a, b) => a.order - b.order)
+    const skippableChapterIds = chapters
+      .filter((chapter) => {
+        const related = book.pretest!.questions.filter((question) => question.chapterId === chapter.id)
+        return related.length > 0 &&
+          related.every((question) => answers[question.id] === question.correctAnswerId)
+      })
+      .map((chapter) => chapter.id)
+    const startChapter = chapters.find((chapter) => !skippableChapterIds.includes(chapter.id))
+      ?? chapters.at(-1)!
+
+    book.pretest.result = {
+      answers: answers as Record<string, string>,
+      suggestedStartChapterId: startChapter.id,
+      skippableChapterIds,
+      submittedAt: new Date().toISOString(),
+    }
+    book.updatedAt = book.pretest.result.submittedAt
+    try {
+      await bookStore.save(book)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'pretest_result_submitted', bookId: book.id })
+    res.status(200).json({ book })
   })
 
   const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {

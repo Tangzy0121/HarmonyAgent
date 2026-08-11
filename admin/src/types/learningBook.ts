@@ -176,6 +176,27 @@ export interface LearningEvidence {
   createdAt: string
 }
 
+export interface PretestQuestion {
+  id: string
+  chapterId: string
+  question: string
+  options: QuizOption[]
+  correctAnswerId: string
+  explanation: string
+}
+
+export interface PretestResult {
+  answers: Record<string, string>
+  suggestedStartChapterId: string
+  skippableChapterIds: string[]
+  submittedAt: string
+}
+
+export interface BookPretest {
+  questions: PretestQuestion[]
+  result: PretestResult | null
+}
+
 export interface LearningBook {
   id: string
   source: SourceDocument
@@ -188,6 +209,7 @@ export interface LearningBook {
   userNotes: UserNote[]
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
+  pretest?: BookPretest
 }
 
 export interface AgentContext {

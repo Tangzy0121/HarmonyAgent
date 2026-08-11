@@ -1,6 +1,7 @@
 import type {
   BookBlock,
   BookChapter,
+  BookPretest,
   LearningBook,
   SourceAnchor,
 } from '../types/learningBook'
@@ -134,6 +135,35 @@ function isBookChapter(value: unknown): value is BookChapter {
 }
 
 /**
+ * pretest 为可选字段：旧书没有，缺失时放行；存在时校验形状。
+ * result 为 null（未提交）或完整判定记录。
+ */
+function isBookPretest(value: unknown): value is BookPretest {
+  if (!isRecord(value)) return false
+  if (!Array.isArray(value.questions)) return false
+  const questionsValid = value.questions.every((item) => (
+    isRecord(item)
+    && isString(item.id)
+    && isString(item.chapterId)
+    && isString(item.question)
+    && Array.isArray(item.options) && item.options.every((option) => (
+      isRecord(option) && isString(option.id) && isString(option.marker) && isString(option.text)
+    ))
+    && isString(item.correctAnswerId)
+    && isString(item.explanation)
+  ))
+  if (!questionsValid) return false
+  if (value.result === null) return true
+  return isRecord(value.result)
+    && isRecord(value.result.answers)
+    && Object.values(value.result.answers).every(isString)
+    && isString(value.result.suggestedStartChapterId)
+    && Array.isArray(value.result.skippableChapterIds)
+    && value.result.skippableChapterIds.every(isString)
+    && isString(value.result.submittedAt)
+}
+
+/**
  * 校验服务端学习书载荷的 LearningBook 必需字段——
  * StoredBook 多出的 createdAt/updatedAt/generationJobs 等落盘字段随之透传，
  * 类型上由调用方自行取舍。
@@ -188,6 +218,7 @@ export function parseLearningBook(value: unknown): LearningBook {
       && isOneOf(item.outcome, EVIDENCE_OUTCOMES)
       && isString(item.createdAt)
     ))
+    && (value.pretest === undefined || isBookPretest(value.pretest))
   if (!valid) throw new BookApiError('invalid_book_payload', INVALID_BOOK_PAYLOAD_MESSAGE)
   // 章节按服务端返回顺序（服务端已按 order 排序）归一化为 0 基下标
   for (const [index, chapter] of (value.chapters as BookChapter[]).entries()) chapter.order = index

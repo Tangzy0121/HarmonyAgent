@@ -569,24 +569,47 @@ function chapterBlocksJson(page: number) {
   }
 }
 
+// 摸底题夹具：5 题覆盖 3 章（ch-1 ×2、ch-2 ×2、ch-3 ×1），正确选项均为 'a'
+const pretestJson = {
+  questions: [
+    { chapterId: 'ch-1', question: '第一章的核心概念是什么？', options: [{ id: 'a', text: '机器学习' }, { id: 'b', text: '烹饪技巧' }], correctAnswerId: 'a', explanation: '第一章讲解机器学习基础。' },
+    { chapterId: 'ch-1', question: '第一章的方法属于哪一类？', options: [{ id: 'a', text: '监督学习' }, { id: 'b', text: '烘焙' }], correctAnswerId: 'a', explanation: '第一章方法为监督学习。' },
+    { chapterId: 'ch-2', question: '第二章的核心概念是什么？', options: [{ id: 'a', text: '模型评估' }, { id: 'b', text: '园艺' }], correctAnswerId: 'a', explanation: '第二章讲解模型评估。' },
+    { chapterId: 'ch-2', question: '第二章的指标衡量什么？', options: [{ id: 'a', text: '误差' }, { id: 'b', text: '温度' }], correctAnswerId: 'a', explanation: '指标衡量误差。' },
+    { chapterId: 'ch-3', question: '第三章的核心概念是什么？', options: [{ id: 'a', text: '优化' }, { id: 'b', text: '钓鱼' }], correctAnswerId: 'a', explanation: '第三章讲解优化。' },
+  ],
+}
+
 function chapterAwareFetch(impl: {
   onChapter?: (body: { messages: unknown }, chapterCalls: number) => unknown
+  onPretest?: (body: { messages: unknown }, pretestCalls: number) => unknown
 } = {}) {
   let chapterCalls = 0
+  let pretestCalls = 0
   return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
     const body = JSON.parse(String(init?.body))
-    if (body.max_completion_tokens !== 6000) return upstreamJsonStream(proposalJson)
-    chapterCalls += 1
-    const payload = impl.onChapter?.(body, chapterCalls)
-    if (payload !== undefined) return upstreamJsonStream(payload as string)
+    if (body.max_completion_tokens === 6000) {
+      chapterCalls += 1
+      const payload = impl.onChapter?.(body, chapterCalls)
+      if (payload !== undefined) return upstreamJsonStream(payload as string)
+      const serialized = JSON.stringify(body.messages)
+      // proposalDigest 含全部章节目标，只能按「本章标题」区分章节
+      const page = serialized.includes('本章标题：第一章')
+        ? 1
+        : serialized.includes('本章标题：第二章')
+          ? 3
+          : 5
+      return upstreamJsonStream(chapterBlocksJson(page))
+    }
+    // 摸底与提案同为 1500 tokens，按消息内容分流：摸底提示词含「摸底」
     const serialized = JSON.stringify(body.messages)
-    // proposalDigest 含全部章节目标，只能按「本章标题」区分章节
-    const page = serialized.includes('本章标题：第一章')
-      ? 1
-      : serialized.includes('本章标题：第二章')
-        ? 3
-        : 5
-    return upstreamJsonStream(chapterBlocksJson(page))
+    if (serialized.includes('摸底')) {
+      pretestCalls += 1
+      const payload = impl.onPretest?.(body, pretestCalls)
+      if (payload !== undefined) return upstreamJsonStream(payload as string)
+      return upstreamJsonStream(pretestJson)
+    }
+    return upstreamJsonStream(proposalJson)
   })
 }
 
@@ -1351,5 +1374,251 @@ describe('POST /api/books/:id/attempts', () => {
     expect(res.status).toBe(400)
     expect(res.body).toEqual({ error: 'invalid_request' })
     expect(fetchImpl).toHaveBeenCalledTimes(1) // 仅提案
+  })
+})
+
+describe('POST /api/books/:id/pretest', () => {
+  it('生成 5 道摸底题并落盘：形状归一、提示词不含原文页文本', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/pretest`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.result).toBeNull()
+    expect(res.body.questions).toHaveLength(5)
+    expect(res.body.questions.map((q: { id: string }) => q.id)).toEqual(['pq-1', 'pq-2', 'pq-3', 'pq-4', 'pq-5'])
+    expect(res.body.questions[0]).toMatchObject({
+      chapterId: 'ch-1',
+      correctAnswerId: 'a',
+      explanation: '第一章讲解机器学习基础。',
+    })
+    expect(res.body.questions[0].options).toEqual([
+      { id: 'a', marker: 'A', text: '机器学习' },
+      { id: 'b', marker: 'B', text: '烹饪技巧' },
+    ])
+
+    // 上游请求：1500 tokens / 0.2 / json_object；提示词含目录与目标、不含原文全文
+    const pretestCall = fetchImpl.mock.calls.at(-1)!
+    const providerBody = JSON.parse(String(pretestCall[1]?.body))
+    expect(providerBody).toMatchObject({
+      stream: true,
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 1500,
+      temperature: 0.2,
+    })
+    const serializedMessages = JSON.stringify(providerBody.messages)
+    expect(serializedMessages).toContain('第一章')
+    expect(serializedMessages).toContain('目标三')
+    expect(serializedMessages).not.toContain('【第1页】')
+    expect(serializedMessages).not.toContain(API_KEY)
+
+    // 落盘核实
+    const saved = await bookStore.get(id)
+    expect(saved?.pretest?.questions).toHaveLength(5)
+    expect(saved?.pretest?.result).toBeNull()
+  })
+
+  it('幂等：已生成时直接返回现存量，不再调上游', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const first = await request(app).post(`/api/books/${id}/pretest`)
+    const second = await request(app).post(`/api/books/${id}/pretest`)
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(second.body).toEqual(first.body)
+    // 提案 1 次 + 摸底 1 次，第二次走存量
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('proposal 状态返回 409 pretest_unavailable，不调上游', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const created = await request(app)
+      .post('/api/books')
+      .send({ documentId, goal: '理解概念', learnerLevel: '入门' })
+    expect(created.status).toBe(201)
+
+    const res = await request(app).post(`/api/books/${created.body.book.id}/pretest`)
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'pretest_unavailable' })
+    expect(fetchImpl).toHaveBeenCalledTimes(1) // 仅提案
+    expect((await bookStore.get(created.body.book.id))?.pretest).toBeUndefined()
+  })
+
+  it('校验失败带修正指令重试一次后成功', async () => {
+    const invalidPretest = {
+      questions: pretestJson.questions.map((q, index) =>
+        index === 0 ? { ...q, chapterId: 'ch-99' } : q),
+    }
+    const fetchImpl = chapterAwareFetch({
+      onPretest: (_body, pretestCalls) => (pretestCalls === 1 ? invalidPretest : pretestJson),
+    })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/pretest`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.questions).toHaveLength(5)
+    // 提案 1 次 + 摸底 2 次
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    const retryBody = JSON.parse(String(fetchImpl.mock.calls.at(-1)![1]?.body))
+    const lastMessage = retryBody.messages.at(-1)
+    expect(lastMessage.role).toBe('user')
+    expect(lastMessage.content).toContain('上次输出未通过校验')
+    expect(lastMessage.content).toContain('pretest_invalid')
+  })
+
+  it('两次输出均非法返回 502 upstream_unavailable，不落盘 pretest、不泄密', async () => {
+    const fetchImpl = chapterAwareFetch({ onPretest: () => '这不是 JSON' })
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/pretest`)
+
+    expect(res.status).toBe(502)
+    expect(res.body).toEqual({ error: 'upstream_unavailable' })
+    expect(res.text).not.toContain(API_KEY)
+    expect((await bookStore.get(id))?.pretest).toBeUndefined()
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
+  })
+
+  it('returns 404 book_not_found for an unknown book id', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+
+    const res = await request(app).post('/api/books/book_missing-1/pretest')
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'book_not_found' })
+  })
+})
+
+describe('POST /api/books/:id/pretest/result', () => {
+  interface PretestQuestionPayload { id: string; chapterId: string; correctAnswerId: string }
+
+  async function bookWithPretest(fetchOverride?: Parameters<typeof chapterAwareFetch>[0]) {
+    const fetchImpl = chapterAwareFetch(fetchOverride)
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    const generated = await request(app).post(`/api/books/${id}/pretest`)
+    expect(generated.status).toBe(200)
+    return { id, app, questions: generated.body.questions as PretestQuestionPayload[] }
+  }
+
+  it('全对：三章全进 skippable，建议起点为最后一章，整书返回并落盘', async () => {
+    const { id, app, questions } = await bookWithPretest()
+    const answers = Object.fromEntries(questions.map((q) => [q.id, q.correctAnswerId]))
+
+    const res = await request(app).post(`/api/books/${id}/pretest/result`).send({ answers })
+
+    expect(res.status).toBe(200)
+    expect(res.body.book.pretest.result).toMatchObject({
+      answers,
+      skippableChapterIds: ['ch-1', 'ch-2', 'ch-3'],
+      suggestedStartChapterId: 'ch-3',
+    })
+    expect(Number.isNaN(Date.parse(res.body.book.pretest.result.submittedAt))).toBe(false)
+    expect(res.body.book.chapters).toHaveLength(3)
+
+    const saved = await bookStore.get(id)
+    expect(saved?.pretest?.result?.skippableChapterIds).toEqual(['ch-1', 'ch-2', 'ch-3'])
+  })
+
+  it('部分对：仅全对章可跳过，建议起点为第一个非可跳过章', async () => {
+    const { id, app, questions } = await bookWithPretest()
+    const answers = Object.fromEntries(questions.map((q) => [
+      q.id,
+      q.chapterId === 'ch-1' ? q.correctAnswerId : 'b',
+    ]))
+
+    const res = await request(app).post(`/api/books/${id}/pretest/result`).send({ answers })
+
+    expect(res.status).toBe(200)
+    expect(res.body.book.pretest.result).toMatchObject({
+      skippableChapterIds: ['ch-1'],
+      suggestedStartChapterId: 'ch-2',
+    })
+  })
+
+  it('全错：无章可跳过，建议起点为第一章', async () => {
+    const { id, app, questions } = await bookWithPretest()
+    const answers = Object.fromEntries(questions.map((q) => [q.id, 'b']))
+
+    const res = await request(app).post(`/api/books/${id}/pretest/result`).send({ answers })
+
+    expect(res.status).toBe(200)
+    expect(res.body.book.pretest.result).toMatchObject({
+      skippableChapterIds: [],
+      suggestedStartChapterId: 'ch-1',
+    })
+  })
+
+  it('无关联题的章不得进 skippable（LLM 只出了部分章的题）', async () => {
+    // 5 题只覆盖 ch-1/ch-2：ch-3 无任何关联题
+    const partialPretest = {
+      questions: [...pretestJson.questions.slice(0, 4), { ...pretestJson.questions[4], chapterId: 'ch-2' }],
+    }
+    const { id, app, questions } = await bookWithPretest({ onPretest: () => partialPretest })
+    const answers = Object.fromEntries(questions.map((q) => [q.id, q.correctAnswerId]))
+
+    const res = await request(app).post(`/api/books/${id}/pretest/result`).send({ answers })
+
+    expect(res.status).toBe(200)
+    expect(res.body.book.pretest.result).toMatchObject({
+      skippableChapterIds: ['ch-1', 'ch-2'],
+      suggestedStartChapterId: 'ch-3',
+    })
+  })
+
+  it('未生成摸底时提交返回 409 pretest_unavailable', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app)
+      .post(`/api/books/${id}/pretest/result`)
+      .send({ answers: { 'pq-1': 'a' } })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'pretest_unavailable' })
+  })
+
+  it('returns 400 invalid_request for malformed answers', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${id}/pretest`)
+
+    const notRecord = await request(app)
+      .post(`/api/books/${id}/pretest/result`)
+      .send({ answers: ['a'] })
+    expect(notRecord.status).toBe(400)
+    expect(notRecord.body).toEqual({ error: 'invalid_request' })
+
+    const nonStringValue = await request(app)
+      .post(`/api/books/${id}/pretest/result`)
+      .send({ answers: { 'pq-1': 1 } })
+    expect(nonStringValue.status).toBe(400)
+    expect(nonStringValue.body).toEqual({ error: 'invalid_request' })
+  })
+
+  it('returns 404 book_not_found for an unknown book id', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+
+    const res = await request(app)
+      .post('/api/books/book_missing-1/pretest/result')
+      .send({ answers: {} })
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'book_not_found' })
   })
 })
