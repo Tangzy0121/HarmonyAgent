@@ -1,8 +1,8 @@
 import type { Destination } from '../types/prototype'
 
 export const destinations: Array<{ id: Destination; label: string }> = [
-  { id: 'today', label: '今日' },
-  { id: 'learning', label: '学习' },
+  { id: 'today', label: '看板' },
+  { id: 'learning', label: '地图' },
   { id: 'library', label: '知识库' },
 ]
 

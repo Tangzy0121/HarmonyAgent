@@ -321,6 +321,7 @@ function App() {
         <TodayPage
           isActive={!activeDocumentId && !activeLearningId && activeDestination === 'today'}
           isOutcomeMode={isTodayOutcome}
+          onStartLearning={startLearning}
         />
         <LearningMapPage
           isActive={!activeDocumentId && !activeLearningId && activeDestination === 'learning'}

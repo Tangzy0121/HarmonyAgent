@@ -1,49 +1,38 @@
-# Learning Map Design QA
+# Learning Dashboard Design QA
 
-## Comparison Target
+- Source visual truth: `C:\Users\LENOVO\.codex\generated_images\019feee8-def0-7f83-a194-d39216fcb42d\exec-9c1549ab-7e1a-44ba-8a07-025c84c72a7c.png`
+- Implementation screenshot: `D:\Codex-workplace\HUAWEI-knowledge-management\design-qa-today-implementation.png`
+- Side-by-side comparison: `D:\Codex-workplace\HUAWEI-knowledge-management\design-qa-today-comparison.png`
+- Route and state: `http://127.0.0.1:5173/#today`, default Tuesday dashboard state
+- Viewport: 390 × 844 CSS px, deviceScaleFactor 1
 
-- Source visual truth: `C:\Users\LENOVO\AppData\Local\Temp\codex-clipboard-ffdfe830-334c-4ca8-814f-71b38e01afdb.png`
-- Rendered implementation: `D:\Codex-workplace\HUAWEI-knowledge-management\docs\worklog\prototype-building\results\2026-07-24-learning-map-clean-final.png`
-- State: learning page, all filters selected, no node modal open, map reset to its initial viewport.
+## Full-view comparison evidence
 
-## Viewport And Normalization
+The comparison places the approved revised mock on the left and the live implementation on the right at the same 390 × 844 dimensions. Both use a warm apricot header, seven-day selector, single ordered task queue, weekly review summary, and edge-aligned bottom navigation. Following the latest user direction, the implementation extends the solid color through the entire date strip and replaces the regular wave with an asymmetric melting edge.
 
-- Source pixels: 913 × 942 at 144 dpi.
-- Browser capture pixels: 708 × 880; browser CSS viewport reported 723 × 898 at device pixel ratio 1.5.
-- Loci app region used for comparison: 480 × 880 pixels, matching the visible 480 CSS-pixel mobile prototype width in the capture.
-- Full-view normalization: source resized proportionally to 854 × 880; implementation app region kept at 480 × 880; both placed on one comparison canvas without stretching.
-- Focused comparison: source graph region cropped to 800 × 650 and normalized to 689 × 560; implementation graph region cropped to 480 × 570 and normalized proportionally to 472 × 560.
-- The reference is a visual-language target rather than a Loci information-architecture mock. App header, filters, bottom navigation, Chinese copy, learning states, and node count intentionally remain Loci-owned.
+## Required fidelity surfaces
 
-## Findings
+- Typography: large ink-navy dashboard title, compact secondary date, prominent section heading, and clear three-level task hierarchy.
+- Layout: title/date header, weekly selector, ordered task rail, selected task action, review summary, and four-position navigation follow the approved reference.
+- Color and materials: pure white page background, flat warm-apricot brand field with a solid vector melting edge, pale apricot review surface, ink-navy actions. No gradient, card outline, or decorative page shadow.
+- Content: daily work is ordered by learning sequence, not divided into clock times. Tuesday contains continue learning, review, and next-task states.
+- Progress: the selected learning item exposes 37% progress and the weekly review surface exposes 4/6 completion.
+- Navigation: the former Today destination is labeled 看板; the learning destination is labeled 地图; Agent remains horizontally aligned in the fourth position.
 
-- No actionable P0, P1, or P2 mismatches remain.
-- Fonts and typography: Loci retains its established display and UI typography. Node labels use compact bold titles with quiet metadata, matching the reference hierarchy without copying its unrelated Latin font.
-- Spacing and layout rhythm: nodes use a consistent 62-pixel world-space circle, external labels, broad whitespace, and two balanced relationship tracks. Left and right labels alternate sides so mobile-edge clipping does not obscure primary nodes.
-- Colors and visual tokens: the map is warm white with neutral gray lines. Learning state is expressed only through black, white, and gray fills; peach-blossom imagery and colored node surfaces are absent.
-- Image quality and asset fidelity: the source contains no required raster imagery. Existing UI icons are rendered sharply at the map scale; no placeholder or generated decorative asset is used.
-- Copy and content: all eight existing knowledge topics, categories, learning states, summaries, and actions are preserved.
-- Icons: all node icons share one stroke family and size. Their semantics map to learning, review, mastery, and unseen states.
-- Responsiveness: primary nodes and their labels remain visible at the 480-pixel app width. Off-canvas neighbors remain partial exploration cues and are reachable by drag.
-- Accessibility: every node remains a labeled button, filters remain semantic buttons, focus-visible styles are present, and node contrast is sufficient against the warm-white canvas.
-- Intentional deviation: the reference's inline plus controls are omitted because they imply a graph-editing action that is outside the requested product scope.
+## Interaction and runtime checks
 
-## Interaction Verification
+- Selecting another date updates the heading and task plan.
+- Selecting a task moves the primary action to that task.
+- The weekly review control expands and collapses the remaining review details.
+- The primary task action navigates to `#learn/supervised-learning/explanation`.
+- Browser runtime logs contain no application errors.
+- TypeScript and Vite production build passed.
 
-- Dragged the map from a blank canvas area and confirmed the world transform changed.
-- Used the locate control and confirmed the map returned to `matrix(0.72, 0, 0, 0.72, -150, 62)`.
-- Opened the machine-learning node and confirmed the centered detail modal, scrim, close action, related-topic count, and learning actions were present.
-- Selected the review filter and confirmed only the two review nodes remained at full opacity; restored the all filter afterward.
-- Checked browser console errors: none.
+## Comparison assessment
 
-## Comparison History
-
-1. 初稿曾出现右侧节点被裁切、图谱纵向跨度不足和曲线结构松散的问题。
-2. 修正稿将右侧标签移至内侧，增加图谱纵向跨度，并将初始缩放重置为 `0.72`。
-3. 最终稿改用细线圆角正交连接，早期 P1/P2 问题均已消除。中间稿与比较拼图已按 worklog 保留规则清理。
-
-## Follow-up Polish
-
-- P3: the partial labels of off-canvas second-degree nodes could be hidden until they enter the viewport, but retaining them currently provides a useful drag affordance.
+- P0: none.
+- P1: none.
+- P2: none.
+- P3: the live version is intentionally slightly denser than the generated mock so all information and navigation remain visible at the target viewport without scrolling.
 
 final result: passed
