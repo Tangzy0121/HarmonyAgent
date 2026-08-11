@@ -5374,7 +5374,8 @@ button:disabled {
 .book-figure-zoom__toolbar { display: flex; gap: 10px; justify-content: center; padding: 14px; }
 .book-figure-zoom__toolbar button { min-width: 44px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; color: #fff; background: rgb(255 255 255 / 0.14); font-size: 0.92rem; font-weight: 650; cursor: pointer; }
 .book-figure-zoom__toolbar button:disabled { opacity: 0.4; cursor: default; }
-.book-figure-zoom__stage { flex: 1; overflow: auto; display: grid; place-items: center; padding: 10px 16px 26px; }
+.book-figure-zoom__stage { flex: 1; overflow: auto; display: grid; place-items: center; padding: 10px 16px 26px; cursor: grab; touch-action: none; }
+.book-figure-zoom__stage:active { cursor: grabbing; }
 .book-figure-zoom__content { padding: 22px; border-radius: 16px; background: #fff; transform-origin: center center; }
 .book-figure-zoom__content svg { max-width: none; }
 .katex-host--display { display: block; overflow-x: auto; }

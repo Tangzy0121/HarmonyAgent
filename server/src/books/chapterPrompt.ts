@@ -34,7 +34,7 @@ function systemRules(): string {
     '每章产出 6 到 10 个内容块，至少 4 种不同类型；同一类型不得连续出现超过 2 个。',
     '概念关系、流程、演进、对比类内容必须产出至少 1 个 figure 块；易混淆点必须产出 callout（kind 为 pitfall）块；术语或定义密集的内容必须产出 flash_cards 块。',
     '相邻块之间要有自然的逻辑衔接。',
-    'figure 块的 mermaid 源码必须与 kind 对应：flowchart 用 "flowchart LR/TD"，mindmap 用 "mindmap"，timeline 用 "timeline"，sequence 用 "sequenceDiagram"；节点文字避免引号与换行，保持语法简单。',
+    'figure 块的 mermaid 源码必须与 kind 对应：flowchart 用 "flowchart LR/TD"，mindmap 用 "mindmap"，timeline 用 "timeline"，sequence 用 "sequenceDiagram"；窄屏阅读场景，flowchart 优先使用纵向布局 "flowchart TD"；节点文字避免引号与换行，保持语法简单。',
     '每章至少包含一个 explanation 块、一个 citation 块和一个 quiz 块。',
     'quiz 块每章 1 到 2 道（快速验证题），不要超过 2 道。',
     '内容必须忠于给定页文本，citation 的 excerpt 必须逐字引用原文。',

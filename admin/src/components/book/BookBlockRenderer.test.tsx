@@ -274,7 +274,12 @@ describe('BookBlockRenderer · figure', () => {
       expect(findByClass(container, 'book-figure__canvas').innerHTML).toContain('<svg')
     })
 
-    expect(mermaidMock.initialize).toHaveBeenCalledWith({ startOnLoad: false, securityLevel: 'strict' })
+    expect(mermaidMock.initialize).toHaveBeenCalledWith(expect.objectContaining({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: 'base',
+      themeVariables: expect.objectContaining({ fontSize: '16px' }),
+    }))
     expect(mermaidMock.parse).toHaveBeenCalledWith(figureBlock.mermaid)
     expect(container.textContent).toContain('训练流程示意')
     expect(container.textContent).toContain('图解')
@@ -379,18 +384,43 @@ describe('BookBlockRenderer · figure 大图', () => {
     const dialog = findByClass(container, 'book-figure-zoom')
     expect(dialog.getAttribute('role')).toBe('dialog')
     const zoomContent = () => findByClass(container, 'book-figure-zoom__content')
-    expect(zoomContent().style.transform).toBe('scale(1)')
+    expect(zoomContent().style.transform).toBe('translate(0px, 0px) scale(1)')
     expect(zoomContent().innerHTML).toContain('<svg')
 
     const zoomIn = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === '继续放大')
     expect(zoomIn, 'zoom in button').toBeDefined()
     click(zoomIn as FakeElement)
-    expect(zoomContent().style.transform).toBe('scale(1.5)')
+    expect(zoomContent().style.transform).toBe('translate(0px, 0px) scale(1.5)')
 
     const close = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === '关闭大图')
     expect(close, 'close button').toBeDefined()
     click(close as FakeElement)
     expect(descendants(container).some((element) => element.className.split(' ').includes('book-figure-zoom'))).toBe(false)
+  })
+
+  it('pans the zoomed figure by pointer drag and resets the view', async () => {
+    const container = renderBlock(figureBlock)
+    await vi.waitFor(() => {
+      expect(findByClass(container, 'book-figure__canvas').innerHTML).toContain('<svg')
+    })
+    click(findByClass(container, 'book-figure__canvas'))
+
+    const stage = findByClass(container, 'book-figure-zoom__stage')
+    const zoomContent = () => findByClass(container, 'book-figure-zoom__content')
+    type PointerData = Parameters<typeof Simulate.pointerDown>[1]
+    const pointerAt = (x: number, y: number) => ({ pointerId: 1, clientX: x, clientY: y }) as unknown as PointerData
+    flushSync(() => Simulate.pointerDown(stage as unknown as Element, pointerAt(100, 100)))
+    flushSync(() => Simulate.pointerMove(stage as unknown as Element, pointerAt(160, 140)))
+    expect(zoomContent().style.transform).toBe('translate(60px, 40px) scale(1)')
+    flushSync(() => Simulate.pointerUp(stage as unknown as Element, pointerAt(160, 140)))
+
+    // 拖拽松手后再次移动不再平移
+    flushSync(() => Simulate.pointerMove(stage as unknown as Element, pointerAt(300, 300)))
+    expect(zoomContent().style.transform).toBe('translate(60px, 40px) scale(1)')
+
+    const reset = descendants(container).find((element) => element.tagName === 'BUTTON' && element.getAttribute('aria-label') === '重置缩放')
+    click(reset as FakeElement)
+    expect(zoomContent().style.transform).toBe('translate(0px, 0px) scale(1)')
   })
 })
 

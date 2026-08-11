@@ -96,6 +96,13 @@ describe('buildChapterMessages', () => {
     expect(system.content).toContain('行内公式用 $...$ 包裹')
   })
 
+  it('prefers vertical flowchart layout for narrow-screen reading', () => {
+    const [system] = buildChapterMessages(input)
+
+    expect(system.content).toContain('flowchart TD')
+    expect(system.content).toContain('纵向布局')
+  })
+
   it('never embeds secret-shaped material in any message', () => {
     const text = serialized(buildChapterMessages(input))
 
