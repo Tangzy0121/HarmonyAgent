@@ -599,6 +599,24 @@ async function createConfirmedBook(app: express.Express): Promise<{ id: string }
 }
 
 describe('POST /api/books/:id/chapters/:cid/generate', () => {
+  it('namespaces generated block ids by chapter id so they are unique book-wide', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const first = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const second = await request(app).post(`/api/books/${id}/chapters/ch-2/generate`)
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+
+    const saved = await bookStore.get(id)
+    const ids = saved!.chapters.flatMap((entry) => entry.blocks.map((block) => block.id))
+    expect(ids.length).toBeGreaterThan(0)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toContain('blk-ch-1-explanation-1')
+    expect(ids).toContain('blk-ch-2-explanation-1')
+  })
+
   it('streams chapter_start → block×N → chapter_done and persists blocks, chapter and job', async () => {
     const fetchImpl = chapterAwareFetch()
     const app = appWith(fetchImpl)
@@ -620,20 +638,20 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(events[0].data).toEqual({ chapterId: 'ch-1' })
     expect(events[1].data).toMatchObject({ index: 0 })
     expect(events[1].data.block).toMatchObject({
-      id: 'blk-explanation-1',
+      id: 'blk-ch-1-explanation-1',
       type: 'explanation',
       status: 'ready',
       revision: 1,
     })
-    expect(events[2].data.block).toMatchObject({ id: 'blk-citation-1', type: 'citation' })
+    expect(events[2].data.block).toMatchObject({ id: 'blk-ch-1-citation-1', type: 'citation' })
     expect(events[2].data.block.sourceAnchors).toEqual([{
       sourceId: 'S1',
       fileName: 'lecture.pdf',
       pageRange: '1',
       excerpt: '机器学习的第1部分讲解内容',
     }])
-    expect(events[3].data.block).toMatchObject({ id: 'blk-quiz-1', type: 'quiz' })
-    expect(events[4].data.block).toMatchObject({ id: 'blk-example-1', type: 'example' })
+    expect(events[3].data.block).toMatchObject({ id: 'blk-ch-1-quiz-1', type: 'quiz' })
+    expect(events[4].data.block).toMatchObject({ id: 'blk-ch-1-example-1', type: 'example' })
     expect(events[5].data).toEqual({ blockCount: 4, warnings: [] })
 
     // 章节生成上游请求：6000 tokens / 0.2 / json_object / 流式
@@ -654,10 +672,10 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(chapter?.status).toBe('ready')
     expect(chapter?.blocks).toHaveLength(4)
     expect(chapter?.blocks.map((block) => block.id)).toEqual([
-      'blk-explanation-1',
-      'blk-citation-1',
-      'blk-quiz-1',
-      'blk-example-1',
+      'blk-ch-1-explanation-1',
+      'blk-ch-1-citation-1',
+      'blk-ch-1-quiz-1',
+      'blk-ch-1-example-1',
     ])
     const job = saved?.generationJobs.find((entry) => entry.chapterId === 'ch-1')
     expect(job).toMatchObject({ status: 'ready', attempts: 1, lastError: null })

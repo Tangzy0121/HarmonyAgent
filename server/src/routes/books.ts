@@ -616,6 +616,8 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
         pageEnd: anchorRange.end,
         fileName: document.fileName,
         remainingBookBudget: BOOK_BLOCK_BUDGET - usedBlocks,
+        // 块 id 以章节 id 为命名空间，保证全书范围唯一（Agent 全书上下文依赖块 id 唯一）
+        idPrefix: `${chapter.id}-`,
       }
 
       // 解析/校验失败带修正指令重试一次；上游传输类失败不重试

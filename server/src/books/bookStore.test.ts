@@ -83,6 +83,90 @@ describe('bookStore', () => {
     expect(saved).toEqual(book)
   })
 
+  it('get migrates legacy cross-chapter duplicate block ids and remaps same-chapter references', async () => {
+    const store = createBookStore(dir)
+    const chapter = (chapterId: string): StoredBook['chapters'][number] => ({
+      id: chapterId,
+      title: `章节 ${chapterId}`,
+      order: 1,
+      objective: '目标',
+      coreConceptId: `concept-${chapterId}`,
+      estimatedMinutes: 10,
+      sourceAnchors: [],
+      status: 'ready',
+      blocks: [{
+        id: 'blk-quiz-1',
+        type: 'quiz',
+        status: 'ready',
+        title: '随堂小测',
+        revision: 1,
+        sourceAnchors: [],
+        conceptId: 'c1',
+        question: '问题？',
+        options: [
+          { id: 'o1', marker: 'A', text: '甲' },
+          { id: 'o2', marker: 'B', text: '乙' },
+        ],
+        correctAnswerId: 'o1',
+        feedback: '反馈',
+      }],
+    })
+    const book = makeBook('book_legacy-dup-ids', {
+      chapters: [chapter('ch-1'), chapter('ch-2')],
+      quizAttempts: [
+        { id: 'qa-1', chapterId: 'ch-1', blockId: 'blk-quiz-1', answerId: 'o1', isCorrect: true, submittedAt: '2026-08-10T01:00:00.000Z' },
+        { id: 'qa-2', chapterId: 'ch-2', blockId: 'blk-quiz-1', answerId: 'o2', isCorrect: false, submittedAt: '2026-08-10T02:00:00.000Z' },
+      ],
+      userNotes: [{ id: 'note-1', chapterId: 'ch-2', blockId: 'blk-quiz-1', body: '笔记', createdAt: '2026-08-10T03:00:00.000Z' }],
+      evidence: [{ id: 'ev-1', chapterId: 'ch-2', conceptId: 'c1', sourceBlockId: 'blk-quiz-1', statement: '证据', outcome: 'mastered', createdAt: '2026-08-10T04:00:00.000Z' }],
+    })
+
+    await store.save(book)
+    const saved = (await store.get(book.id))!
+
+    const ids = saved.chapters.flatMap((entry) => entry.blocks.map((block) => block.id))
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toEqual(['blk-ch-1-quiz-1', 'blk-ch-2-quiz-1'])
+    expect(saved.quizAttempts.map((entry) => entry.blockId)).toEqual(['blk-ch-1-quiz-1', 'blk-ch-2-quiz-1'])
+    expect(saved.userNotes[0]?.blockId).toBe('blk-ch-2-quiz-1')
+    expect(saved.evidence[0]?.sourceBlockId).toBe('blk-ch-2-quiz-1')
+  })
+
+  it('get leaves books with already-unique block ids untouched', async () => {
+    const store = createBookStore(dir)
+    const chapter = (chapterId: string): StoredBook['chapters'][number] => ({
+      id: chapterId,
+      title: `章节 ${chapterId}`,
+      order: 1,
+      objective: '目标',
+      coreConceptId: `concept-${chapterId}`,
+      estimatedMinutes: 10,
+      sourceAnchors: [],
+      status: 'ready',
+      blocks: [{
+        id: `blk-${chapterId}-quiz-1`,
+        type: 'quiz',
+        status: 'ready',
+        title: '随堂小测',
+        revision: 1,
+        sourceAnchors: [],
+        conceptId: 'c1',
+        question: '问题？',
+        options: [
+          { id: 'o1', marker: 'A', text: '甲' },
+          { id: 'o2', marker: 'B', text: '乙' },
+        ],
+        correctAnswerId: 'o1',
+        feedback: '反馈',
+      }],
+    })
+    const book = makeBook('book_unique-ids', { chapters: [chapter('ch-1'), chapter('ch-2')] })
+
+    await store.save(book)
+    const saved = await store.get(book.id)
+    expect(saved).toEqual(book)
+  })
+
   it('get returns null for an unknown id and rejects unsafe ids', async () => {
     const store = createBookStore(dir)
     await expect(store.get('book_does-not-exist')).resolves.toBeNull()

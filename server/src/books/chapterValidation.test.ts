@@ -130,6 +130,19 @@ function validBlocks() {
 }
 
 describe('normalizeChapterBlocks', () => {
+  it('namespaces block ids with ctx.idPrefix so generated ids stay unique across chapters', () => {
+    const { blocks } = normalizeChapterBlocks({ blocks: validBlocks() }, { ...baseCtx, idPrefix: 'ch-2-' })
+
+    expect(blocks.map((block) => block.id)).toEqual([
+      'blk-ch-2-explanation-1',
+      'blk-ch-2-example-1',
+      'blk-ch-2-citation-1',
+      'blk-ch-2-concept-1',
+      'blk-ch-2-quiz-1',
+      'blk-ch-2-formula-1',
+    ])
+  })
+
   it('accepts the six valid block types and assigns per-type sequential ids', () => {
     const { blocks, warnings } = normalizeChapterBlocks({ blocks: validBlocks() }, baseCtx)
 

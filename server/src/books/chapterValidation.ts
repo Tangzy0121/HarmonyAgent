@@ -29,6 +29,8 @@ export interface ChapterValidationContext {
   pageEnd: number
   fileName: string
   remainingBookBudget: number
+  /** 块 id 命名空间（章节 id 前缀），保证全书范围唯一；缺省保持旧格式 */
+  idPrefix?: string
 }
 
 // 模型允许产出的块类型白名单（user_note 只能由本地产出，不在此列）
@@ -114,11 +116,12 @@ function normalizeBase(
   raw: Record<string, unknown>,
   type: BookBlockType,
   counters: Map<string, number>,
+  idPrefix: string,
 ): RawBase & { id: string } {
   const next = (counters.get(type) ?? 0) + 1
   counters.set(type, next)
   return {
-    id: `blk-${type}-${next}`,
+    id: `blk-${idPrefix}${type}-${next}`,
     type,
     title: optionalText(raw.title) ?? DEFAULT_TITLES[type] ?? '内容块',
   }
@@ -341,6 +344,7 @@ export function normalizeChapterBlocks(
   const warnings: string[] = []
   let blocks: BookBlock[] = []
   const counters = new Map<string, number>()
+  const idPrefix = ctx.idPrefix ?? ''
 
   for (const entry of record.blocks) {
     if (!isRecord(entry)) {
@@ -362,7 +366,7 @@ export function normalizeChapterBlocks(
           warnings.push(`已丢弃字段缺失的 explanation 块「${optionalText(entry.title) ?? ''}」`)
           continue
         }
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'explanation', body, keyPoint })
         break
       }
@@ -373,7 +377,7 @@ export function normalizeChapterBlocks(
           warnings.push(`已丢弃字段缺失的 example 块「${optionalText(entry.title) ?? ''}」`)
           continue
         }
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'example', scenario, takeaway })
         break
       }
@@ -384,14 +388,14 @@ export function normalizeChapterBlocks(
           warnings.push(`已丢弃字段缺失的 formula 块「${optionalText(entry.title) ?? ''}」`)
           continue
         }
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'formula', formula, explanation })
         break
       }
       case 'citation': {
         const citation = normalizeCitation(entry, ctx, warnings)
         if (citation === null) continue
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({
           ...withCommonFields(base),
           type: 'citation',
@@ -408,13 +412,13 @@ export function normalizeChapterBlocks(
           continue
         }
         const relations = normalizeRelations(entry.relations, concepts, ctx, warnings)
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'concept', concepts, relations })
         break
       }
       case 'quiz': {
         const quiz = normalizeQuiz(entry)
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'quiz', ...quiz })
         break
       }
@@ -424,7 +428,7 @@ export function normalizeChapterBlocks(
           warnings.push(`已丢弃字段非法的 callout 块「${optionalText(entry.title) ?? ''}」`)
           continue
         }
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'callout', ...callout })
         break
       }
@@ -434,7 +438,7 @@ export function normalizeChapterBlocks(
           warnings.push(`已丢弃字段非法的 flash_cards 块「${optionalText(entry.title) ?? ''}」`)
           continue
         }
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'flash_cards', ...flashCards })
         break
       }
@@ -444,7 +448,7 @@ export function normalizeChapterBlocks(
           warnings.push(`已丢弃字段非法的 figure 块「${optionalText(entry.title) ?? ''}」`)
           continue
         }
-        const base = normalizeBase(entry, blockType, counters)
+        const base = normalizeBase(entry, blockType, counters, idPrefix)
         blocks.push({ ...withCommonFields(base), type: 'figure', ...figure })
         break
       }
