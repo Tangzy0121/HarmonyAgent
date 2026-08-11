@@ -8,6 +8,7 @@ import {
   getBook,
   listBooks,
   streamChapterGeneration,
+  submitAttempt,
   updateProposal,
   uploadDocument,
   type ChapterGenerationEvent,
@@ -188,6 +189,67 @@ describe('book collection endpoints', () => {
     expect(actualUrl).toBe('/api/books/book-1/confirm')
     expect(actualInit?.method).toBe('POST')
     expect(book.status).toBe('generating')
+  })
+})
+
+describe('submitAttempt', () => {
+  const attemptResult = {
+    attempt: {
+      id: 'attempt_9f1c',
+      chapterId: 'ch-1',
+      blockId: 'blk-quiz-1',
+      answerId: 'answer-b',
+      isCorrect: true,
+      submittedAt: '2026-08-11T01:00:00.000Z',
+    },
+    evidence: {
+      id: 'evidence_9f1c',
+      chapterId: 'ch-1',
+      conceptId: 'supervised-learning',
+      sourceBlockId: 'blk-quiz-1',
+      statement: '答对：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+      outcome: 'mastered',
+      createdAt: '2026-08-11T01:00:00.000Z',
+    },
+    mastery: { chapter: 0.5, concept: 0.5 },
+  }
+
+  it('posts blockId/answerId to the attempts endpoint and parses the 201 payload', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse(attemptResult, 201)
+    }))
+
+    const result = await submitAttempt('book-1', 'blk-quiz-1', 'answer-b')
+
+    expect(actualUrl).toBe('/api/books/book-1/attempts')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ blockId: 'blk-quiz-1', answerId: 'answer-b' })
+    expect(result).toEqual(attemptResult)
+  })
+
+  it.each([
+    ['quiz_not_found'],
+    ['invalid_answer'],
+  ])('passes through the 409 error code %s', async (code) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: code }, 409)))
+
+    await expect(submitAttempt('book-1', 'blk-quiz-1', 'answer-x'))
+      .rejects.toMatchObject({ name: 'BookApiError', code })
+  })
+
+  it.each([
+    ['missing evidence and mastery', { attempt: attemptResult.attempt }],
+    ['non-numeric mastery', { ...attemptResult, mastery: { chapter: '0.5', concept: 0.5 } }],
+    ['unknown evidence outcome', { ...attemptResult, evidence: { ...attemptResult.evidence, outcome: 'unknown' } }],
+  ])('rejects a malformed 201 payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, 201)))
+
+    await expect(submitAttempt('book-1', 'blk-quiz-1', 'answer-b'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_attempt_payload' })
   })
 })
 

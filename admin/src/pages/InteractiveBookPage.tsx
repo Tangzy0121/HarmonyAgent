@@ -3,6 +3,7 @@ import { BookBlockRenderer } from '../components/book/BookBlockRenderer'
 import { BookContextBar } from '../components/book/BookContextBar'
 import { BookGenerationRail } from '../components/book/BookGenerationRail'
 import { advanceGeneration, regenerateBlock, retryChapterGeneration, submitQuizAttempt, updateUserNote } from '../domain/learningBook'
+import { chapterMastery, deriveConceptLearningState, latestAttemptForBlock, latestEvidenceForBlock } from '../domain/learningProjection'
 import type { AgentContextScope, LearningBook } from '../types/learningBook'
 
 interface InteractiveBookPageProps {
@@ -21,13 +22,24 @@ interface InteractiveBookPageProps {
   chapterProgress?: { blocksReceived: number } | null
   /** 真实书失败章重试：重新发起该章的流式生成 */
   onRetryChapter?: (chapterId: string) => void
+  /** 真实书：答题提交走服务端持久化（异步）；缺省时走本地 mock 逻辑 */
+  onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<void>
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
+  // 掌握度与概念学习状态仅对真实书从 attempts 派生（mock 原型页行为不变）
+  const activeChapterMastery = isRealBook ? chapterMastery(book, activeChapter.id) : null
+  const masteryByChapterId = isRealBook
+    ? Object.fromEntries(
+        book.chapters
+          .map((chapter) => [chapter.id, chapterMastery(book, chapter.id)] as const)
+          .filter((entry): entry is readonly [string, number] => entry[1] !== null),
+      )
+    : undefined
 
   return (
     <section className="interactive-book-page" aria-labelledby="interactive-book-title">
@@ -37,7 +49,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
       </header>
 
-      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} />
+      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} />
 
       <main className="interactive-book-reader">
         <BookContextBar contextScope={contextScope} onContextScopeChange={onContextScopeChange} onAskAgent={onAskAgent} />
@@ -65,28 +77,40 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         ) : activeChapter.status === 'ready' || activeChapter.status === 'partial' ? (
           <article className="interactive-book-chapter">
             <header className="interactive-book-chapter__hero">
-              <p>第 {activeChapter.order + 1} 章 · {activeChapter.estimatedMinutes} 分钟</p>
+              <p>
+                第 {activeChapter.order + 1} 章 · {activeChapter.estimatedMinutes} 分钟
+                {activeChapterMastery !== null && ` · 掌握度 ${Math.round(activeChapterMastery * 100)}%`}
+              </p>
               <h1 id="interactive-book-title">{book.proposal.title}</h1>
               <h2>{activeChapter.title}</h2>
               <span>{activeChapter.objective}</span>
               <small>依据原文第 {activeChapter.sourceAnchors.map((anchor) => anchor.pageRange).join('、')} 页生成</small>
             </header>
             <div className="interactive-book-blocks">
-              {activeChapter.blocks.map((block) => (
-                <BookBlockRenderer
-                  key={block.id}
-                  block={block}
-                  note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
-                  attempt={book.quizAttempts.find((attempt) => attempt.blockId === block.id)}
-                  evidence={block.type === 'quiz' ? book.evidence.find((item) => item.sourceBlockId === block.id) : undefined}
-                  allowBlockRegenerate={!isRealBook}
-                  onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
-                  onSubmitQuiz={(blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
-                  onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
-                  onStartDeepLearning={onStartDeepLearning}
-                  onAskAgent={onAskAgent}
-                />
-              ))}
+              {activeChapter.blocks.map((block) => {
+                // 概念学习状态由客户端从 attempts 派生（真实书），不改服务端块数据
+                const displayBlock = isRealBook && block.type === 'concept'
+                  ? { ...block, concepts: block.concepts.map((concept) => ({ ...concept, learningState: deriveConceptLearningState(book, concept.id) })) }
+                  : block
+                return (
+                  <BookBlockRenderer
+                    key={block.id}
+                    block={displayBlock}
+                    note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
+                    attempt={latestAttemptForBlock(book.quizAttempts, block.id)}
+                    evidence={block.type === 'quiz' ? latestEvidenceForBlock(book.evidence, block.id) : undefined}
+                    allowBlockRegenerate={!isRealBook}
+                    allowQuizRetry={isRealBook}
+                    onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
+                    onSubmitQuiz={isRealBook && onSubmitQuizAttempt
+                      ? (blockId, answerId) => onSubmitQuizAttempt(blockId, answerId)
+                      : (blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
+                    onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
+                    onStartDeepLearning={onStartDeepLearning}
+                    onAskAgent={onAskAgent}
+                  />
+                )
+              })}
             </div>
             {nextChapter && (
               <footer className="interactive-book-chapter__next">

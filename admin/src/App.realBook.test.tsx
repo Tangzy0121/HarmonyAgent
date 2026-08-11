@@ -12,6 +12,7 @@ import {
   getBook,
   listBooks,
   streamChapterGeneration,
+  submitAttempt,
   updateProposal,
   uploadDocument,
   type StoredBook,
@@ -29,6 +30,7 @@ vi.mock('./services/bookApi', async (importOriginal) => {
     updateProposal: vi.fn(),
     confirmBook: vi.fn(),
     streamChapterGeneration: vi.fn(),
+    submitAttempt: vi.fn(),
   }
 })
 
@@ -311,6 +313,12 @@ function click(text: string): void {
   flushSync(() => Simulate.click(findButton(text) as unknown as Element))
 }
 
+function clickWithin(rootElement: FakeElement, text: string): void {
+  const button = descendants(rootElement).find((element) => element.tagName === 'BUTTON' && element.textContent.includes(text))
+  expect(button, `button containing "${text}" inside block`).toBeDefined()
+  flushSync(() => Simulate.click(button as unknown as Element))
+}
+
 function selectFile(file: File): void {
   const input = descendants(container).find((element) => element.tagName === 'INPUT' && element.getAttribute('type') === 'file')
   expect(input, 'file input').toBeDefined()
@@ -433,11 +441,31 @@ describe('App · 真实学习书接线', () => {
     expect(container.textContent).not.toContain('这一章生成失败了')
   })
 
-  it('真实书答对随堂小测后生成学习证据文案（客户端会话内，计数为 1）', async () => {
+  it('真实书答题走服务端：提交后展示最近一次结果、学习证据与章节掌握度', async () => {
     vi.mocked(getBook).mockResolvedValue(realBookFixture({
       status: 'ready',
       chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
     }))
+    vi.mocked(submitAttempt).mockResolvedValue({
+      attempt: {
+        id: 'attempt_1',
+        chapterId: 'ch-1',
+        blockId: 'blk-quiz-1',
+        answerId: 'answer-b',
+        isCorrect: true,
+        submittedAt: '2026-08-11T01:00:00.000Z',
+      },
+      evidence: {
+        id: 'evidence_1',
+        chapterId: 'ch-1',
+        conceptId: 'supervised-learning',
+        sourceBlockId: 'blk-quiz-1',
+        statement: '答对：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+        outcome: 'mastered',
+        createdAt: '2026-08-11T01:00:00.000Z',
+      },
+      mastery: { chapter: 0.5, concept: 0.5 },
+    })
     mountApp('#book/book_x/ch-1')
     await flushEffects()
 
@@ -445,19 +473,126 @@ describe('App · 真实学习书接线', () => {
     expect(quizBlock, 'real book quiz block').toBeDefined()
     expect(quizBlock!.textContent).not.toContain('学习证据')
 
-    const clickWithin = (root: FakeElement, text: string) => {
-      const button = descendants(root).find((element) => element.tagName === 'BUTTON' && element.textContent.includes(text))
-      expect(button, `button containing "${text}" inside quiz block`).toBeDefined()
-      flushSync(() => Simulate.click(button as unknown as Element))
-    }
     clickWithin(quizBlock!, '不属于，因为没有目标标签形成监督信号。')
     clickWithin(quizBlock!, '提交答案')
     await flushEffects()
 
-    // 答题反馈 + 学习证据文案出现且仅一条（evidence 计数为 1）
+    expect(submitAttempt).toHaveBeenCalledWith('book_x', 'blk-quiz-1', 'answer-b')
     expect(quizBlock!.textContent).toContain('回答正确。')
-    expect(quizBlock!.textContent).toContain('学习证据')
-    expect(quizBlock!.textContent?.match(/能够根据目标标签判断监督学习。/g)).toHaveLength(1)
+    expect(quizBlock!.textContent).toContain('答对：没有标签的邮件被模型自动分组，这属于监督学习吗？')
+    // 章节掌握度由客户端从 attempts 派生：一次答对封顶 0.5 → 50%
+    expect(container.textContent).toContain('掌握度 50%')
+    // 概念学习状态派生：最近一次答对 → 已学习
+    expect(container.textContent).toContain('已学习')
+  })
+
+  it('已持久化的作答在重新 getBook 后仍展示结果与掌握度，不重新提交', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+      quizAttempts: [{
+        id: 'attempt_persisted',
+        chapterId: 'ch-1',
+        blockId: 'blk-quiz-1',
+        answerId: 'answer-b',
+        isCorrect: true,
+        submittedAt: '2026-08-11T01:00:00.000Z',
+      }],
+      evidence: [{
+        id: 'evidence_persisted',
+        chapterId: 'ch-1',
+        conceptId: 'supervised-learning',
+        sourceBlockId: 'blk-quiz-1',
+        statement: '答对：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+        outcome: 'mastered',
+        createdAt: '2026-08-11T01:00:00.000Z',
+      }],
+    }))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    const quizBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-quiz-1')
+    expect(quizBlock, 'real book quiz block').toBeDefined()
+    expect(quizBlock!.textContent).toContain('回答正确。')
+    expect(quizBlock!.textContent).toContain('答对：没有标签的邮件被模型自动分组，这属于监督学习吗？')
+    expect(container.textContent).toContain('掌握度 50%')
+    expect(submitAttempt).not.toHaveBeenCalled()
+  })
+
+  it('答错的块显示“重新作答”，重新提交后展示最新结果并重算掌握度', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+    }))
+    vi.mocked(submitAttempt)
+      .mockResolvedValueOnce({
+        attempt: {
+          id: 'attempt_wrong',
+          chapterId: 'ch-1',
+          blockId: 'blk-quiz-1',
+          answerId: 'answer-a',
+          isCorrect: false,
+          submittedAt: '2026-08-11T01:00:00.000Z',
+        },
+        evidence: {
+          id: 'evidence_wrong',
+          chapterId: 'ch-1',
+          conceptId: 'supervised-learning',
+          sourceBlockId: 'blk-quiz-1',
+          statement: '答错待复习：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+          outcome: 'review',
+          createdAt: '2026-08-11T01:00:00.000Z',
+        },
+        mastery: { chapter: 0, concept: 0 },
+      })
+      .mockResolvedValueOnce({
+        attempt: {
+          id: 'attempt_correct',
+          chapterId: 'ch-1',
+          blockId: 'blk-quiz-1',
+          answerId: 'answer-b',
+          isCorrect: true,
+          submittedAt: '2026-08-11T02:00:00.000Z',
+        },
+        evidence: {
+          id: 'evidence_correct',
+          chapterId: 'ch-1',
+          conceptId: 'supervised-learning',
+          sourceBlockId: 'blk-quiz-1',
+          statement: '答对：没有标签的邮件被模型自动分组，这属于监督学习吗？',
+          outcome: 'mastered',
+          createdAt: '2026-08-11T02:00:00.000Z',
+        },
+        mastery: { chapter: 0.512821, concept: 0.512821 },
+      })
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    const quizBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-quiz-1')
+    expect(quizBlock, 'real book quiz block').toBeDefined()
+
+    clickWithin(quizBlock!, '属于，因为数据量足够大。')
+    clickWithin(quizBlock!, '提交答案')
+    await flushEffects()
+
+    expect(quizBlock!.textContent).toContain('这次还没有答对。')
+    expect(quizBlock!.textContent).toContain('答错待复习：没有标签的邮件被模型自动分组，这属于监督学习吗？')
+    expect(container.textContent).toContain('掌握度 0%')
+    // 概念学习状态派生：最近一次答错 → 待复习
+    expect(container.textContent).toContain('待复习')
+
+    clickWithin(quizBlock!, '重新作答')
+    clickWithin(quizBlock!, '不属于，因为没有目标标签形成监督信号。')
+    clickWithin(quizBlock!, '提交答案')
+    await flushEffects()
+
+    expect(submitAttempt).toHaveBeenCalledTimes(2)
+    expect(submitAttempt).toHaveBeenLastCalledWith('book_x', 'blk-quiz-1', 'answer-b')
+    // 最近一次结果：答对；(1×1 + 0×0.95) / 1.95 ≈ 0.512821 → 51%
+    expect(quizBlock!.textContent).toContain('回答正确。')
+    expect(quizBlock!.textContent).not.toContain('重新作答')
+    expect(container.textContent).toContain('掌握度 51%')
+    expect(container.textContent).toContain('已学习')
   })
 
   it('以 #book/{bookId}/{chapterId} 直接挂载时经 getBook 恢复阅读，不重走提案', async () => {

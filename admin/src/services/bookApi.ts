@@ -6,8 +6,10 @@ import {
 import type {
   BookBlock,
   LearningBook,
+  LearningEvidence,
   LearningGoal,
   LearnerLevel,
+  QuizAttempt,
 } from '../types/learningBook'
 import {
   createSseFrameParserState,
@@ -157,6 +159,65 @@ export async function getBook(id: string): Promise<StoredBook> {
   const response = await fetch(`/api/books/${encodeURIComponent(id)}`)
   if (!response.ok) throw await readHttpError(response)
   return parseLearningBook(await readJson(response)) as StoredBook
+}
+
+export interface SubmitAttemptResult {
+  attempt: QuizAttempt
+  evidence: LearningEvidence
+  mastery: { chapter: number; concept: number }
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isQuizAttemptPayload(value: unknown): value is QuizAttempt {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.chapterId === 'string'
+    && typeof value.blockId === 'string'
+    && typeof value.answerId === 'string'
+    && typeof value.isCorrect === 'boolean'
+    && typeof value.submittedAt === 'string'
+}
+
+function isLearningEvidencePayload(value: unknown): value is LearningEvidence {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.chapterId === 'string'
+    && typeof value.conceptId === 'string'
+    && typeof value.sourceBlockId === 'string'
+    && typeof value.statement === 'string'
+    && (value.outcome === 'mastered' || value.outcome === 'review')
+    && typeof value.createdAt === 'string'
+}
+
+function parseAttemptResult(value: unknown): SubmitAttemptResult {
+  if (
+    isRecord(value)
+    && isQuizAttemptPayload(value.attempt)
+    && isLearningEvidencePayload(value.evidence)
+    && isRecord(value.mastery)
+    && isFiniteNumber(value.mastery.chapter)
+    && isFiniteNumber(value.mastery.concept)
+  ) {
+    return {
+      attempt: value.attempt,
+      evidence: value.evidence,
+      mastery: { chapter: value.mastery.chapter, concept: value.mastery.concept },
+    }
+  }
+  throw new BookApiError('invalid_attempt_payload', SAFE_HTTP_MESSAGE)
+}
+
+export async function submitAttempt(bookId: string, blockId: string, answerId: string): Promise<SubmitAttemptResult> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/attempts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blockId, answerId }),
+  })
+  if (!response.ok) throw await readHttpError(response)
+  return parseAttemptResult(await readJson(response))
 }
 
 export async function updateProposal(id: string, edits: ProposalEdits): Promise<LearningBook> {

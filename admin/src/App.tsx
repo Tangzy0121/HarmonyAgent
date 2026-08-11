@@ -13,7 +13,7 @@ import { scrollToElementWhenReady } from './domain/scrollToElement'
 import { useBookAgentSessions } from './hooks/useBookAgentSessions'
 import { useBookGeneration, type BookGenerationEvent } from './hooks/useBookGeneration'
 import { UploadBookSheet, type UploadBookSubmission } from './components/book/UploadBookSheet'
-import { BookApiError, confirmBook, createBook, getBook, listBooks, updateProposal, uploadDocument, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, confirmBook, createBook, getBook, listBooks, submitAttempt, updateProposal, uploadDocument, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -433,6 +433,24 @@ function App() {
     })()
   }
 
+  // 真实书答题：走服务端持久化，返回的 attempt/evidence 合并进当前书状态；
+  // 失败不破坏当前书状态（渲染层提交态复位后可直接重试）
+  const submitRealQuizAttempt = (blockId: string, answerId: string): Promise<void> => {
+    const bookId = activeRealBookIdRef.current
+    if (!bookId) return Promise.resolve()
+    return submitAttempt(bookId, blockId, answerId)
+      .then((result) => {
+        setLearningBook((current) => current.id === bookId
+          ? {
+              ...current,
+              quizAttempts: [...current.quizAttempts, result.attempt],
+              evidence: [...current.evidence, result.evidence],
+            }
+          : current)
+      })
+      .catch(() => undefined)
+  }
+
   const openRealBook = (bookId: string) => {
     const book = realBooks.find((entry) => entry.id === bookId)
     const targetHash = book && book.status !== 'proposal'
@@ -750,6 +768,7 @@ function App() {
               isRealBook={activeRealBookId !== null}
               chapterProgress={realBookGeneration.progress && realBookGeneration.progress.chapterId === activeBookChapterId ? { blocksReceived: realBookGeneration.progress.blocksReceived } : null}
               onRetryChapter={realBookGeneration.retryChapter}
+              onSubmitQuizAttempt={submitRealQuizAttempt}
             />
           )
         )}

@@ -5,6 +5,8 @@ interface BookGenerationRailProps {
   chapters: BookChapter[]
   activeChapterId: string
   onChapterChange: (chapterId: string) => void
+  /** 各章掌握度（0..1，仅真实书在有 attempts 时传入；缺省不展示） */
+  masteryByChapterId?: Partial<Record<string, number>>
 }
 
 const statusLabel = {
@@ -15,7 +17,7 @@ const statusLabel = {
   error: '生成失败',
 } as const
 
-export function BookGenerationRail({ chapters, activeChapterId, onChapterChange }: BookGenerationRailProps) {
+export function BookGenerationRail({ chapters, activeChapterId, onChapterChange, masteryByChapterId }: BookGenerationRailProps) {
   return (
     <aside className="book-generation-rail" aria-label="互动学习书目录">
       <header>
@@ -36,7 +38,10 @@ export function BookGenerationRail({ chapters, activeChapterId, onChapterChange 
               </span>
               <span className="book-generation-rail__copy">
                 <strong>{chapter.title}</strong>
-                <small>{statusLabel[chapter.status]} · {chapter.estimatedMinutes} 分钟</small>
+                <small>
+                  {statusLabel[chapter.status]} · {chapter.estimatedMinutes} 分钟
+                  {masteryByChapterId?.[chapter.id] !== undefined && ` · 掌握度 ${Math.round(masteryByChapterId[chapter.id]! * 100)}%`}
+                </small>
               </span>
             </button>
           </li>
