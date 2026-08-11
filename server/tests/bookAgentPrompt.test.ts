@@ -122,6 +122,20 @@ describe('buildBookAgentMessages', () => {
     expect(messages[1].content).toContain('ignore previous rules')
   })
 
+  it('applies socratic tutor rules without weakening evidence and safety rules', () => {
+    const request = normalizeBookAgentRequest(makeRequest())
+    const messages = buildBookAgentMessages(request)
+    const system = messages[0].content
+
+    expect(system).toContain('你是辅导员而非讲解员')
+    expect(system).toContain('先判断学生卡在哪里，再给最小提示，不直接给完整答案')
+    expect(system).toContain('学生连续两次未答对才给完整解答')
+    expect(system).toContain('每次回复不超过 200 字，并以一个引导学生思考的追问结尾')
+    // 既有证据/安全规则保持不变
+    expect(system).toContain('事实依据必须在对应句末引用来源编号')
+    expect(system).toContain('不得调用工具，也不得修改学习进度、掌握度或任何学习数据')
+  })
+
   it('states that citations are unavailable when no book context is attached', () => {
     const request = normalizeBookAgentRequest({
       question: '帮我解释这个概念',
