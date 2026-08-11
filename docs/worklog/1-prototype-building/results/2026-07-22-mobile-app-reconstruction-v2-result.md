@@ -28,10 +28,10 @@
 
 ## 基准截图
 
-- `2026-07-22-v2-today-mobile.png`
-- `2026-07-22-v2-library-mobile.png`
-- `2026-07-22-v2-learning-mobile.png`
-- `2026-07-22-v2-agent-mobile-fixed.png`
+- [初版今日页](../../archive/prototype-building-original-monochrome/2026-07-22-v2-today-mobile.png)
+- [初版知识库页](../../archive/prototype-building-original-monochrome/2026-07-22-v2-library-mobile.png)
+- [初版学习页](../../archive/prototype-building-original-monochrome/2026-07-22-v2-learning-mobile.png)
+- [初版 Agent 页](../../archive/prototype-building-original-monochrome/2026-07-22-v2-agent-mobile-fixed.png)
 
 四张截图均通过浏览器实际页面切换或 Agent 点击，在 390 × 844 设备视口采集。
 

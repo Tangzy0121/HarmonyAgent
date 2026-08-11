@@ -4,6 +4,7 @@
 
 import { UIAbility, Want, ConfigurationConstant } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { initDatabase } from '../data/DatabaseHelper';
 
@@ -14,7 +15,11 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: object): void {
     hilog.info(0x0000, TAG, 'onCreate');
     // 跟随系统暗色模式
-    this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+    try {
+      this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'Failed to follow system color mode: ' + (err as BusinessError).message);
+    }
     // 异步初始化 SQLite 数据库（不阻塞 UI 线程）
     initDatabase(this.context).then(() => {
       hilog.info(0x0000, TAG, 'Database initialized');

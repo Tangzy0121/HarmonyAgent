@@ -49,8 +49,8 @@
 
 截图：
 
-- [390 × 844 判断初始态](./2026-07-23-p1-03-learning-verification-mobile.png)
-- [390 × 844 正确反馈态](./2026-07-23-p1-03-learning-verification-feedback.png)
+- [390 × 844 判断初始态（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-03-learning-verification-mobile.png)
+- [390 × 844 正确反馈态（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-03-learning-verification-feedback.png)
 
 ## 5. 交互验收
 

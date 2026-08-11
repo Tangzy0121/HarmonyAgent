@@ -59,8 +59,8 @@ Agent 继续继承打开前页面的弱上下文，关闭或从全屏返回后�
 
 截图：
 
-- [390 × 844 Agent 75% 抽屉](./2026-07-23-p1-07-agent-default-mobile.jpg)
-- [390 × 844 Agent 全屏态](./2026-07-23-p1-07-agent-full-mobile.jpg)
+- [390 × 844 Agent 75% 抽屉（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-07-agent-default-mobile.jpg)
+- [390 × 844 Agent 全屏态（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-07-agent-full-mobile.jpg)
 
 ## 5. 交互验收
 

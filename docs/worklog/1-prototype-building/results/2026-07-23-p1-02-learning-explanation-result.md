@@ -39,7 +39,7 @@
 
 截图：
 
-- [390 × 844 深入学习解释页](./2026-07-23-p1-02-learning-explanation-mobile.png)
+- [390 × 844 深入学习解释页（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-02-learning-explanation-mobile.png)
 
 ## 4. 交互验收
 

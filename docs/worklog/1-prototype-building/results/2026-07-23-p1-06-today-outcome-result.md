@@ -51,8 +51,8 @@
 
 截图：
 
-- [390 × 844 默认安排状态（布局精修）](./2026-07-23-p1-06-today-outcome-refined-mobile.jpg)
-- [390 × 844 暂不安排结束状态](./2026-07-23-p1-06-today-outcome-confirmed.png)
+- [390 × 844 默认安排状态（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-06-today-outcome-refined-mobile.jpg)
+- [390 × 844 暂不安排结束状态（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-06-today-outcome-confirmed.png)
 
 ## 4. 交互验收
 

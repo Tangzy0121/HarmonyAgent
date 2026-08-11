@@ -1,10 +1,6 @@
 {
   "string": [
     {
-      "name": "app_name",
-      "value": "知识学伴"
-    },
-    {
       "name": "module_desc",
       "value": "个人知识管理Agent - HarmonyAgent"
     },

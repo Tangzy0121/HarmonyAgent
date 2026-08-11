@@ -40,7 +40,7 @@
 
 截图：
 
-- [390 × 844 学习完成页](./2026-07-23-p1-04-learning-completion-mobile.png)
+- [390 × 844 学习完成页（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-23-p1-04-learning-completion-mobile.png)
 
 ## 4. 交互验收
 

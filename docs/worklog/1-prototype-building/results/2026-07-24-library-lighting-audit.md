@@ -4,7 +4,7 @@
 
 - 页面：知识库首页
 - 状态：`neutral-light`
-- 证据：[当前页面截图](./2026-07-24-library-lighting-audit.png)
+- 证据：[当时页面截图（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-24-library-lighting-audit.png)
 
 ## 结论
 
@@ -32,7 +32,7 @@
 
 ## 精修结果
 
-- 已完成方向光调整：[精修后截图](./2026-07-24-library-lighting-refined.png)
+- 已完成方向光调整：[当时精修后截图（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-24-library-lighting-refined.png)
 - 主卡片改为左上窄幅受光、右下收束投影，减少均匀雾状阴影。
 - 内容列表采用中等高度，搜索、筛选与顶部按钮采用浅层投影。
 - 卡片表面降低白色填充不透明度，并强化右下暗边，保留中性灰白配色。

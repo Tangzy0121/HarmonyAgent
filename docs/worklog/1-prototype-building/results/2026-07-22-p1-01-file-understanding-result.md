@@ -36,7 +36,7 @@
 
 截图：
 
-- [390 × 844 文件理解结果页](./2026-07-22-p1-01-file-understanding-mobile.png)
+- [390 × 844 文件理解结果页（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-22-p1-01-file-understanding-mobile.png)
 
 ## 4. 交互验收
 

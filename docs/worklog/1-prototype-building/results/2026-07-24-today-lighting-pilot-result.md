@@ -16,7 +16,7 @@
 
 ## 验收结果
 
-- 当前页面截图：[今日页方向光试点](./2026-07-24-today-lighting-pilot.png)
+- 当时页面截图：[今日页方向光试点（初版归档）](../../archive/prototype-building-original-monochrome/2026-07-24-today-lighting-pilot.png)
 - 今日首页正确挂载 `prototype-app--lighting-pilot`。
 - 学习成果页未挂载试点类名。
 - TypeScript 检查通过。
