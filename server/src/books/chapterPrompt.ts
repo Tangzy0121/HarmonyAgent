@@ -24,6 +24,7 @@ function systemRules(): string {
     '- example 块字段：scenario（场景描述）、takeaway（启示）。',
     '- formula 块字段：formula（公式的 LaTeX 源码，只写公式本体，不要 $ 或 $$ 定界符，例如 L = \\frac{1}{n} \\sum_{i=1}^{n} (y_i - \\hat{y}_i)^2）、explanation（公式说明）。',
     '讲解、示例等正文中的行内公式用 $...$ 包裹 LaTeX 源码；其余正文保持纯文本，不要使用 markdown 语法。',
+    'formula 块的单行公式保持简短；含多步推导或较长上下标约束（如 min/max 带条件）时，必须用 \\begin{aligned} ... \\end{aligned} 拆成多行，每行只放一个等号或约束。',
     '- citation 块字段：excerpt（原文引文，必须逐字出自给定页文本，不得改写）、pageRange（引文所在页码，单页如 "4" 或范围如 "3–6"）。',
     '- concept 块字段：concepts（概念数组：id、label、description）、relations（关系数组：sourceId、targetId、type、confidence）；关系 type 只能是 前置/包含/相似/对比/应用。',
     '- quiz 块字段：conceptId（考查的概念 id）、question（题干）、options（2 到 4 个选项：id、text）、correctAnswerId（正确选项 id）、feedback（解析）。',

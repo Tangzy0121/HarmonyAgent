@@ -4,12 +4,21 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { Simulate } from 'react-dom/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import katex from 'katex'
 import type { BookAgentSessionState } from '../hooks/bookAgentSessionReducer'
 import type { BookAgentSource } from '../types/bookAgent'
 import { AgentDrawer } from './AgentDrawer'
 import { BookBlockRenderer } from './book/BookBlockRenderer'
 import { learningBookFixture } from '../data/learningBook'
 import { advanceGeneration } from '../domain/learningBook'
+
+vi.mock('katex', () => ({
+  default: {
+    renderToString: vi.fn((tex: string) => `<span class="katex-mock">${tex}</span>`),
+  },
+}))
+
+const katexMock = vi.mocked(katex)
 
 class FakeText {
   nodeType = 3
@@ -366,5 +375,29 @@ describe('AgentDrawer controlled learning-book mode', () => {
 
     expect(html).toContain('重新附加学习书依据')
     expect(html).toContain('当前未附加学习书依据')
+  })
+
+  it('renders inline math in assistant answers via katex but keeps user text raw', async () => {
+    const container = mountEnvironment()
+    flushSync(() => mountedRoot?.render(<AgentDrawer
+      snap="full"
+      activeDestination="library"
+      draft=""
+      bookSession={session({
+        messages: [
+          { id: 'user-math', role: 'user', content: '为什么 $L$ 会下降？', status: 'complete', createdAt: '2026-08-09' },
+          { id: 'assistant-math', role: 'assistant', content: '真实基数 $z_i$ 大于估计 $\\mu_i$。', status: 'complete', createdAt: '2026-08-09' },
+        ],
+      })}
+      onDraftChange={() => undefined}
+      onSnapChange={() => undefined}
+    />))
+
+    await vi.waitFor(() => {
+      expect(katexMock.renderToString).toHaveBeenCalledWith('z_i', { displayMode: false, throwOnError: false })
+      expect(katexMock.renderToString).toHaveBeenCalledWith('\\mu_i', { displayMode: false, throwOnError: false })
+    })
+    expect(katexMock.renderToString).not.toHaveBeenCalledWith('L', { displayMode: false, throwOnError: false })
+    expect(container.textContent).toContain('为什么 $L$ 会下降？')
   })
 })

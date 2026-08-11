@@ -6,6 +6,7 @@ import { useDrawerGesture } from '../hooks/useDrawerGesture'
 import type { BookAgentSource } from '../types/bookAgent'
 import { GlassSurface } from './GlassSurface'
 import { Icon } from './Icon'
+import { MathText } from './book/MathText'
 import type { Destination, DrawerSnap } from '../types/prototype'
 
 interface AgentDrawerProps {
@@ -278,7 +279,9 @@ export function AgentDrawer({
                       <span>{message.role === 'assistant' ? 'Knowledge Agent' : '你'}</span>
                     </header>
                     <p aria-live={message.status === 'streaming' ? 'polite' : undefined} aria-atomic={message.status === 'streaming' ? 'false' : undefined}>
-                      {message.content || (message.status === 'streaming' ? '正在查找依据…' : '')}
+                      {message.role === 'assistant'
+                        ? <MathText text={message.content || (message.status === 'streaming' ? '正在查找依据…' : '')} />
+                        : (message.content || (message.status === 'streaming' ? '正在查找依据…' : ''))}
                     </p>
                     {message.status === 'cancelled' && <span className="agent-message__status">已停止</span>}
                     {message.status === 'error' && <span className="agent-message__status agent-message__status--error">{bookSession.errorMessage ?? '本次回答生成失败。'}</span>}

@@ -5320,7 +5320,7 @@ button:disabled {
 .book-block blockquote p { color: rgb(35 31 29 / 0.76); font-size: 0.89rem; line-height: 1.85; }
 .book-block__key-point { display: flex; gap: 9px; margin-top: 18px; padding: 14px; border-radius: 13px; color: #70483f; background: rgb(235 204 194 / 0.32); font-size: 0.78rem; line-height: 1.6; }
 .book-block__takeaway { padding-top: 14px; border-top: 1px solid rgb(35 31 29 / 0.08); }
-.book-block__formula { overflow-x: auto; padding: 20px; border-radius: 14px; background: #282523; color: #fff; font-family: Georgia, serif; font-size: 1.35rem; text-align: center; }
+.book-block__formula { overflow-x: auto; padding: 20px; border-radius: 14px; background: #282523; color: #fff; font-family: Georgia, serif; font-size: 1.1rem; line-height: 1.7; text-align: center; }
 .book-block blockquote { margin: 0; }
 .book-block blockquote p { margin-top: 0; font-family: Georgia, serif; font-size: 1rem; }
 .book-block cite { display: flex; align-items: center; gap: 6px; color: rgb(35 31 29 / 0.48); font-family: inherit; font-size: 0.67rem; font-style: normal; }

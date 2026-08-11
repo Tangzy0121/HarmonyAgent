@@ -96,6 +96,13 @@ describe('buildChapterMessages', () => {
     expect(system.content).toContain('行内公式用 $...$ 包裹')
   })
 
+  it('requires long formulas to break lines with aligned', () => {
+    const [system] = buildChapterMessages(input)
+
+    expect(system.content).toContain('\\begin{aligned}')
+    expect(system.content).toContain('拆成多行')
+  })
+
   it('prefers vertical flowchart layout for narrow-screen reading', () => {
     const [system] = buildChapterMessages(input)
 

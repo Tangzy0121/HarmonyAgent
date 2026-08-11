@@ -534,3 +534,56 @@ describe('BookBlockRenderer · 旧块类型回归', () => {
     expect(container.textContent).not.toContain('暂不受当前版本支持')
   })
 })
+
+describe('BookBlockRenderer · 展示公式自适应缩放', () => {
+  const overflowingFormula: FormulaBlock = {
+    id: 'blk-formula-fit',
+    type: 'formula',
+    status: 'ready',
+    title: '鲁棒暴露优化',
+    revision: 1,
+    sourceAnchors: [],
+    formula: '\\min_{S \\subseteq \\{1,\\dots,m\\},\\, |S| \\le K}\\ \\max_{\\pi \\in \\mathcal{C}_{\\mathrm{base}}} U(S, \\pi)',
+    explanation: '最坏上界最小的暴露集。',
+  }
+
+  type MeasurableHost = { clientWidth: number; scrollWidth: number; innerHTML: string; style: Record<string, string> }
+
+  function measurableHost(container: FakeElement): MeasurableHost {
+    return findByClass(container, 'katex-host--display') as unknown as MeasurableHost
+  }
+
+  it('shrinks the display formula font size when it overflows the card', async () => {
+    const container = renderBlock(overflowingFormula)
+    const host = measurableHost(container)
+    host.clientWidth = 300
+    host.scrollWidth = 450
+
+    await vi.waitFor(() => {
+      expect(host.style.fontSize).toBe(`${300 / 450}em`)
+    })
+  })
+
+  it('keeps the base font size when the formula already fits', async () => {
+    const container = renderBlock(overflowingFormula)
+    const host = measurableHost(container)
+    host.clientWidth = 300
+    host.scrollWidth = 200
+
+    await vi.waitFor(() => {
+      expect(host.innerHTML).toContain('katex-mock')
+    })
+    expect(host.style.fontSize ?? '').toBe('')
+  })
+
+  it('never shrinks below the minimum readable scale', async () => {
+    const container = renderBlock(overflowingFormula)
+    const host = measurableHost(container)
+    host.clientWidth = 300
+    host.scrollWidth = 1200
+
+    await vi.waitFor(() => {
+      expect(host.style.fontSize).toBe('0.55em')
+    })
+  })
+})
