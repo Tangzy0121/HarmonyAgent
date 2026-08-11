@@ -25,7 +25,7 @@ interface BookBlockRendererProps {
   /** 缺省时隐藏「向 Agent 提问 / 带着诊断问 Agent」入口（如复习弹层内不复用 Agent 链路） */
   onAskAgent?: (blockId: string, draft?: string) => void
   /** 闪卡自评（真实书接线，与复习 Sheet 同一条 submitFlashReview 链路）；缺省不渲染自评区 */
-  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => void | Promise<void>
+  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => void | Promise<boolean | void>
 }
 
 export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRegenerate = true, allowQuizRetry = false, onRegenerate, onSubmitQuiz, onUpdateNote, onStartDeepLearning, onAskAgent, onFlashGrade }: BookBlockRendererProps) {
@@ -143,8 +143,11 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
       case 'flash_cards': {
         const gradeFlash = (result: 'remembered' | 'forgotten') => {
           if (!onFlashGrade) return
+          // 与 quiz 提交同一约定：resolve false 或 reject 都视为提交失败，显示可重试的失败提示
           Promise.resolve(onFlashGrade(block.id, result))
-            .then(() => setFlashGradeFeedback(result === 'forgotten' ? '已加入今日复习。' : '已安排复习。'))
+            .then((ok) => setFlashGradeFeedback(ok === false
+              ? '自评提交失败，请稍后重试。'
+              : result === 'forgotten' ? '已加入今日复习。' : '已安排复习。'))
             .catch(() => setFlashGradeFeedback('自评提交失败，请稍后重试。'))
         }
         return <>

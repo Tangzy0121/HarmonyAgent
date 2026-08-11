@@ -32,7 +32,7 @@ interface InteractiveBookPageProps {
   /** 真实书掌握度看板入口（仅真实书透传给章节轨） */
   onOpenMasteryBoard?: () => void
   /** 真实书闪卡自评（与复习 Sheet 同一条链路；仅真实书传入，mock 不渲染自评区） */
-  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => Promise<void>
+  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => Promise<boolean | void>
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {

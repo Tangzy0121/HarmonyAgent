@@ -362,6 +362,10 @@ function App() {
 
   // 真实书载入：进入 #proposal/{id} 或 #book/{id}/... 时经 getBook 恢复；失败展示可返回知识库的错误态
   useEffect(() => {
+    // 随书状态不跨书残留：切换/退出真实书时关掉复习 Sheet 与掌握度看板，
+    // 否则新书空到期列表会以遗留的「复习完成」弹层出现
+    setIsReviewSheetOpen(false)
+    setIsMasteryBoardOpen(false)
     if (!activeRealBookId) {
       setRealBookLoadError(null)
       setReviewDue([])
@@ -490,16 +494,18 @@ function App() {
       .catch(() => false)
   }
 
-  // 闪卡自评：提交服务端调度结果，合并进书状态并刷新到期复习项；失败静默保持现状
-  const submitFlashReviewGrade = async (blockId: string, result: 'remembered' | 'forgotten'): Promise<void> => {
+  // 闪卡自评：提交服务端调度结果，合并进书状态并刷新到期复习项；失败返回 false（与 onSubmitQuiz 一致），
+  // 容错上不刷新 reviewDue、保持现状，由组件显示可重试的失败提示
+  const submitFlashReviewGrade = async (blockId: string, result: 'remembered' | 'forgotten'): Promise<boolean> => {
     const bookId = activeRealBookIdRef.current
-    if (!bookId) return
+    if (!bookId) return false
     try {
       const schedule = await submitFlashReview(bookId, blockId, result)
       setLearningBook((current) => current.id === bookId ? mergeReviewSchedule(current, blockId, schedule) : current)
       refreshReviewDue(bookId)
+      return true
     } catch {
-      // 自评失败不打断复习流程：到期列表保持旧值，下次进入/作答时再刷新
+      return false
     }
   }
 

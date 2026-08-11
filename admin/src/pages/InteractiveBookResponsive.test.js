@@ -75,6 +75,15 @@ describe('interactive book responsive shell', () => {
     expect(rule).toMatch(/overflow-y:\s*auto/)
   })
 
+  it('hides the footer mastery entry in the wide split layout where the header entry is visible', () => {
+    // 宽屏（860px 容器查询）下章节轨 header 已有掌握度入口，footer 入口须隐藏，否则双入口并存
+    const wide = css.split('@container interactive-book-shell (min-width: 860px) {')[1]?.split('\n}')[0] ?? ''
+
+    expect(wide).toContain('.book-generation-rail__mastery--footer')
+    const rule = wide.match(/\.book-generation-rail__mastery--footer\s*\{([^}]*)\}/)?.[1]
+    expect(rule).toMatch(/display:\s*none/)
+  })
+
   it('scopes the numbered-point counter to ordered lists so source cards stay clean', () => {
     // 旧 mock 对话的要点编号（"01"）只能作用于 .agent-message 里的 ol，
     // 不能污染 ul.agent-source-list 里的来源卡 li

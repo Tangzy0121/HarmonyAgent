@@ -5397,6 +5397,8 @@ button:disabled {
   .book-generation-rail ol { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
   .book-generation-rail button { display: flex; width: 100%; gap: 10px; padding: 11px 9px; border: 0; border-radius: 13px; color: rgb(35 31 29 / 0.58); background: transparent; text-align: left; }
   .book-generation-rail button.is-active { color: #211f1e; background: rgb(255 255 255 / 0.72); box-shadow: 0 6px 20px rgb(57 44 38 / 0.05); }
+  /* 宽屏下掌握度入口由 header 提供，footer 里的隐藏，避免双入口并存 */
+  .book-generation-rail__review .book-generation-rail__mastery--footer { display: none; }
   .book-generation-rail__number { display: grid; flex: 0 0 auto; width: 25px; height: 25px; place-items: center; border: 1px solid rgb(35 31 29 / 0.11); border-radius: 8px; font-size: 0.65rem; }
   li[data-status="ready"] .book-generation-rail__number { color: #fff; background: #2e6b50; }
   li[data-status="generating"] .book-generation-rail__number { color: #fff; background: #b66b58; }

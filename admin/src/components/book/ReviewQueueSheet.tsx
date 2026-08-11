@@ -12,7 +12,7 @@ interface ReviewQueueSheetProps {
   /** 复习答题回调：与章节内答题同一条链路（真实书走服务端多次作答；false 表示失败，由答题组件提示） */
   onSubmitQuiz: (blockId: string, answerId: string) => void | Promise<boolean | void>
   /** 闪卡自评回调：提交服务端调度并刷新到期列表 */
-  onFlashGrade: (blockId: string, result: 'remembered' | 'forgotten') => Promise<void>
+  onFlashGrade: (blockId: string, result: 'remembered' | 'forgotten') => Promise<boolean | void>
   onClose: () => void
 }
 

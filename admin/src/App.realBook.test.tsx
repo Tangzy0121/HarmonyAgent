@@ -1096,6 +1096,65 @@ describe('App · 真实学习书接线', () => {
     expect(sheetOpenAtScroll).toEqual([false])
   })
 
+  it('书内闪卡自评提交失败时显示失败提示，不误报「已加入今日复习」', async () => {
+    const readyChapters = learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const }))
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: readyChapters.map((chapter, index) => index === 0
+        ? {
+            ...chapter,
+            blocks: [...chapter.blocks, {
+              id: 'blk-flash-rt',
+              type: 'flash_cards' as const,
+              status: 'ready' as const,
+              title: '术语速记',
+              revision: 1,
+              sourceAnchors: [],
+              cards: [{ front: '正面一', back: '背面一' }],
+            }],
+          }
+        : chapter),
+    }))
+    vi.mocked(submitFlashReview).mockRejectedValue(new Error('network down'))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    const flashBlock = descendants(container).find((element) => element.getAttribute('id') === 'blk-flash-rt')
+    expect(flashBlock, 'in-book flash block').toBeDefined()
+
+    clickWithin(flashBlock!, '没记住')
+    await flushEffects()
+
+    expect(submitFlashReview).toHaveBeenCalledWith('book_x', 'blk-flash-rt', 'forgotten')
+    expect(flashBlock!.textContent).toContain('自评提交失败，请稍后重试。')
+    expect(flashBlock!.textContent).not.toContain('已加入今日复习')
+  })
+
+  it('切换真实书时关闭遗留的复习 Sheet，新书空到期列表不弹「复习完成」', async () => {
+    const readyChapters = learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const }))
+    vi.mocked(getBook).mockImplementation(async (id) => {
+      if (id === 'book_x') return realBookFixture({ status: 'ready', chapters: readyChapters })
+      if (id === 'book_new') return realBookFixture({ id: 'book_new', status: 'ready', chapters: readyChapters })
+      throw new BookApiError('book_not_found', '学习资料服务暂时不可用，请稍后重试。')
+    })
+    vi.mocked(getReviewDue).mockImplementation(async (bookId) => bookId === 'book_x'
+      ? [{ blockId: 'blk-quiz-1', chapterId: 'ch-1', kind: 'quiz', title: '快速验证', dueAt: '2026-08-11T01:30:00.000Z', stage: 0, lapses: 1 }]
+      : [])
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    click('今日复习（1）')
+    await flushEffects()
+    expect(descendants(container).some((element) => element.className.split(' ').includes('review-sheet'))).toBe(true)
+
+    windowStub.navigate('#book/book_new/ch-1')
+    await flushEffects()
+
+    expect(getBook).toHaveBeenCalledWith('book_new')
+    expect(descendants(container).some((element) => element.className.split(' ').includes('review-sheet'))).toBe(false)
+    expect(container.textContent).not.toContain('今天的复习都完成了')
+  })
+
   it('mock 原型页不渲染掌握度入口', async () => {
     mountApp('#library/ml-chapter-03')
     await flushEffects()

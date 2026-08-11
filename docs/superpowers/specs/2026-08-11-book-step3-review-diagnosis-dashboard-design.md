@@ -37,7 +37,7 @@ interface ReviewScheduleEntry {
 
 - quiz 答错（`POST /:id/attempts` 内）：入调度或重置 —— `stage=0, lapses+1, dueAt=now`（当天即可复习）。
 - quiz 答对：若该块在调度中，`stage+1`；`stage` 未越界则 `dueAt = now + intervals[stage]`，越界（走完序列）则**毕业**：从 `reviewSchedule` 删除。未答错过的 quiz 块不入调度。
-- flash_cards 自评（新 API）：「记住了」→ 未入调度则 `stage=0` 入调度，`dueAt = now + intervals[0]`；已在调度则 `stage+1`，越界毕业。「没记住」→ `stage=0, lapses+1, dueAt=now`。
+- flash_cards 自评（新 API）：「记住了」→ 未入调度则直接完成第 0 档，以 `stage=1` 入调度，`dueAt = now + intervals[0]`；已在调度则 `stage+1`，越界毕业。「没记住」→ `stage=0, lapses+1, dueAt=now`。
 - 同一块只有一个调度项；块被删除/重建（重生成换 id）时旧调度项自然失效（读取时过滤书中不存在的 blockId）。
 
 ### API
