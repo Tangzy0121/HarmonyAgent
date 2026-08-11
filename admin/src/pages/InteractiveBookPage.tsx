@@ -29,10 +29,12 @@ interface InteractiveBookPageProps {
   reviewCount?: number
   chapterReviewCount?: number
   onOpenReview?: () => void
+  /** 真实书掌握度看板入口（仅真实书透传给章节轨） */
+  onOpenMasteryBoard?: () => void
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
@@ -54,7 +56,7 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
       </header>
 
-      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} reviewCount={isRealBook ? reviewCount : 0} onOpenReview={isRealBook ? onOpenReview : undefined} />
+      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} reviewCount={isRealBook ? reviewCount : 0} onOpenReview={isRealBook ? onOpenReview : undefined} onOpenMasteryBoard={isRealBook ? onOpenMasteryBoard : undefined} />
 
       <main className="interactive-book-reader">
         <BookContextBar contextScope={contextScope} onContextScopeChange={onContextScopeChange} onAskAgent={onAskAgent} />

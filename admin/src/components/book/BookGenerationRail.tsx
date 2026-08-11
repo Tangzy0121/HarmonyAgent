@@ -12,6 +12,8 @@ interface BookGenerationRailProps {
   /** 全书到期复习项数（仅真实书传入；>0 且提供 onOpenReview 时显示书级复习入口） */
   reviewCount?: number
   onOpenReview?: () => void
+  /** 掌握度看板入口（仅真实书传入时显示） */
+  onOpenMasteryBoard?: () => void
 }
 
 const statusLabel = {
@@ -22,11 +24,14 @@ const statusLabel = {
   error: '生成失败',
 } as const
 
-export function BookGenerationRail({ chapters, activeChapterId, onChapterChange, masteryByChapterId, pretestResult, reviewCount = 0, onOpenReview }: BookGenerationRailProps) {
+export function BookGenerationRail({ chapters, activeChapterId, onChapterChange, masteryByChapterId, pretestResult, reviewCount = 0, onOpenReview, onOpenMasteryBoard }: BookGenerationRailProps) {
   return (
     <aside className="book-generation-rail" aria-label="互动学习书目录">
       <header>
         <span>学习路径</span>
+        {onOpenMasteryBoard && (
+          <button type="button" className="book-generation-rail__mastery" onClick={onOpenMasteryBoard}>掌握度</button>
+        )}
         <strong>{chapters.filter((chapter) => chapter.status === 'ready').length}/{chapters.length}</strong>
       </header>
       <ol>

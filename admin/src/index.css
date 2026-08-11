@@ -9986,3 +9986,103 @@ button:disabled {
     bottom: 18px;
   }
 }
+
+/* 掌握度看板：章节轨书级入口（陶土色系，触控 ≥44px） */
+.book-generation-rail > header .book-generation-rail__mastery {
+  max-width: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgb(182 107 88 / 0.4);
+  border-radius: 12px;
+  color: #b66b58;
+  background: rgb(182 107 88 / 0.1);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+/* 掌握度看板弹层：复用 pretest-sheet 外壳，章 × 概念五状态行 */
+.mastery-sheet__groups {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+  overflow-y: auto;
+}
+
+.mastery-sheet__chapter-title {
+  margin: 0 0 6px;
+  color: var(--ink-56);
+  font-size: 0.62rem;
+  font-weight: 640;
+}
+
+.mastery-sheet__rows {
+  display: grid;
+  gap: 8px;
+}
+
+.mastery-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--ink-12);
+  border-radius: 13px;
+  color: var(--ink);
+  background: var(--ink-04);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.mastery-sheet__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mastery-sheet__badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 五态徽标：烟晶灰 = 未学；陶土浅 = 起步；陶土深 = 掌握中；绿 = 已掌握；实心陶土 = 待复习 */
+.mastery-sheet__badge.is-unlearned {
+  color: var(--ink-56);
+  background: var(--ink-07);
+}
+
+.mastery-sheet__badge.is-started {
+  color: #b66b58;
+  background: rgb(182 107 88 / 0.12);
+}
+
+.mastery-sheet__badge.is-learning {
+  color: #814e43;
+  background: rgb(229 194 182 / 0.25);
+}
+
+.mastery-sheet__badge.is-mastered {
+  color: #2e6b50;
+  background: rgb(46 107 80 / 0.12);
+}
+
+.mastery-sheet__badge.is-review {
+  color: #fff;
+  background: #b66b58;
+}
+
+.mastery-sheet__percent {
+  flex: 0 0 auto;
+  min-width: 3em;
+  color: var(--ink-56);
+  font-size: 0.68rem;
+  font-weight: 640;
+  text-align: right;
+}

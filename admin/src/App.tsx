@@ -15,6 +15,8 @@ import { useBookGeneration, type BookGenerationEvent } from './hooks/useBookGene
 import { UploadBookSheet, type UploadBookSubmission } from './components/book/UploadBookSheet'
 import { PretestSheet } from './components/book/PretestSheet'
 import { ReviewQueueSheet } from './components/book/ReviewQueueSheet'
+import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
+import { buildMasteryBoard } from './domain/masteryBoard'
 import { BookApiError, confirmBook, createBook, getBook, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
@@ -136,6 +138,7 @@ function App() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isPretestSheetOpen, setIsPretestSheetOpen] = useState(false)
   const [isReviewSheetOpen, setIsReviewSheetOpen] = useState(false)
+  const [isMasteryBoardOpen, setIsMasteryBoardOpen] = useState(false)
   // 摸底入口按书记忆“已选择”：直接开始生成/从建议章节开始后不再出现，换书重置
   const [pretestEntryDismissedFor, setPretestEntryDismissedFor] = useState<string | null>(null)
   const [isConfirmingRealBook, setIsConfirmingRealBook] = useState(false)
@@ -598,6 +601,14 @@ function App() {
     revealSource()
   }
 
+  // 掌握度看板行跳转：切章 + 关 Sheet + 等块渲染后滚动（复用来源跳转的滚动机制）
+  const openMasteryBoardConcept = (chapterId: string, blockId: string) => {
+    changeBookChapter(chapterId)
+    setIsMasteryBoardOpen(false)
+    const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
+    scrollToElementWhenReady(blockId, { behavior })
+  }
+
   const closeInteractiveBook = () => {
     window.history.replaceState({ destination: 'library' }, '', '#library')
     updateWithViewTransition(() => {
@@ -830,6 +841,7 @@ function App() {
               reviewCount={reviewDue.length}
               chapterReviewCount={reviewDue.filter((item) => item.chapterId === activeBookChapterId).length}
               onOpenReview={reviewDue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
+              onOpenMasteryBoard={() => setIsMasteryBoardOpen(true)}
             />
           )
         )}
@@ -904,6 +916,14 @@ function App() {
             onSubmitQuiz={submitRealQuizAttempt}
             onFlashGrade={submitFlashReviewGrade}
             onClose={() => setIsReviewSheetOpen(false)}
+          />
+        )}
+        {isMasteryBoardOpen && isInteractiveBook && activeRealBookId !== null && isRealBookLoaded && (
+          <MasteryBoardSheet
+            key={activeRealBookId}
+            rows={buildMasteryBoard(learningBook, new Date())}
+            onOpenConcept={openMasteryBoardConcept}
+            onClose={() => setIsMasteryBoardOpen(false)}
           />
         )}
     </AppShell>
