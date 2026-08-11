@@ -30,7 +30,7 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
-import { applyReviewGrade } from '../books/schedule.js'
+import { applyReviewGrade, listDueItems } from '../books/schedule.js'
 import {
   extractJsonObject,
   normalizeProposal,
@@ -865,6 +865,62 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
     res.status(201).json({ attempt, evidence, mastery, schedule: nextSchedule })
+  })
+
+  router.get('/:id/review/due', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    res.status(200).json({ items: listDueItems(book, new Date()) })
+  })
+
+  router.post('/:id/review/:blockId/result', async (req, res) => {
+    const body: unknown = req.body
+    const result = isRecord(body) ? body.result : undefined
+    if (result !== 'remembered' && result !== 'forgotten') {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    const chapter = book.chapters.find((entry) => entry.blocks.some((block) => block.id === req.params.blockId))
+    const block = chapter?.blocks.find((entry) => entry.id === req.params.blockId)
+    if (chapter === undefined || block === undefined || block.type !== 'flash_cards') {
+      res.status(409).json({ error: 'review_target_invalid' })
+      return
+    }
+    const now = new Date()
+    const scheduleMap = { ...(book.reviewSchedule ?? {}) }
+    const next = applyReviewGrade(scheduleMap[block.id], 'flash_cards', result === 'remembered', now)
+    if (next === null) delete scheduleMap[block.id]
+    else scheduleMap[block.id] = next
+    book.reviewSchedule = scheduleMap
+    book.updatedAt = now.toISOString()
+    try {
+      await bookStore.save(book)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
+    res.status(200).json({ schedule: next })
   })
 
   router.post('/:id/pretest', async (req, res) => {

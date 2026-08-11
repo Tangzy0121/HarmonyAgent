@@ -9,7 +9,7 @@ import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createBookStore, type BookStore } from '../books/bookStore.js'
-import type { QuizBlock } from '../books/bookTypes.js'
+import type { FlashCardsBlock, QuizBlock } from '../books/bookTypes.js'
 import { createDocumentStore, type DocumentStore } from '../documents/documentStore.js'
 import type { ParsedDocument } from '../documents/pdfParser.js'
 import { BOOK_BLOCK_BUDGET, CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
@@ -1441,6 +1441,92 @@ describe('POST /api/books/:id/attempts', () => {
     const stored = await bookStore.get(id)
     expect(stored?.reviewSchedule?.[quiz1.id]?.stage).toBe(1)
     expect(stored?.reviewSchedule?.[quiz2.id]).toBeUndefined()
+  })
+})
+
+async function flashBlockOf(bookId: string, chapterId: string): Promise<FlashCardsBlock> {
+  const book = await bookStore.get(bookId)
+  const block = book?.chapters.find((entry) => entry.id === chapterId)
+    ?.blocks.find((entry) => entry.type === 'flash_cards')
+  expect(block).toBeDefined()
+  return block as FlashCardsBlock
+}
+
+// 在默认章节块后追加 flash_cards 块，供闪卡自评测试使用
+const flashChapterBlocks = {
+  blocks: [
+    ...chapterBlocksJson(1).blocks,
+    { type: 'flash_cards', title: '本章闪卡', cards: [
+      { front: '监督学习', back: '有标签数据' },
+      { front: '无监督学习', back: '无标签数据' },
+      { front: '强化学习', back: '奖励信号' },
+    ] },
+  ],
+}
+const flashChapterFetch = () => chapterAwareFetch({ onChapter: () => flashChapterBlocks })
+
+describe('GET /api/books/:id/review/due', () => {
+  it('GET review/due 返回到期项并按 dueAt 升序', async () => {
+    // 造书后先答错 quiz（入调度，dueAt=now），再 GET due
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id: bookId } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${bookId}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(bookId, 'ch-1')
+    const wrongAnswer = quiz.options.find((option) => option.id !== quiz.correctAnswerId)!.id
+    await request(app)
+      .post(`/api/books/${bookId}/attempts`)
+      .send({ blockId: quiz.id, answerId: wrongAnswer })
+
+    const response = await request(app).get(`/api/books/${bookId}/review/due`)
+    expect(response.status).toBe(200)
+    expect(response.body.items).toHaveLength(1)
+    expect(response.body.items[0]).toMatchObject({ blockId: quiz.id, chapterId: 'ch-1', kind: 'quiz', stage: 0, lapses: 1 })
+  })
+
+  it('returns 404 book_not_found for an unknown book id', async () => {
+    const app = appWith(chapterAwareFetch())
+
+    const response = await request(app).get('/api/books/book_missing-1/review/due')
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ error: 'book_not_found' })
+  })
+})
+
+describe('POST /api/books/:id/review/:blockId/result', () => {
+  it('POST review/:blockId/result 对 flash_cards 自评记住了并推进调度', async () => {
+    const app = appWith(flashChapterFetch())
+    const { id: bookId } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${bookId}/chapters/ch-1/generate`)
+    const flash = await flashBlockOf(bookId, 'ch-1')
+
+    const response = await request(app)
+      .post(`/api/books/${bookId}/review/${flash.id}/result`)
+      .send({ result: 'remembered' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.schedule).toMatchObject({ kind: 'flash_cards', stage: 1 })
+
+    const stored = await bookStore.get(bookId)
+    expect(stored?.reviewSchedule?.[flash.id]).toMatchObject({ kind: 'flash_cards', stage: 1 })
+  })
+
+  it('POST review/:blockId/result 拒绝非闪卡块与非法 result', async () => {
+    const app = appWith(flashChapterFetch())
+    const { id: bookId } = await createConfirmedBook(app)
+    await request(app).post(`/api/books/${bookId}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(bookId, 'ch-1')
+    const flash = await flashBlockOf(bookId, 'ch-1')
+
+    await request(app)
+      .post(`/api/books/${bookId}/review/${quiz.id}/result`)
+      .send({ result: 'remembered' })
+      .expect(409, { error: 'review_target_invalid' })
+    await request(app)
+      .post(`/api/books/${bookId}/review/${flash.id}/result`)
+      .send({ result: 'maybe' })
+      .expect(400, { error: 'invalid_request' })
   })
 })
 
