@@ -9,6 +9,7 @@ import { learningBookFixture } from './data/learningBook'
 import { initialMapViewport } from './data/learningMap'
 import { orchestrateAgentRequest } from './domain/agentOrchestration'
 import { recordDeepLearningEvidence, resolveAgentContext, startBookGeneration } from './domain/learningBook'
+import { scrollToElementWhenReady } from './domain/scrollToElement'
 import { useBookAgentSessions } from './hooks/useBookAgentSessions'
 import { useBookGeneration, type BookGenerationEvent } from './hooks/useBookGeneration'
 import { UploadBookSheet, type UploadBookSubmission } from './components/book/UploadBookSheet'
@@ -508,10 +509,9 @@ function App() {
     const revealSource = () => {
       changeBookChapter(source.chapterId)
       setDrawerSnap('closed')
-      window.setTimeout(() => {
-        const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
-        document.getElementById(source.blockId)?.scrollIntoView({ behavior, block: 'center' })
-      }, 180)
+      const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
+      // 章节切换异步渲染，等元素出现再滚动，避免与提交竞争导致静默不滚动
+      scrollToElementWhenReady(source.blockId, { behavior })
     }
 
     if (window.history.state?.overlay === 'agent') {
