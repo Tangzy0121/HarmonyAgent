@@ -406,11 +406,13 @@ function clickAriaLabel(label: string): void {
   flushSync(() => Simulate.click(button as unknown as Element))
 }
 
-// 复习入口（章节轨书级 + 章尾本章级）按 class 定位：全容器文本会撞到底层 TodayPage 的“今日复习”文案
+// 复习入口（章节轨书级 + 章尾本章级）按 class + 文本定位：rail footer 现在常驻掌握度入口，
+// 需用「今日复习」文本甄别；全容器文本会撞到底层 TodayPage 的“今日复习”文案，故先按 class 圈定
 function reviewEntryElements(): FakeElement[] {
   return descendants(container).filter((element) => {
     const classes = element.className.split(' ')
-    return classes.includes('book-generation-rail__review') || classes.includes('interactive-book-chapter__review')
+    if (classes.includes('interactive-book-chapter__review')) return true
+    return classes.includes('book-generation-rail__review') && element.textContent.includes('今日复习')
   })
 }
 
@@ -1029,5 +1031,42 @@ describe('App · 真实学习书接线', () => {
     expect(reviewEntryElements()).toHaveLength(0)
     expect(submitAttempt).not.toHaveBeenCalled()
     expect(getReviewDue).not.toHaveBeenCalled()
+  })
+
+  it('真实书章节轨 footer 常驻掌握度入口（无到期项也在），点击打开掌握度看板', async () => {
+    vi.mocked(getReviewDue).mockResolvedValue([])
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'ready',
+      chapters: learningBookFixture.chapters.map((chapter) => ({ ...chapter, status: 'ready' as const })),
+    }))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+
+    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
+    expect(rail, 'generation rail').toBeDefined()
+    const footer = descendants(rail!).find((element) => element.className.split(' ').includes('book-generation-rail__review'))
+    expect(footer, 'rail footer entry area').toBeDefined()
+    // 无到期项：复习入口不出现，掌握度入口仍在
+    expect(footer!.textContent).not.toContain('今日复习')
+
+    clickWithin(footer!, '掌握度')
+    await flushEffects()
+
+    const sheet = descendants(container).find((element) => element.className.split(' ').includes('mastery-sheet'))
+    expect(sheet, 'mastery board sheet').toBeDefined()
+    expect(sheet!.textContent).toContain('掌握度看板')
+    expect(sheet!.textContent).toContain('监督学习')
+    expect(sheet!.textContent).toContain('未学')
+  })
+
+  it('mock 原型页不渲染掌握度入口', async () => {
+    mountApp('#library/ml-chapter-03')
+    await flushEffects()
+
+    click('确认目录并生成')
+    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
+    expect(rail, 'generation rail').toBeDefined()
+    const masteryEntries = descendants(rail!).filter((element) => element.tagName === 'BUTTON' && element.textContent.trim() === '掌握度')
+    expect(masteryEntries).toHaveLength(0)
   })
 })

@@ -32,6 +32,8 @@ export function buildMasteryBoard(book: LearningBook, now: Date): MasteryBoardRo
     for (const block of chapter.blocks) {
       if (block.type !== 'concept') continue
       for (const concept of block.concepts) {
+        // 空串 conceptId 无关联 quiz 可归因，行恒为未学/0%，不进看板
+        if (concept.id === '') continue
         const blockIds = conceptQuizBlockIds(book, concept.id, block.id)
         const attempts = book.quizAttempts.filter((attempt) => blockIds.has(attempt.blockId))
         const mastery = computeMastery(attempts)

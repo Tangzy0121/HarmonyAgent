@@ -7980,15 +7980,17 @@ button:disabled {
   background: rgb(182 107 88 / 0.12);
 }
 
-/* 错题复习：章节轨书级入口 */
+/* 错题复习/掌握度：章节轨书级入口（footer 可含复习 + 掌握度两个按钮） */
 .book-generation-rail__review {
+  display: flex;
+  gap: 8px;
   margin-top: 10px;
   padding: 0 6px;
 }
 
 .book-generation-rail__review button {
   display: flex;
-  width: 100%;
+  flex: 1;
   min-height: 44px;
   align-items: center;
   justify-content: center;

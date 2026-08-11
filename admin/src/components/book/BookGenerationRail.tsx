@@ -67,9 +67,14 @@ export function BookGenerationRail({ chapters, activeChapterId, onChapterChange,
           </li>
         ))}
       </ol>
-      {reviewCount > 0 && onOpenReview && (
+      {(onOpenMasteryBoard || (reviewCount > 0 && onOpenReview)) && (
         <footer className="book-generation-rail__review">
-          <button type="button" onClick={onOpenReview}>今日复习（{reviewCount}）</button>
+          {reviewCount > 0 && onOpenReview && (
+            <button type="button" onClick={onOpenReview}>今日复习（{reviewCount}）</button>
+          )}
+          {onOpenMasteryBoard && (
+            <button type="button" onClick={onOpenMasteryBoard}>掌握度</button>
+          )}
         </footer>
       )}
     </aside>

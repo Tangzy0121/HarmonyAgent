@@ -143,22 +143,30 @@ describe('buildMasteryBoard', () => {
     expect(buildMasteryBoard(started, now).find((row) => row.conceptId === 'c1')).toMatchObject({ state: '起步', mastery: 0.487179 })
   })
 
-  it('conceptId 为空串的 quiz 只计入自身块', () => {
+  it('conceptId 为空串的概念不进看板（无 quiz 可归因，恒为未学/0% 的死值）', () => {
     const chapter: BookChapter = {
       ...boardChapter,
       blocks: [
-        conceptBlock([{ id: '', label: '无名概念', description: '空', learningState: '暂无学习记录' }], 'blk-concept-9'),
+        conceptBlock([
+          { id: '', label: '无名概念', description: '空', learningState: '暂无学习记录' },
+          { id: 'c1', label: '概念甲', description: '甲', learningState: '暂无学习记录' },
+        ], 'blk-concept-9'),
         quizBlock('blk-q9', ''),
+        quizBlock('blk-q1', 'c1'),
       ],
     }
     const book = makeBook({
       chapters: [chapter],
-      quizAttempts: [attemptAt('blk-q9', true, '2026-08-11T01:00:00.000Z')],
+      quizAttempts: [
+        attemptAt('blk-q9', true, '2026-08-11T01:00:00.000Z'),
+        attemptAt('blk-q1', true, '2026-08-11T02:00:00.000Z'),
+      ],
     })
     const rows = buildMasteryBoard(book, now)
 
-    // blk-q9 的 conceptId 为空串，不计入该概念；空串概念只统计自身概念块的作答 → 未学
+    // 空串概念被过滤；其 quiz（blk-q9）的作答也不会漏进其他概念行
+    expect(rows.some((row) => row.conceptId === '')).toBe(false)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ conceptId: '', state: '未学', mastery: 0, blockId: 'blk-concept-9' })
+    expect(rows[0]).toMatchObject({ conceptId: 'c1', mastery: 0.5, blockId: 'blk-concept-9' })
   })
 })
