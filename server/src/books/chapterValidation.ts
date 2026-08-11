@@ -15,11 +15,14 @@ export type ChapterValidationCode = 'chapter_invalid'
 
 export class ChapterValidationError extends Error {
   readonly code: ChapterValidationCode
+  /** 校验失败的具体原因（简体中文），供重试提示拼给模型；缺省表示无额外说明 */
+  readonly reason?: string
 
-  constructor(code: ChapterValidationCode) {
+  constructor(code: ChapterValidationCode, reason?: string) {
     super(code)
     this.name = 'ChapterValidationError'
     this.code = code
+    this.reason = reason
   }
 }
 
@@ -80,8 +83,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function invalid(): never {
-  throw new ChapterValidationError('chapter_invalid')
+function invalid(reason?: string): never {
+  throw new ChapterValidationError('chapter_invalid', reason)
 }
 
 function optionalText(value: unknown): string | null {
@@ -251,12 +254,14 @@ function normalizeQuiz(raw: Record<string, unknown>): {
 } {
   // quiz 是测评关键块：字段非法直接判整章无效，而不是悄悄丢弃
   const question = optionalText(raw.question)
-  if (question === null) invalid()
-  if (!Array.isArray(raw.options) || raw.options.length < 2 || raw.options.length > 4) invalid()
+  if (question === null) invalid('quiz 块缺少题干')
+  if (!Array.isArray(raw.options) || raw.options.length < 2 || raw.options.length > 4) {
+    invalid('quiz 块需要 2–4 个选项')
+  }
   const options: QuizOption[] = raw.options.map((entry, index): QuizOption => {
-    if (!isRecord(entry)) invalid()
+    if (!isRecord(entry)) invalid('quiz 块选项结构非法')
     const text = optionalText(entry.text)
-    if (text === null) invalid()
+    if (text === null) invalid('quiz 块选项缺少文本')
     return {
       id: optionalText(entry.id) ?? `o${index + 1}`,
       marker: String.fromCharCode(65 + index),
@@ -265,7 +270,7 @@ function normalizeQuiz(raw: Record<string, unknown>): {
   })
   const correctAnswerId = optionalText(raw.correctAnswerId)
   if (correctAnswerId === null || !options.some((option) => option.id === correctAnswerId)) {
-    invalid()
+    invalid('quiz 块正确答案与选项不匹配')
   }
   return {
     conceptId: typeof raw.conceptId === 'string' ? raw.conceptId.trim() : '',
@@ -333,13 +338,14 @@ function trimToBudget(blocks: BookBlock[], budget: number): { blocks: BookBlock[
  * 逐块丢弃并记 warning；quiz 结构非法直接判整章无效。
  * 章级硬要求（≥1 explanation、≥1 有效 citation、≥1 quiz、≥4 种块类型）在预算截断之后复检，
  * 不满足时抛 ChapterValidationError('chapter_invalid')；截断会保护必备类型的最后一个块。
+ * 预算不足 4 块时豁免「≥4 种块类型」这条（三种必备仍强制），并记 warning。
  */
 export function normalizeChapterBlocks(
   value: unknown,
   ctx: ChapterValidationContext,
 ): { blocks: BookBlock[]; warnings: string[] } {
   const record = Array.isArray(value) ? { blocks: value } : value
-  if (!isRecord(record) || !Array.isArray(record.blocks)) invalid()
+  if (!isRecord(record) || !Array.isArray(record.blocks)) invalid('输出不是包含 blocks 数组的 JSON 对象')
 
   const warnings: string[] = []
   let blocks: BookBlock[] = []
@@ -479,9 +485,14 @@ export function normalizeChapterBlocks(
   }
 
   // 章级硬要求：三种必备类型各 ≥1，且全章块类型 ≥4 种
-  if (!blocks.some((block) => block.type === 'explanation')) invalid()
-  if (!blocks.some((block) => block.type === 'citation')) invalid()
-  if (!blocks.some((block) => block.type === 'quiz')) invalid()
-  if (new Set(blocks.map((block) => block.type)).size < 4) invalid()
+  if (!blocks.some((block) => block.type === 'explanation')) invalid('需要至少 1 个 explanation 块')
+  if (!blocks.some((block) => block.type === 'citation')) invalid('需要至少 1 个有效 citation 块')
+  if (!blocks.some((block) => block.type === 'quiz')) invalid('需要至少 1 个 quiz 块')
+  // 预算不足 4 块时（如 6 章书的末章）不可能凑出 4 种类型：豁免多样性硬要求，三必备与截断保护不变
+  if (ctx.remainingBookBudget < 4) {
+    warnings.push('预算不足，本章豁免块类型多样性要求')
+  } else if (new Set(blocks.map((block) => block.type)).size < 4) {
+    invalid('需要至少 4 种不同块类型')
+  }
   return { blocks, warnings }
 }

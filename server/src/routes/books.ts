@@ -68,7 +68,9 @@ export const UPSTREAM_TIMEOUT_MS = 60_000
 // 章节输出预算 6000 tokens，真实上游生成常超过提案用的 60s，章节路径单独放宽到 180s
 export const CHAPTER_UPSTREAM_TIMEOUT_MS = 180_000
 const SAFE_ERROR_NAMES = new Set(['Error', 'TypeError', 'TimeoutError', 'OpenAIStreamParseError'])
-// 排版架构师提示词每章 6–10 块：预算需覆盖 4 章 × 10 块；40 同时是 Agent 问答上下文（bookAgentContract MAX_BLOCKS）的硬顶，不能再高
+// 40 是 Agent 问答上下文（bookAgentContract MAX_BLOCKS）的硬顶，不能再高；
+// 提案允许 3–6 章，章节生成按 max(4, floor(剩余预算 / 含本章的剩余章数)) 均分预留，
+// 保证前面章不挤占末章配额（旧「4 章 × 10 块」摊算下 6 章书末章预算必然 <4，校验必败）
 export const BOOK_BLOCK_BUDGET = 40
 const CHAPTER_FAILURE_MESSAGE = '章节生成失败，请稍后重试。'
 
@@ -610,12 +612,19 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
         pagesText: buildDocumentDigest(chapterPages),
       })
       const usedBlocks = book.chapters.reduce((sum, entry) => sum + entry.blocks.length, 0)
+      // 均分预留：剩余预算平摊给含本章在内的后续章节，且至少留 4 块，
+      // 保证 3–6 章书的末章也留得出满足必备块的空间
+      const chapterIndex = book.chapters.findIndex((entry) => entry.id === chapter.id)
+      const chapterBudget = Math.max(
+        4,
+        Math.floor((BOOK_BLOCK_BUDGET - usedBlocks) / (book.chapters.length - chapterIndex)),
+      )
       const validationCtx = {
         pages: document.pages,
         pageStart: anchorRange.start,
         pageEnd: anchorRange.end,
         fileName: document.fileName,
-        remainingBookBudget: BOOK_BLOCK_BUDGET - usedBlocks,
+        remainingBookBudget: chapterBudget,
         // 块 id 以章节 id 为命名空间，保证全书范围唯一（Agent 全书上下文依赖块 id 唯一）
         idPrefix: `${chapter.id}-`,
       }
@@ -650,10 +659,16 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
             bookId: book.id,
             chapterId: chapter.id,
           })
+          const reason = error instanceof ChapterValidationError ? error.reason : undefined
           attemptMessages = [
             ...baseMessages,
             { role: 'assistant', content: text },
-            { role: 'user', content: '上次输出未通过校验：chapter_invalid，请只输出合法 JSON。' },
+            {
+              role: 'user',
+              content: reason === undefined
+                ? '上次输出未通过校验：chapter_invalid，请只输出合法 JSON。'
+                : `上次输出未通过校验：chapter_invalid（${reason}），请修正后只输出合法 JSON。`,
+            },
           ]
         }
       }

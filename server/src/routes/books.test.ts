@@ -839,6 +839,107 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(job).toMatchObject({ status: 'ready', attempts: 2 })
   })
 
+  it('重试提示携带上次校验失败的具体原因', async () => {
+    // 第一次章节调用只给 3 种块类型（缺第 4 种），第二次给合法块
+    const threeTypeBlocks = {
+      blocks: [
+        { type: 'explanation', title: '讲解', body: '正文', keyPoint: '要点' },
+        { type: 'citation', title: '引文', excerpt: '机器学习的第1部分讲解内容', pageRange: '1' },
+        {
+          type: 'quiz',
+          title: '小测',
+          question: '问？',
+          options: [{ id: 'o1', text: '甲' }, { id: 'o2', text: '乙' }],
+          correctAnswerId: 'o1',
+          feedback: '解',
+        },
+      ],
+    }
+    const fetchImpl = chapterAwareFetch({
+      onChapter: (_body, chapterCalls) => (chapterCalls === 1 ? threeTypeBlocks : chapterBlocksJson(1)),
+    })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(res.status).toBe(200)
+    expect(sseEventsFrom(res.text).at(-1)?.event).toBe('chapter_done')
+
+    const retryBody = JSON.parse(String(fetchImpl.mock.calls.at(-1)?.[1]?.body))
+    const lastMessage = retryBody.messages.at(-1)
+    expect(lastMessage.role).toBe('user')
+    expect(lastMessage.content).toBe(
+      '上次输出未通过校验：chapter_invalid（需要至少 4 种不同块类型），请修正后只输出合法 JSON。',
+    )
+  })
+
+  it('均分预留：6 章书前 5 章各吃满 9 种块也不挤占末章配额，末章照常生成成功', async () => {
+    const chapterNames = ['一', '二', '三', '四', '五', '六']
+    const sixChapterProposal = {
+      ...proposalJson,
+      chapters: chapterNames.map((name, index) => ({
+        title: `第${name}章`,
+        objective: `目标${index + 1}`,
+        coreConcept: `概念${index + 1}`,
+        estimatedMinutes: 10,
+        pageStart: index + 1,
+        pageEnd: index + 1,
+      })),
+    }
+    // 每章上游都返回全部 9 种可生成块（密度上限），考验预算分配
+    const nineBlocksJson = (page: number) => ({
+      blocks: [
+        { type: 'explanation', title: '讲解', body: `第${page}页讲解`, keyPoint: '要点' },
+        { type: 'citation', title: '引文', excerpt: `机器学习的第${page}部分讲解内容`, pageRange: String(page) },
+        {
+          type: 'quiz',
+          title: '小测',
+          question: '问？',
+          options: [{ id: 'o1', text: '甲' }, { id: 'o2', text: '乙' }],
+          correctAnswerId: 'o1',
+          feedback: '解',
+        },
+        { type: 'example', title: '示例', scenario: '场景', takeaway: '要点' },
+        { type: 'formula', title: '公式', formula: 'y = wx + b', explanation: '线性模型' },
+        { type: 'concept', title: '概念', concepts: [{ id: 'c1', label: '机器学习' }], relations: [] },
+        { type: 'callout', title: '提示', kind: 'tip', body: '多看原文' },
+        {
+          type: 'flash_cards',
+          title: '闪卡',
+          cards: [
+            { front: '监督', back: '有标签' },
+            { front: '无监督', back: '无标签' },
+            { front: '强化', back: '奖励' },
+          ],
+        },
+        { type: 'figure', title: '图解', kind: 'flowchart', mermaid: 'flowchart LR\n  A-->B', caption: '流程' },
+      ],
+    })
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (body.max_completion_tokens !== 6000) return upstreamJsonStream(sixChapterProposal)
+      const serialized = JSON.stringify(body.messages)
+      const page = chapterNames.findIndex((name) => serialized.includes(`本章标题：第${name}章`)) + 1
+      return upstreamJsonStream(nineBlocksJson(page))
+    })
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+
+    for (let chapter = 1; chapter <= 5; chapter += 1) {
+      const res = await request(app).post(`/api/books/${id}/chapters/ch-${chapter}/generate`)
+      expect(sseEventsFrom(res.text).at(-1)?.event).toBe('chapter_done')
+    }
+    const last = await request(app).post(`/api/books/${id}/chapters/ch-6/generate`)
+    expect(sseEventsFrom(last.text).at(-1)?.event).toBe('chapter_done')
+
+    const saved = await bookStore.get(id)
+    expect(saved?.chapters.every((chapter) => chapter.status === 'ready')).toBe(true)
+    // 均分预留：第 1 章只分到 floor(40/6)=6 块（而非吃满 9 块），给后续章留配额
+    expect(saved?.chapters[0].blocks).toHaveLength(6)
+    // 末章仍留得出 ≥4 块的空间，不再必然校验失败
+    expect(saved?.chapters[5].blocks.length).toBeGreaterThanOrEqual(4)
+  })
+
   it('emits chapter_generation_failed and marks the chapter error when both attempts are invalid', async () => {
     const fetchImpl = chapterAwareFetch({ onChapter: () => '仍然不是 JSON' })
     const app = appWith(fetchImpl)
@@ -991,9 +1092,10 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
     expect(CHAPTER_UPSTREAM_TIMEOUT_MS).toBeGreaterThan(UPSTREAM_TIMEOUT_MS)
   })
 
-  it('全书块预算需容纳新提示词的章节块密度，且不超过 Agent 上下文 40 块硬顶', () => {
-    // 排版架构师提示词要求每章 6–10 块：4 章 × 10 块 = 40；bookAgentContract MAX_BLOCKS = 40 是 Agent 问答的上下文硬顶
-    expect(BOOK_BLOCK_BUDGET).toBeGreaterThanOrEqual(40)
-    expect(BOOK_BLOCK_BUDGET).toBeLessThanOrEqual(40)
+  it('全书块预算等于 Agent 上下文 40 块硬顶，章节侧按均分预留策略分配', () => {
+    // bookAgentContract MAX_BLOCKS = 40 是 Agent 问答的上下文硬顶，预算不能再高；
+    // 章节生成按 max(4, floor((40 - 已用块数) / 剩余章数)) 均分预留，
+    // 保证 3–6 章书的末章也留得出 ≥4 块（替代旧「4 章 × 10 块」摊算）
+    expect(BOOK_BLOCK_BUDGET).toBe(40)
   })
 })

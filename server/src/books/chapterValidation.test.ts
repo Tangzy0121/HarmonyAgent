@@ -691,20 +691,46 @@ describe('normalizeChapterBlocks 章级 ≥4 类型硬要求与截断保护', ()
     expect(trimmed.warnings.some((warning) => warning.includes('预算'))).toBe(true)
   })
 
-  it('throws chapter_invalid when the chapter still lacks four types after trimming', () => {
-    // 预算 3 只能保住三种必备类型，复检时不足 4 种 → 整章无效
-    expect(() => normalizeChapterBlocks(
-      {
-        blocks: [
-          explanationBlock(),
-          citationBlock(),
-          exampleBlock(),
-          formulaBlock(),
-          calloutBlock(),
-          quizBlock(),
-        ],
-      },
+  it('预算不足 4 块时豁免块类型多样性要求（三种必备块即可成章）并记 warning', () => {
+    // 6 章书的末章预算可能不足 4 块：不可能凑出 4 种类型，豁免多样性硬要求
+    const result = normalizeChapterBlocks(
+      { blocks: [explanationBlock(), citationBlock(), quizBlock()] },
       { ...baseCtx, remainingBookBudget: 3 },
-    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid' }))
+    )
+
+    expect(result.blocks.map((block) => block.type)).toEqual(['explanation', 'citation', 'quiz'])
+    expect(result.warnings.some((warning) => warning.includes('预算不足，本章豁免块类型多样性要求'))).toBe(true)
+  })
+
+  it('预算豁免只放开多样性：缺 explanation / citation / quiz 仍判整章无效', () => {
+    const tightCtx = { ...baseCtx, remainingBookBudget: 3 }
+    expect(() => normalizeChapterBlocks(
+      { blocks: [citationBlock(), quizBlock()] },
+      tightCtx,
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid', reason: '需要至少 1 个 explanation 块' }))
+    expect(() => normalizeChapterBlocks(
+      { blocks: [explanationBlock(), quizBlock()] },
+      tightCtx,
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid', reason: '需要至少 1 个有效 citation 块' }))
+    expect(() => normalizeChapterBlocks(
+      { blocks: [explanationBlock(), citationBlock()] },
+      tightCtx,
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid', reason: '需要至少 1 个 quiz 块' }))
+  })
+
+  it('ChapterValidationError 携带失败原因 reason，覆盖各 invalid 路径', () => {
+    // 块类型不足 4 种
+    expect(() => normalizeChapterBlocks(
+      { blocks: [explanationBlock(), citationBlock(), quizBlock()] },
+      baseCtx,
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid', reason: '需要至少 4 种不同块类型' }))
+    // 输出形状非法
+    expect(() => normalizeChapterBlocks('不是对象', baseCtx))
+      .toThrowError(expect.objectContaining({ code: 'chapter_invalid', reason: '输出不是包含 blocks 数组的 JSON 对象' }))
+    // quiz 结构非法：正确答案不在选项中
+    expect(() => normalizeChapterBlocks(
+      { blocks: [explanationBlock(), citationBlock(), quizBlock({ correctAnswerId: 'o9' }), exampleBlock()] },
+      baseCtx,
+    )).toThrowError(expect.objectContaining({ code: 'chapter_invalid', reason: 'quiz 块正确答案与选项不匹配' }))
   })
 })
