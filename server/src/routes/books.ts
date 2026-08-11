@@ -19,6 +19,13 @@ import {
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
 import { computeMastery } from '../books/mastery.js'
+import {
+  buildFeynmanMessages,
+  FeynmanValidationError,
+  normalizeFeynmanResult,
+  summarizeChapterBlocks,
+  type FeynmanResult,
+} from '../books/feynmanPrompt.js'
 import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
@@ -53,6 +60,8 @@ export interface BooksLogEvent {
     | 'pretest_generated'
     | 'pretest_validation_failed'
     | 'pretest_result_submitted'
+    | 'feynman_judged'
+    | 'feynman_validation_failed'
   status?: number
   name?: string
   attempt?: number
@@ -220,6 +229,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
   async function callUpstream(
     messages: BookAgentPromptMessage[],
     apiKey: string,
+    maxCompletionTokens = 1500,
   ): Promise<string> {
     const baseUrl = (env.LLM_BASE_URL?.trim() || 'https://api.deepseek.com').replace(/\/$/u, '')
     const abortController = new AbortController()
@@ -241,7 +251,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
           stream: true,
           stream_options: { include_usage: true },
           response_format: { type: 'json_object' },
-          max_completion_tokens: 1500,
+          max_completion_tokens: maxCompletionTokens,
           temperature: 0.2,
         }),
         signal: abortController.signal,
@@ -996,6 +1006,99 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'pretest_result_submitted', bookId: book.id })
     res.status(200).json({ book })
+  })
+
+  router.post('/:id/chapters/:cid/feynman', async (req, res) => {
+    const body: unknown = req.body
+    const explanationRaw = isRecord(body) ? body.explanation : undefined
+    const explanation = typeof explanationRaw === 'string' ? explanationRaw.trim() : ''
+    if (typeof explanationRaw !== 'string' || explanation.length < 1 || explanation.length > 2000) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    const chapter = book.chapters.find((entry) => entry.id === req.params.cid)
+    if (chapter === undefined) {
+      res.status(404).json({ error: 'chapter_not_found' })
+      return
+    }
+    // 只有 ready 章有完整块可供判分；其余状态复用章节生成的 409 码
+    if (chapter.status !== 'ready') {
+      res.status(409).json({ error: 'chapter_not_generatable' })
+      return
+    }
+    const apiKey = env.LLM_API_KEY?.trim() ?? ''
+    if (!apiKey) {
+      res.status(503).json({ error: 'feynman_not_configured' })
+      return
+    }
+
+    const messages = buildFeynmanMessages({
+      chapterTitle: chapter.title,
+      objective: chapter.objective,
+      blockSummary: summarizeChapterBlocks(chapter),
+      explanation,
+    })
+
+    // 费曼判定：800 tokens；解析/校验失败带修正指令重试一次，仍失败 502。结果不持久化（MVP 无状态）
+    let result: FeynmanResult | null = null
+    let attemptMessages = messages
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      let text: string
+      try {
+        text = await callUpstream(attemptMessages, apiKey, 800)
+      } catch {
+        res.status(502).json({ error: 'upstream_unavailable' })
+        return
+      }
+      try {
+        result = normalizeFeynmanResult(extractJsonObject(text))
+        break
+      } catch (error) {
+        if (
+          !(error instanceof ProposalValidationError) &&
+          !(error instanceof FeynmanValidationError)
+        ) {
+          throw error
+        }
+        const reason = error instanceof FeynmanValidationError ? error.reason : undefined
+        emitLog(logger, {
+          category: 'feynman_validation_failed',
+          attempt,
+          bookId: book.id,
+          chapterId: chapter.id,
+          ...(reason ? { reason } : {}),
+        })
+        attemptMessages = [
+          ...messages,
+          { role: 'assistant', content: text },
+          {
+            role: 'user',
+            content: reason === undefined
+              ? '上次输出未通过校验：feynman_invalid，请只输出合法 JSON。'
+              : `上次输出未通过校验：feynman_invalid（${reason}），请修正后只输出合法 JSON。`,
+          },
+        ]
+      }
+    }
+
+    if (result === null) {
+      res.status(502).json({ error: 'upstream_unavailable' })
+      return
+    }
+    emitLog(logger, { category: 'feynman_judged', bookId: book.id, chapterId: chapter.id })
+    res.status(200).json(result)
   })
 
   const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {

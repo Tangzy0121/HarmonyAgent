@@ -222,6 +222,37 @@ export async function submitAttempt(bookId: string, blockId: string, answerId: s
   return parseAttemptResult(await readJson(response))
 }
 
+export interface FeynmanResult {
+  passed: boolean
+  feedback: string
+  gap: string
+}
+
+function parseFeynmanResult(value: unknown): FeynmanResult {
+  if (
+    isRecord(value)
+    && typeof value.passed === 'boolean'
+    && typeof value.feedback === 'string'
+    && typeof value.gap === 'string'
+  ) {
+    return { passed: value.passed, feedback: value.feedback, gap: value.gap }
+  }
+  throw new BookApiError('invalid_feynman_payload', SAFE_HTTP_MESSAGE)
+}
+
+export async function submitFeynman(bookId: string, chapterId: string, explanation: string): Promise<FeynmanResult> {
+  const response = await fetch(
+    `/api/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapterId)}/feynman`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ explanation }),
+    },
+  )
+  if (!response.ok) throw await readHttpError(response)
+  return parseFeynmanResult(await readJson(response))
+}
+
 function isPretestQuestionPayload(value: unknown): value is PretestQuestion {
   return isRecord(value)
     && typeof value.id === 'string'

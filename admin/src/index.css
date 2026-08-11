@@ -8042,6 +8042,114 @@ button:disabled {
   font-weight: 760;
 }
 
+/* 章末费曼检验卡：挂在章节块列表尾部（仅真实书 ready 章） */
+.feynman-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--paper, #fff);
+}
+
+.feynman-card__heading {
+  display: grid;
+  gap: 3px;
+}
+
+.feynman-card__heading p {
+  margin: 0;
+  color: #b66b58;
+  font-size: 0.6rem;
+  font-weight: 640;
+}
+
+.feynman-card__heading h2 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.feynman-card__heading span {
+  color: var(--ink-56);
+  font-size: 0.68rem;
+}
+
+.feynman-card__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  resize: vertical;
+}
+
+.feynman-card__meta {
+  display: flex;
+  justify-content: flex-end;
+  color: var(--ink-56);
+  font-size: 0.62rem;
+}
+
+.feynman-card__error {
+  margin: 0;
+  color: #b4452f;
+  font-size: 0.72rem;
+}
+
+.feynman-card__submit {
+  min-height: 45px;
+  border: 0;
+  border-radius: 14px;
+  color: #211f1e;
+  background: #f0c0b2;
+  font-size: 0.73rem;
+  font-weight: 760;
+}
+
+.feynman-card__submit:disabled {
+  opacity: 0.5;
+}
+
+.feynman-card__result {
+  display: grid;
+  gap: 8px;
+}
+
+.feynman-card__result p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.feynman-card__verdict {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 760;
+}
+
+.feynman-card__gap {
+  color: #b4452f;
+}
+
+.feynman-card__review {
+  display: flex;
+  min-height: 45px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid rgb(182 107 88 / 0.35);
+  border-radius: 14px;
+  color: #211f1e;
+  background: rgb(182 107 88 / 0.08);
+  font-size: 0.73rem;
+  font-weight: 760;
+}
+
 /* 错题复习弹层：复用 pretest-sheet 外壳，内容为待复习 quiz 块 */
 .review-sheet__blocks {
   display: grid;

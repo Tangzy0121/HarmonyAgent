@@ -580,14 +580,29 @@ const pretestJson = {
   ],
 }
 
+// 费曼判定夹具：passed 时 gap 为空串
+const feynmanJson = {
+  passed: true,
+  feedback: '讲得不错，抓住了本章的核心概念。',
+  gap: '',
+}
+
 function chapterAwareFetch(impl: {
   onChapter?: (body: { messages: unknown }, chapterCalls: number) => unknown
   onPretest?: (body: { messages: unknown }, pretestCalls: number) => unknown
+  onFeynman?: (body: { messages: unknown }, feynmanCalls: number) => unknown
 } = {}) {
   let chapterCalls = 0
   let pretestCalls = 0
+  let feynmanCalls = 0
   return vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
     const body = JSON.parse(String(init?.body))
+    if (body.max_completion_tokens === 800) {
+      feynmanCalls += 1
+      const payload = impl.onFeynman?.(body, feynmanCalls)
+      if (payload !== undefined) return upstreamJsonStream(payload as string)
+      return upstreamJsonStream(feynmanJson)
+    }
     if (body.max_completion_tokens === 6000) {
       chapterCalls += 1
       const payload = impl.onChapter?.(body, chapterCalls)
@@ -1620,5 +1635,169 @@ describe('POST /api/books/:id/pretest/result', () => {
 
     expect(res.status).toBe(404)
     expect(res.body).toEqual({ error: 'book_not_found' })
+  })
+})
+
+describe('POST /api/books/:id/chapters/:cid/feynman', () => {
+  const explanation = '机器学习就是让计算机从数据里找规律，再用规律做预测。'
+
+  async function readyBook(app: express.Express): Promise<{ id: string }> {
+    const { id } = await createConfirmedBook(app)
+    const generated = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(generated.status).toBe(200)
+    return { id }
+  }
+
+  it('ready 章返回 {passed, feedback, gap}：800 tokens/json_object，提示词含章标题/目标/要点与复述，不含密钥，不落盘', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await readyBook(app)
+
+    const res = await request(app)
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual(feynmanJson)
+
+    // 上游请求：800 tokens / json_object（新档位）
+    const feynmanCall = fetchImpl.mock.calls.at(-1)!
+    const providerBody = JSON.parse(String(feynmanCall[1]?.body))
+    expect(providerBody).toMatchObject({
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 800,
+    })
+    const serializedMessages = JSON.stringify(providerBody.messages)
+    expect(serializedMessages).toContain('第一章')
+    expect(serializedMessages).toContain('目标一')
+    expect(serializedMessages).toContain('第1页要点')
+    expect(serializedMessages).toContain(explanation)
+    expect(serializedMessages).toContain('<document_data>')
+    expect(serializedMessages).not.toContain(API_KEY)
+
+    // 不持久化：落盘书里找不到复述原文，章节与块保持生成后的样子
+    const saved = await bookStore.get(id)
+    expect(JSON.stringify(saved)).not.toContain(explanation)
+    expect(saved?.chapters.find((entry) => entry.id === 'ch-1')?.blocks).toHaveLength(4)
+    // 判定留痕
+    expect(JSON.stringify(logger.mock.calls)).toContain('feynman_judged')
+  })
+
+  it('explanation 缺失、纯空白或超过 2000 字符返回 400 invalid_request，不调上游', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await readyBook(app)
+    const upstreamCalls = fetchImpl.mock.calls.length
+
+    const missing = await request(app).post(`/api/books/${id}/chapters/ch-1/feynman`).send({})
+    expect(missing.status).toBe(400)
+    expect(missing.body).toEqual({ error: 'invalid_request' })
+
+    const blank = await request(app).post(`/api/books/${id}/chapters/ch-1/feynman`).send({ explanation: '   ' })
+    expect(blank.status).toBe(400)
+
+    const tooLong = await request(app)
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation: '长'.repeat(2001) })
+    expect(tooLong.status).toBe(400)
+
+    expect(fetchImpl.mock.calls.length).toBe(upstreamCalls)
+  })
+
+  it('explanation 允许恰好 2000 字符（trim 后计数）', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await readyBook(app)
+
+    const res = await request(app)
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation: ` ${'讲'.repeat(2000)} ` })
+
+    expect(res.status).toBe(200)
+  })
+
+  it('章未生成（pending）返回 409 chapter_not_generatable，不调上游', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(app)
+    const upstreamCalls = fetchImpl.mock.calls.length
+
+    const res = await request(app)
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'chapter_not_generatable' })
+    expect(fetchImpl.mock.calls.length).toBe(upstreamCalls)
+  })
+
+  it('缺密钥返回 503 feynman_not_configured', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const { id } = await readyBook(appWith(fetchImpl))
+
+    // 共享同一对 store 的无密钥 app：建书走有密钥实例，费曼走无密钥实例
+    const res = await request(appWith(fetchImpl, { apiKey: '' }))
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation })
+
+    expect(res.status).toBe(503)
+    expect(res.body).toEqual({ error: 'feynman_not_configured' })
+  })
+
+  it('校验失败带修正指令重试一次后成功', async () => {
+    const fetchImpl = chapterAwareFetch({
+      onFeynman: (_body, feynmanCalls) => (feynmanCalls === 1 ? { passed: '讲得对' } : feynmanJson),
+    })
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await readyBook(app)
+
+    const res = await request(app)
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual(feynmanJson)
+    const retryBody = JSON.parse(String(fetchImpl.mock.calls.at(-1)![1]?.body))
+    const lastMessage = retryBody.messages.at(-1)
+    expect(lastMessage.role).toBe('user')
+    expect(lastMessage.content).toContain('上次输出未通过校验')
+    expect(lastMessage.content).toContain('feynman_invalid')
+    expect(JSON.stringify(logger.mock.calls)).toContain('feynman_validation_failed')
+  })
+
+  it('两次输出均非法返回 502 upstream_unavailable，响应与日志不泄密', async () => {
+    const fetchImpl = chapterAwareFetch({ onFeynman: () => '这不是 JSON' })
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger })
+    const { id } = await readyBook(app)
+
+    const res = await request(app)
+      .post(`/api/books/${id}/chapters/ch-1/feynman`)
+      .send({ explanation })
+
+    expect(res.status).toBe(502)
+    expect(res.body).toEqual({ error: 'upstream_unavailable' })
+    expect(res.text).not.toContain(API_KEY)
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(API_KEY)
+  })
+
+  it('未知书/未知章返回 404', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl)
+    const { id } = await readyBook(app)
+
+    const missingBook = await request(app)
+      .post('/api/books/book_missing-1/chapters/ch-1/feynman')
+      .send({ explanation })
+    expect(missingBook.status).toBe(404)
+    expect(missingBook.body).toEqual({ error: 'book_not_found' })
+
+    const missingChapter = await request(app)
+      .post(`/api/books/${id}/chapters/ch-99/feynman`)
+      .send({ explanation })
+    expect(missingChapter.status).toBe(404)
+    expect(missingChapter.body).toEqual({ error: 'chapter_not_found' })
   })
 })

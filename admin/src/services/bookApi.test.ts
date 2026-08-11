@@ -10,6 +10,7 @@ import {
   listBooks,
   streamChapterGeneration,
   submitAttempt,
+  submitFeynman,
   submitPretest,
   updateProposal,
   uploadDocument,
@@ -430,6 +431,54 @@ describe('streamChapterGeneration', () => {
     vi.stubGlobal('fetch', vi.fn(async () => streamResponse(encodedChunks(partial))))
     await expect(streamChapterGeneration('book-1', 'ch-1', { onEvent: vi.fn() }))
       .rejects.toMatchObject({ code: 'incomplete_stream' })
+  })
+})
+
+describe('submitFeynman', () => {
+  const feynmanResult = {
+    passed: false,
+    feedback: '讲到了找规律，但还不够完整。',
+    gap: '缺少「用规律做预测」这一环。',
+  }
+
+  it('posts explanation to the chapter feynman endpoint and parses the 200 payload', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse(feynmanResult, 200)
+    }))
+
+    const result = await submitFeynman('book-1', 'ch-1', '机器学习是从数据找规律。')
+
+    expect(actualUrl).toBe('/api/books/book-1/chapters/ch-1/feynman')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ explanation: '机器学习是从数据找规律。' })
+    expect(result).toEqual(feynmanResult)
+  })
+
+  it.each([
+    ['chapter_not_generatable'],
+    ['feynman_not_configured'],
+    ['upstream_unavailable'],
+  ])('passes through the error code %s', async (code) => {
+    const status = code === 'feynman_not_configured' ? 503 : code === 'upstream_unavailable' ? 502 : 409
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: code }, status)))
+
+    await expect(submitFeynman('book-1', 'ch-1', '复述'))
+      .rejects.toMatchObject({ name: 'BookApiError', code })
+  })
+
+  it.each([
+    ['non-boolean passed', { ...feynmanResult, passed: '对' }],
+    ['missing feedback', { passed: true, gap: '' }],
+    ['missing gap', { passed: true, feedback: '好。' }],
+  ])('rejects a malformed 200 payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, 200)))
+
+    await expect(submitFeynman('book-1', 'ch-1', '复述'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_feynman_payload' })
   })
 })
 

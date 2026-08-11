@@ -2,6 +2,7 @@ import { Icon } from '../components/Icon'
 import { BookBlockRenderer } from '../components/book/BookBlockRenderer'
 import { BookContextBar } from '../components/book/BookContextBar'
 import { BookGenerationRail } from '../components/book/BookGenerationRail'
+import { FeynmanCard } from '../components/book/FeynmanCard'
 import { advanceGeneration, regenerateBlock, retryChapterGeneration, submitQuizAttempt, updateUserNote } from '../domain/learningBook'
 import { chapterMastery, deriveConceptLearningState, latestAttemptForBlock, latestEvidenceForBlock } from '../domain/learningProjection'
 import type { AgentContextScope, LearningBook } from '../types/learningBook'
@@ -116,6 +117,19 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                 )
               })}
             </div>
+            {isRealBook && activeChapter.status === 'ready' && (
+              <FeynmanCard
+                bookId={book.id}
+                chapterId={activeChapter.id}
+                onReviewBlocks={() => {
+                  // 本组件在部分测试中以普通函数调用，不能用 ref；直接按类名找回块列表
+                  const blocks = document.querySelector('.interactive-book-blocks')
+                  if (blocks && typeof blocks.scrollIntoView === 'function') {
+                    blocks.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                }}
+              />
+            )}
             {isRealBook && chapterReviewCount > 0 && onOpenReview && (
               <footer className="interactive-book-chapter__review">
                 <div><span>错题复习</span><strong>本章还有 {chapterReviewCount} 道错题待复习</strong></div>
