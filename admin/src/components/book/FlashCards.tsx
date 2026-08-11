@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FlashCardsBlock } from '../../types/learningBook'
+import { MathText } from './MathText'
 
 export function FlashCards({ block }: { block: FlashCardsBlock }) {
   const [index, setIndex] = useState(0)
@@ -22,7 +23,7 @@ export function FlashCards({ block }: { block: FlashCardsBlock }) {
         onClick={() => setFlipped((value) => !value)}
       >
         <span className="book-flashcards__side">{flipped ? '背面' : '正面'}</span>
-        <span className="book-flashcards__text">{flipped ? card.back : card.front}</span>
+        <span className="book-flashcards__text"><MathText text={flipped ? card.back : card.front} /></span>
         {!flipped && card.hint && <span className="book-flashcards__hint">提示：{card.hint}</span>}
       </button>
       <div className="book-flashcards__controls">

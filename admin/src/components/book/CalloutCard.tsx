@@ -1,4 +1,5 @@
 import type { CalloutBlock } from '../../types/learningBook'
+import { MathText } from './MathText'
 
 const KIND_LABEL: Record<CalloutBlock['kind'], string> = {
   key_idea: '关键概念',
@@ -11,7 +12,7 @@ export function CalloutCard({ block }: { block: CalloutBlock }) {
   return (
     <div className={`book-callout book-callout--${block.kind}`} role="note">
       <span className="book-callout__kind">{KIND_LABEL[block.kind]}</span>
-      <p>{block.body}</p>
+      <p><MathText text={block.body} /></p>
     </div>
   )
 }

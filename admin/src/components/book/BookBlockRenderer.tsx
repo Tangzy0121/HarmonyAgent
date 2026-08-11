@@ -33,7 +33,7 @@ export function BookBlockRenderer({ block, note, attempt, evidence, allowBlockRe
       case 'example':
         return <><p><MathText text={block.scenario} /></p><p className="book-block__takeaway"><strong>带走一句：</strong>{block.takeaway}</p></>
       case 'formula':
-        return <><div className="book-block__formula"><KatexView tex={block.formula} displayMode /></div><p>{block.explanation}</p></>
+        return <><div className="book-block__formula"><KatexView tex={block.formula} displayMode /></div><p><MathText text={block.explanation} /></p></>
       case 'citation':
         return <blockquote><p>“{block.excerpt}”</p><cite><Icon name="quote" size={15} />{block.location}</cite></blockquote>
       case 'concept':

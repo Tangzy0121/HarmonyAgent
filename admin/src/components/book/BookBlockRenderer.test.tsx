@@ -332,6 +332,36 @@ describe('BookBlockRenderer · formula（KaTeX）', () => {
       expect(katexMock.renderToString).toHaveBeenCalledWith('\\theta \\leftarrow \\theta - \\eta \\nabla L', { displayMode: false, throwOnError: false })
     })
   })
+
+  it('renders inline math in formula explanation, callout body and flash card text', async () => {
+    const formula: FormulaBlock = {
+      id: 'blk-formula-2',
+      type: 'formula',
+      status: 'ready',
+      title: '单侧偏差',
+      revision: 1,
+      sourceAnchors: [],
+      formula: 'd_i = z_i - \\mu_i',
+      explanation: '真实基数 $z_i$ 大于估计 $\\mu_i$ 时被低估。',
+    }
+    renderBlock(formula)
+    await vi.waitFor(() => {
+      expect(katexMock.renderToString).toHaveBeenCalledWith('z_i', { displayMode: false, throwOnError: false })
+      expect(katexMock.renderToString).toHaveBeenCalledWith('\\mu_i', { displayMode: false, throwOnError: false })
+    })
+
+    katexMock.renderToString.mockClear()
+    renderBlock({ ...calloutBlock, body: '注意 $\\eta$ 过大会震荡。' })
+    await vi.waitFor(() => {
+      expect(katexMock.renderToString).toHaveBeenCalledWith('\\eta', { displayMode: false, throwOnError: false })
+    })
+
+    katexMock.renderToString.mockClear()
+    renderBlock({ ...flashCardsBlock, cards: [{ front: '学习率 $\\eta$', back: '步长' }, { front: '甲', back: '乙' }, { front: '丙', back: '丁' }] })
+    await vi.waitFor(() => {
+      expect(katexMock.renderToString).toHaveBeenCalledWith('\\eta', { displayMode: false, throwOnError: false })
+    })
+  })
 })
 
 describe('BookBlockRenderer · figure 大图', () => {
