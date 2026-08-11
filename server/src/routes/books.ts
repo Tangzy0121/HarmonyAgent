@@ -64,11 +64,15 @@ interface BooksRouterDependencies {
   createBookId?: () => string
   /** 章节生成上游超时（毫秒），默认 CHAPTER_UPSTREAM_TIMEOUT_MS；测试可注入小值 */
   chapterTimeoutMs?: number
+  /** generating 任务超过该毫秒数未更新即视为僵死（断连/重启残留），允许重新生成；测试可注入小值 */
+  staleJobMs?: number
 }
 
 export const UPSTREAM_TIMEOUT_MS = 60_000
 // 章节输出预算 6000 tokens，真实上游生成常超过提案用的 60s，章节路径单独放宽到 180s
 export const CHAPTER_UPSTREAM_TIMEOUT_MS = 180_000
+// generating 任务超过 4 分钟（180s 上游超时 + 余量）未更新即视为僵死
+export const STALE_GENERATING_MS = 240_000
 const SAFE_ERROR_NAMES = new Set(['Error', 'TypeError', 'TimeoutError', 'OpenAIStreamParseError'])
 // 40 是 Agent 问答上下文（bookAgentContract MAX_BLOCKS）的硬顶，不能再高；
 // 提案允许 3–6 章，章节生成按 max(4, floor(剩余预算 / 含本章的剩余章数)) 均分预留，
@@ -194,6 +198,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
   const env = dependencies.env ?? process.env
   const createBookId = dependencies.createBookId ?? (() => `book_${randomUUID()}`)
   const chapterTimeoutMs = dependencies.chapterTimeoutMs ?? CHAPTER_UPSTREAM_TIMEOUT_MS
+  const staleJobMs = dependencies.staleJobMs ?? STALE_GENERATING_MS
   const logger =
     dependencies.logger ??
     ((event: BooksLogEvent) => {
@@ -514,6 +519,27 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
     // 前置校验失败一律 JSON 409/404/503，不进入 SSE
+    // 浏览器断连/进程重启可能留下永不完结的 generating：job 超过阈值未更新视为僵死，
+    // 翻为 error 后放行本次重新生成；仍在进行中的 generating 照旧拒绝
+    const existingJob = book.generationJobs.find((entry) => entry.chapterId === chapter.id)
+    if (
+      chapter.status === 'generating' &&
+      existingJob !== undefined &&
+      Date.now() - Date.parse(existingJob.updatedAt) > staleJobMs
+    ) {
+      chapter.status = 'error'
+      existingJob.status = 'error'
+      existingJob.lastError = 'interrupted'
+      book.updatedAt = new Date().toISOString()
+      existingJob.updatedAt = book.updatedAt
+      try {
+        await bookStore.save(book)
+      } catch {
+        res.status(500).json({ error: 'internal_error' })
+        return
+      }
+      emitLog(logger, { category: 'chapter_error', name: 'interrupted', bookId: book.id, chapterId: chapter.id })
+    }
     // pending 或 error 状态的章可（重新）生成；generating/ready 拒绝
     if (
       book.status === 'proposal' ||

@@ -58,7 +58,7 @@ let documentId: string
 
 function appWith(
   fetchImpl: typeof fetch,
-  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number } = {},
+  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number; staleJobMs?: number } = {},
 ) {
   const app = express()
   app.use('/api/books', createBooksRouter({
@@ -66,6 +66,7 @@ function appWith(
     bookStore,
     fetchImpl,
     chapterTimeoutMs: options.chapterTimeoutMs,
+    staleJobMs: options.staleJobMs,
     env: {
       LLM_API_KEY: options.apiKey ?? API_KEY,
       LLM_BASE_URL: 'https://api.deepseek.example/',
@@ -881,6 +882,51 @@ describe('POST /api/books/:id/chapters/:cid/generate', () => {
         reason: '需要至少 4 种不同块类型',
       }),
     )
+  })
+
+  it('僵死的 generating 章（job 超时未更新）翻 error 并可重新生成', async () => {
+    const fetchImpl = chapterAwareFetch({ onChapter: () => chapterBlocksJson(1) })
+    const logger = vi.fn()
+    const app = appWith(fetchImpl, { logger, staleJobMs: 1_000 })
+    const { id } = await createConfirmedBook(app)
+
+    // 直接改写落盘书，模拟断连残留：ch-1 generating 且 job 10 秒未更新
+    const stored = await bookStore.get(id)
+    const chapter = stored!.chapters[0]
+    chapter.status = 'generating'
+    const job = stored!.generationJobs.find((entry) => entry.chapterId === chapter.id)!
+    job.status = 'generating'
+    job.updatedAt = new Date(Date.now() - 10_000).toISOString()
+    await bookStore.save(stored!)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(res.status).toBe(200)
+    expect(sseEventsFrom(res.text).at(-1)?.event).toBe('chapter_done')
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'chapter_error', name: 'interrupted', chapterId: 'ch-1' }),
+    )
+
+    const after = await bookStore.get(id)
+    expect(after!.chapters[0].status).toBe('ready')
+    expect(after!.chapters[0].blocks.length).toBeGreaterThan(0)
+  })
+
+  it('仍在进行中的 generating 章（job 新鲜）拒绝 409', async () => {
+    const fetchImpl = chapterAwareFetch({ onChapter: () => chapterBlocksJson(1) })
+    const app = appWith(fetchImpl, { staleJobMs: 60_000 })
+    const { id } = await createConfirmedBook(app)
+
+    const stored = await bookStore.get(id)
+    const chapter = stored!.chapters[0]
+    chapter.status = 'generating'
+    const job = stored!.generationJobs.find((entry) => entry.chapterId === chapter.id)!
+    job.status = 'generating'
+    job.updatedAt = new Date().toISOString()
+    await bookStore.save(stored!)
+
+    const res = await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    expect(res.status).toBe(409)
+    expect(res.body.error).toBe('chapter_not_generatable')
   })
 
   it('均分预留：6 章书前 5 章各吃满 9 种块也不挤占末章配额，末章照常生成成功', async () => {
