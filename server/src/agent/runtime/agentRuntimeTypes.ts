@@ -19,12 +19,18 @@ export interface AgentObjectRefs {
   documentId?: string
 }
 
+export type StartTurnActionV1 =
+  | { type: 'grade_quiz'; answerId: string }
+  | { type: 'evaluate_feynman'; confirmedText: string }
+  | { type: 'schedule_review'; result: 'remembered' | 'forgotten' }
+
 export interface StartTurnRequestV1 {
   version: '1'
   message: string
   surface: AgentSurface
   refs: AgentObjectRefs
   capabilityHint?: CapabilityId
+  action?: StartTurnActionV1
 }
 
 export interface RuntimeActor {
@@ -40,6 +46,7 @@ export type AgentRuntimeValidationCode =
   | 'invalid_surface'
   | 'invalid_refs'
   | 'invalid_capability'
+  | 'invalid_action'
 
 export class AgentRuntimeValidationError extends Error {
   readonly code: AgentRuntimeValidationCode
@@ -87,6 +94,37 @@ function normalizeRefs(value: unknown): AgentObjectRefs {
   return refs
 }
 
+function actionText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string') throw new AgentRuntimeValidationError('invalid_action')
+  const normalized = value.trim()
+  if (!normalized || normalized.length > maxLength) {
+    throw new AgentRuntimeValidationError('invalid_action')
+  }
+  return normalized
+}
+
+function normalizeAction(value: unknown, refs: AgentObjectRefs): StartTurnActionV1 | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value) || typeof value.type !== 'string') {
+    throw new AgentRuntimeValidationError('invalid_action')
+  }
+  if (value.type === 'grade_quiz') {
+    if (!refs.blockId) throw new AgentRuntimeValidationError('invalid_action')
+    return { type: 'grade_quiz', answerId: actionText(value.answerId, 128) }
+  }
+  if (value.type === 'evaluate_feynman') {
+    if (!refs.chapterId) throw new AgentRuntimeValidationError('invalid_action')
+    return { type: 'evaluate_feynman', confirmedText: actionText(value.confirmedText, 2_000) }
+  }
+  if (value.type === 'schedule_review') {
+    if (!refs.blockId || (value.result !== 'remembered' && value.result !== 'forgotten')) {
+      throw new AgentRuntimeValidationError('invalid_action')
+    }
+    return { type: 'schedule_review', result: value.result }
+  }
+  throw new AgentRuntimeValidationError('invalid_action')
+}
+
 export function normalizeStartTurnRequest(value: unknown): StartTurnRequestV1 {
   if (!isRecord(value)) throw new AgentRuntimeValidationError('invalid_request')
   if (value.version !== '1') throw new AgentRuntimeValidationError('unsupported_version')
@@ -109,13 +147,16 @@ export function normalizeStartTurnRequest(value: unknown): StartTurnRequestV1 {
     throw new AgentRuntimeValidationError('invalid_capability')
   }
 
+  const refs = normalizeRefs(value.refs)
+  const action = normalizeAction(value.action, refs)
   return {
     version: '1',
     message,
     surface: value.surface as AgentSurface,
-    refs: normalizeRefs(value.refs),
+    refs,
     ...(value.capabilityHint === undefined
       ? {}
       : { capabilityHint: value.capabilityHint as CapabilityId }),
+    ...(action === undefined ? {} : { action }),
   }
 }

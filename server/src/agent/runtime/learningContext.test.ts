@@ -152,6 +152,34 @@ describe('LearningContextBuilder', () => {
     expect(context.authority.chapter).toBeUndefined()
   })
 
+  it('exposes recovered mastery projections through the authorized learning state', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'learning-context-projection-'))
+    roots.push(root)
+    const store = createBookStore(root)
+    const projected = book('book_projected', 'chapter-1', 'block-1')
+    projected.masteryProjectionReadModel = {
+      'evidence-1': {
+        evidenceId: 'evidence-1', chapterId: 'chapter-1', conceptId: 'concept-label',
+        sourceBlockId: 'block-1', mastery: { chapter: 0.7, concept: 0.6 },
+        status: 'projected', projectedAt: '2026-08-14T01:00:00.000Z',
+      },
+    }
+    await store.save(projected)
+    const builder = new LearningContextBuilder({
+      bookAccess: createSingleUserBookAccess(store, actor),
+    })
+
+    const context = await builder.build(request({ bookId: 'book_projected' }), actor)
+
+    expect(context.learningStateSummary.masteryProjections).toEqual([
+      {
+        evidenceId: 'evidence-1', chapterId: 'chapter-1', conceptId: 'concept-label',
+        sourceBlockId: 'block-1', mastery: { chapter: 0.7, concept: 0.6 },
+        status: 'projected', projectedAt: '2026-08-14T01:00:00.000Z',
+      },
+    ])
+  })
+
   it('treats a second actor book lookup exactly like a missing book', async () => {
     const builder = await setup()
 

@@ -11,16 +11,13 @@ import {
   type AttemptDiagnosis,
   type BookBlock,
   type LearnerLevel,
-  type LearningEvidence,
   type LearningGoal,
   type PretestQuestion,
-  type QuizAttempt,
   type StoredBook,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
 import { buildDiagnosisMessages, normalizeDiagnosis } from '../books/diagnosisPrompt.js'
-import { computeMastery } from '../books/mastery.js'
 import {
   buildFeynmanMessages,
   FeynmanValidationError,
@@ -32,7 +29,12 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
-import { applyReviewGrade, listDueItems } from '../books/schedule.js'
+import { listDueItems } from '../books/schedule.js'
+import type { RuntimeActor } from '../agent/runtime/agentRuntimeTypes.js'
+import {
+  LearningEvidenceService,
+  LearningEvidenceServiceError,
+} from '../learning/learningEvidenceService.js'
 import {
   extractJsonObject,
   normalizeProposal,
@@ -79,7 +81,7 @@ export interface BooksLogEvent {
 
 export type BooksLogger = (event: BooksLogEvent) => void
 
-interface BooksRouterDependencies {
+export interface BooksRouterDependencies {
   documentStore: DocumentStore
   bookStore: BookStore
   fetchImpl?: typeof fetch
@@ -90,6 +92,8 @@ interface BooksRouterDependencies {
   chapterTimeoutMs?: number
   /** generating 任务超过该毫秒数未更新即视为僵死（断连/重启残留），允许重新生成；测试可注入小值 */
   staleJobMs?: number
+  learningEvidenceService?: LearningEvidenceService
+  runtimeActor?: RuntimeActor
 }
 
 export const UPSTREAM_TIMEOUT_MS = 60_000
@@ -223,6 +227,12 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
   const createBookId = dependencies.createBookId ?? (() => `book_${randomUUID()}`)
   const chapterTimeoutMs = dependencies.chapterTimeoutMs ?? CHAPTER_UPSTREAM_TIMEOUT_MS
   const staleJobMs = dependencies.staleJobMs ?? STALE_GENERATING_MS
+  const runtimeActor = dependencies.runtimeActor ?? {
+    userId: 'local-user',
+    workspaceId: 'local-workspace',
+  }
+  const learningEvidenceService = dependencies.learningEvidenceService ??
+    new LearningEvidenceService({ bookStore, owner: runtimeActor })
   const logger =
     dependencies.logger ??
     ((event: BooksLogEvent) => {
@@ -473,19 +483,16 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
 
     let updated: StoredBook
     try {
-      updated = applyProposalEdits(book, req.body as ProposalEdits)
+      const committed = await bookStore.update(book.id, (current) => {
+        const edited = applyProposalEdits(current, req.body as ProposalEdits)
+        Object.assign(current, edited, { updatedAt: new Date().toISOString() })
+      })
+      updated = committed.book
     } catch (error) {
       if (error instanceof ProposalEditError) {
         res.status(error.code === 'book_not_editable' ? 409 : 400).json({ error: error.code })
         return
       }
-      throw error
-    }
-
-    updated = { ...updated, updatedAt: new Date().toISOString() }
-    try {
-      await bookStore.save(updated)
-    } catch {
       res.status(500).json({ error: 'internal_error' })
       return
     }
@@ -510,16 +517,21 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
 
     // 确认目录：进入 generating，激活第一章；章节保持 pending，等客户端逐章触发生成
-    const sorted = [...book.chapters].sort((a, b) => a.order - b.order)
-    const confirmed: StoredBook = {
-      ...book,
-      status: 'generating',
-      activeChapterId: sorted[0]?.id ?? book.activeChapterId,
-      updatedAt: new Date().toISOString(),
-    }
+    let confirmed: StoredBook
     try {
-      await bookStore.save(confirmed)
-    } catch {
+      const committed = await bookStore.update(book.id, (current) => {
+        if (current.status !== 'proposal') throw new ProposalEditError('book_not_editable')
+        const currentSorted = [...current.chapters].sort((a, b) => a.order - b.order)
+        current.status = 'generating'
+        current.activeChapterId = currentSorted[0]?.id ?? current.activeChapterId
+        current.updatedAt = new Date().toISOString()
+      })
+      confirmed = committed.book
+    } catch (error) {
+      if (error instanceof ProposalEditError) {
+        res.status(409).json({ error: 'book_not_editable' })
+        return
+      }
       res.status(500).json({ error: 'internal_error' })
       return
     }
@@ -558,7 +570,17 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       book.updatedAt = new Date().toISOString()
       existingJob.updatedAt = book.updatedAt
       try {
-        await bookStore.save(book)
+        await bookStore.update(book.id, (current) => {
+          const currentChapter = current.chapters.find((entry) => entry.id === chapter.id)
+          const currentJob = current.generationJobs.find((entry) => entry.chapterId === chapter.id)
+          if (currentChapter) currentChapter.status = 'error'
+          if (currentJob) {
+            currentJob.status = 'error'
+            currentJob.lastError = 'interrupted'
+            currentJob.updatedAt = book.updatedAt
+          }
+          current.updatedAt = book.updatedAt
+        })
       } catch {
         res.status(500).json({ error: 'internal_error' })
         return
@@ -619,7 +641,23 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     const persist = async (): Promise<void> => {
       book.updatedAt = new Date().toISOString()
       if (job !== undefined) job.updatedAt = book.updatedAt
-      await bookStore.save(book)
+      await bookStore.update(book.id, (current) => {
+        const currentChapterIndex = current.chapters.findIndex((entry) => entry.id === chapter.id)
+        if (currentChapterIndex < 0) throw new Error('chapter_not_found')
+        current.chapters[currentChapterIndex] = structuredClone(chapter)
+        if (job !== undefined) {
+          const currentJobIndex = current.generationJobs.findIndex((entry) => entry.chapterId === chapter.id)
+          if (currentJobIndex >= 0) current.generationJobs[currentJobIndex] = structuredClone(job)
+        }
+        current.updatedAt = book.updatedAt
+        if (current.chapters.every((entry) => entry.status === 'ready')) {
+          current.status = 'ready'
+        } else if (current.chapters.some((entry) => entry.status === 'error')) {
+          current.status = 'partial'
+        } else {
+          current.status = 'generating'
+        }
+      })
     }
     // 全部章 ready → ready；有 error 章 → partial；其余保持 generating
     const refreshBookStatus = (): void => {
@@ -844,60 +882,20 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       }
     }
 
-    const attempt: QuizAttempt = {
-      id: `attempt_${randomUUID()}`,
-      chapterId: chapter.id,
-      blockId: block.id,
-      answerId,
-      isCorrect,
-      submittedAt: now,
-      diagnosis,
-    }
-    const evidence: LearningEvidence = {
-      id: `evidence_${randomUUID()}`,
-      chapterId: chapter.id,
-      conceptId: block.conceptId,
-      sourceBlockId: block.id,
-      statement: `${isCorrect ? '答对' : '答错待复习'}：${block.question.slice(0, 80)}`,
-      outcome: isCorrect ? 'mastered' : 'review',
-      createdAt: now,
-    }
-    book.quizAttempts.push(attempt)
-    book.evidence.push(evidence)
-    book.updatedAt = now
-
-    // 间隔重复调度：答错入队/重置，答对推进或毕业（never-wrong 的块不入调度）
-    const scheduleMap = { ...(book.reviewSchedule ?? {}) }
-    const nextSchedule = applyReviewGrade(scheduleMap[block.id], 'quiz', isCorrect, new Date(now))
-    if (nextSchedule === null) delete scheduleMap[block.id]
-    else scheduleMap[block.id] = nextSchedule
-    book.reviewSchedule = scheduleMap
-
-    // chapter 范围 = 该章全部 quiz 块的 attempts；
-    // concept 范围 = 同 conceptId 的 quiz 块的 attempts
-    //（conceptId 为空串时只用本块 attempts，避免无关空串块跨块混算）
-    const chapterAttempts = book.quizAttempts.filter((entry) => entry.chapterId === chapter.id)
-    const conceptBlockIds = new Set(
-      block.conceptId === ''
-        ? [block.id]
-        : book.chapters
-            .flatMap((entry) => entry.blocks)
-            .filter((entry) => entry.type === 'quiz' && entry.conceptId === block.conceptId)
-            .map((entry) => entry.id),
-    )
-    const mastery = {
-      chapter: computeMastery(chapterAttempts),
-      concept: computeMastery(book.quizAttempts.filter((entry) => conceptBlockIds.has(entry.blockId))),
-    }
-
+    let recorded: Awaited<ReturnType<LearningEvidenceService['recordQuiz']>>
     try {
-      await bookStore.save(book)
+      recorded = await learningEvidenceService.recordQuiz(runtimeActor, {
+        bookId: book.id,
+        blockId: block.id,
+        answerId,
+        diagnosis,
+      })
     } catch {
       res.status(500).json({ error: 'internal_error' })
       return
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
-    res.status(201).json({ attempt, evidence, mastery, schedule: nextSchedule, diagnosis })
+    res.status(201).json(recorded)
   })
 
   router.get('/:id/review/due', async (req, res) => {
@@ -939,21 +937,19 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       res.status(409).json({ error: 'review_target_invalid' })
       return
     }
-    const now = new Date()
-    const scheduleMap = { ...(book.reviewSchedule ?? {}) }
-    const next = applyReviewGrade(scheduleMap[block.id], 'flash_cards', result === 'remembered', now)
-    if (next === null) delete scheduleMap[block.id]
-    else scheduleMap[block.id] = next
-    book.reviewSchedule = scheduleMap
-    book.updatedAt = now.toISOString()
+    let recorded: Awaited<ReturnType<LearningEvidenceService['recordReview']>>
     try {
-      await bookStore.save(book)
+      recorded = await learningEvidenceService.recordReview(runtimeActor, {
+        bookId: book.id,
+        blockId: block.id,
+        result,
+      })
     } catch {
       res.status(500).json({ error: 'internal_error' })
       return
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
-    res.status(200).json({ schedule: next })
+    res.status(200).json(recorded)
   })
 
   router.post('/:id/pretest', async (req, res) => {
@@ -1036,16 +1032,20 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
 
-    book.pretest = { questions, result: null }
-    book.updatedAt = new Date().toISOString()
+    let persistedPretest: NonNullable<StoredBook['pretest']>
     try {
-      await bookStore.save(book)
+      const committed = await bookStore.update(book.id, (current) => {
+        current.pretest ??= { questions: questions!, result: null }
+        current.updatedAt = new Date().toISOString()
+        return current.pretest
+      })
+      persistedPretest = committed.result
     } catch {
       res.status(500).json({ error: 'internal_error' })
       return
     }
     emitLog(logger, { category: 'pretest_generated', bookId: book.id })
-    res.status(200).json(book.pretest)
+    res.status(200).json(persistedPretest)
   })
 
   router.post('/:id/pretest/result', async (req, res) => {
@@ -1088,21 +1088,25 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     const startChapter = chapters.find((chapter) => !skippableChapterIds.includes(chapter.id))
       ?? chapters.at(-1)!
 
-    book.pretest.result = {
-      answers: answers as Record<string, string>,
-      suggestedStartChapterId: startChapter.id,
-      skippableChapterIds,
-      submittedAt: new Date().toISOString(),
-    }
-    book.updatedAt = book.pretest.result.submittedAt
+    let committedBook: StoredBook
     try {
-      await bookStore.save(book)
+      const committed = await bookStore.update(book.id, (current) => {
+        if (!current.pretest) throw new Error('pretest_unavailable')
+        current.pretest.result = {
+          answers: answers as Record<string, string>,
+          suggestedStartChapterId: startChapter.id,
+          skippableChapterIds,
+          submittedAt: new Date().toISOString(),
+        }
+        current.updatedAt = current.pretest.result.submittedAt
+      })
+      committedBook = committed.book
     } catch {
       res.status(500).json({ error: 'internal_error' })
       return
     }
     emitLog(logger, { category: 'pretest_result_submitted', bookId: book.id })
-    res.status(200).json({ book })
+    res.status(200).json({ book: committedBook })
   })
 
   router.post('/:id/chapters/:cid/feynman', async (req, res) => {
@@ -1148,7 +1152,8 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       explanation,
     })
 
-    // 费曼判定：800 tokens；解析/校验失败带修正指令重试一次，仍失败 502。结果不持久化（MVP 无状态）
+    // 费曼判定：800 tokens；解析/校验失败带修正指令重试一次，仍失败 502。
+    // 成功后仅持久化不可逆复述摘要元数据与分类判定，不保存复述原文或上游原始输出。
     let result: FeynmanResult | null = null
     let attemptMessages = messages
     for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -1194,8 +1199,28 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       res.status(502).json({ error: 'upstream_unavailable' })
       return
     }
+    let recorded: Awaited<ReturnType<LearningEvidenceService['recordFeynman']>>
+    try {
+      recorded = await learningEvidenceService.recordFeynman(runtimeActor, {
+        bookId: book.id,
+        chapterId: chapter.id,
+        confirmedText: explanation,
+        result,
+      })
+    } catch (error) {
+      if (error instanceof LearningEvidenceServiceError && error.code === 'chapter_not_found') {
+        res.status(404).json({ error: 'chapter_not_found' })
+        return
+      }
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
     emitLog(logger, { category: 'feynman_judged', bookId: book.id, chapterId: chapter.id })
-    res.status(200).json(result)
+    res.status(200).json({
+      ...result,
+      projectionStatus: recorded.projectionStatus,
+      ...(recorded.mastery ? { mastery: recorded.mastery } : {}),
+    })
   })
 
   const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {

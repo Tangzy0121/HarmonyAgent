@@ -12,6 +12,8 @@ import { createBookStore, type BookStore } from '../books/bookStore.js'
 import type { FlashCardsBlock, QuizBlock } from '../books/bookTypes.js'
 import { createDocumentStore, type DocumentStore } from '../documents/documentStore.js'
 import type { ParsedDocument } from '../documents/pdfParser.js'
+import { LearningEvidenceService } from '../learning/learningEvidenceService.js'
+import type { MasteryProjector } from '../learning/masteryProjector.js'
 import { BOOK_BLOCK_BUDGET, CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
 
 const API_KEY = 'test-only-secret-key'
@@ -59,7 +61,7 @@ let documentId: string
 
 function appWith(
   fetchImpl: typeof fetch,
-  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number; staleJobMs?: number } = {},
+  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number; staleJobMs?: number; evidenceService?: LearningEvidenceService } = {},
 ) {
   const app = express()
   app.use('/api/books', createBooksRouter({
@@ -74,6 +76,7 @@ function appWith(
       LLM_MODEL: '',
     },
     logger: options.logger ?? vi.fn(),
+    learningEvidenceService: options.evidenceService,
   }))
   return app
 }
@@ -1243,12 +1246,16 @@ describe('POST /api/books/:id/attempts', () => {
     expect(Number.isNaN(Date.parse(attempt.submittedAt))).toBe(false)
     expect(evidence.id).toMatch(/^evidence_/u)
     expect(evidence).toMatchObject({
+      version: '1',
+      kind: 'quiz',
       chapterId: 'ch-1',
       conceptId: quiz.conceptId,
       sourceBlockId: quiz.id,
       statement: `答对：${quiz.question}`,
       outcome: 'mastered',
+      payload: { attemptId: attempt.id, answerId: quiz.correctAnswerId, isCorrect: true },
     })
+    expect(res.body.projectionStatus).toBe('projected')
     // 首次作答封顶 0.5
     expect(mastery).toEqual({ chapter: 0.5, concept: 0.5 })
 
@@ -1287,6 +1294,31 @@ describe('POST /api/books/:id/attempts', () => {
     const saved = await bookStore.get(id)
     expect(saved?.quizAttempts).toHaveLength(2)
     expect(saved?.evidence).toHaveLength(2)
+  })
+
+  it('证据已保存但投影失败时仍返回 201 并明确 projection pending', async () => {
+    const fetchImpl = chapterAwareFetch()
+    const setupApp = appWith(fetchImpl)
+    const { id } = await createConfirmedBook(setupApp)
+    await request(setupApp).post(`/api/books/${id}/chapters/ch-1/generate`)
+    const quiz = await quizBlockOf(id, 'ch-1')
+    const failingProjector = {
+      project() { throw new Error('private projection details') },
+    } as unknown as MasteryProjector
+    const evidenceService = new LearningEvidenceService({
+      bookStore,
+      owner: { userId: 'local-user', workspaceId: 'local-workspace' },
+      projector: failingProjector,
+    })
+
+    const response = await request(appWith(fetchImpl, { evidenceService }))
+      .post(`/api/books/${id}/attempts`)
+      .send({ blockId: quiz.id, answerId: quiz.correctAnswerId })
+
+    expect(response.status).toBe(201)
+    expect(response.body.projectionStatus).toBe('pending')
+    expect(response.body.mastery).toBeUndefined()
+    expect((await bookStore.get(id))?.evidence).toHaveLength(1)
   })
 
   it('答错后再答对：掌握度按最近作答重算，答错证据标 review', async () => {
@@ -1627,9 +1659,14 @@ describe('POST /api/books/:id/review/:blockId/result', () => {
 
     expect(response.status).toBe(200)
     expect(response.body.schedule).toMatchObject({ kind: 'flash_cards', stage: 1 })
+    expect(response.body).toMatchObject({
+      projectionStatus: 'projected',
+      evidence: { version: '1', kind: 'review', sourceBlockId: flash.id },
+    })
 
     const stored = await bookStore.get(bookId)
     expect(stored?.reviewSchedule?.[flash.id]).toMatchObject({ kind: 'flash_cards', stage: 1 })
+    expect(stored?.evidence).toHaveLength(1)
   })
 
   it('POST review/:blockId/result 拒绝非闪卡块与非法 result', async () => {
@@ -1906,7 +1943,7 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
     return { id }
   }
 
-  it('ready 章返回 {passed, feedback, gap}：800 tokens/json_object，提示词含章标题/目标/要点与复述，不含密钥，不落盘', async () => {
+  it('ready 章保留判定字段并落安全结构化证据：800 tokens/json_object，不含密钥或音频', async () => {
     const fetchImpl = chapterAwareFetch()
     const logger = vi.fn()
     const app = appWith(fetchImpl, { logger })
@@ -1917,7 +1954,7 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
       .send({ explanation })
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual(feynmanJson)
+    expect(res.body).toMatchObject({ ...feynmanJson, projectionStatus: 'projected' })
 
     // 上游请求：800 tokens / json_object（新档位）
     const feynmanCall = fetchImpl.mock.calls.at(-1)!
@@ -1934,9 +1971,21 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
     expect(serializedMessages).toContain('<document_data>')
     expect(serializedMessages).not.toContain(API_KEY)
 
-    // 不持久化：落盘书里找不到复述原文，章节与块保持生成后的样子
+    // 只落确认文本摘要和规范化判定，不保存原始音频/模型原始输出
     const saved = await bookStore.get(id)
-    expect(JSON.stringify(saved)).not.toContain(explanation)
+    expect(saved?.evidence).toHaveLength(1)
+    expect(saved?.evidence[0]).toMatchObject({
+      version: '1', kind: 'feynman',
+      payload: {
+        confirmedTextLength: explanation.length,
+        passed: true,
+        feedbackCategory: 'positive',
+        gapCategory: 'none',
+      },
+    })
+    expect(JSON.stringify(saved?.evidence)).not.toContain(explanation)
+    expect(JSON.stringify(saved?.evidence)).not.toContain(feynmanJson.feedback)
+    expect(JSON.stringify(saved?.evidence)).not.toContain('audio')
     expect(saved?.chapters.find((entry) => entry.id === 'ch-1')?.blocks).toHaveLength(4)
     // 判定留痕
     expect(JSON.stringify(logger.mock.calls)).toContain('feynman_judged')
@@ -2016,7 +2065,7 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
       .send({ explanation })
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual(feynmanJson)
+    expect(res.body).toMatchObject(feynmanJson)
     const retryBody = JSON.parse(String(fetchImpl.mock.calls.at(-1)![1]?.body))
     const lastMessage = retryBody.messages.at(-1)
     expect(lastMessage.role).toBe('user')

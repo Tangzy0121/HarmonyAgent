@@ -16,6 +16,10 @@ import { createBookAgentRunner } from './agent/runtime/bookAgentRunner.js';
 import { createSingleUserBookAccess, LearningContextBuilder } from './agent/runtime/learningContext.js';
 import { createTurnStore } from './agent/runtime/turnStore.js';
 import { createAgentTurnsRouter } from './routes/agentTurns.js';
+import { LearningEvidenceService } from './learning/learningEvidenceService.js';
+import { loadOrCreateEvidenceSecurityKeys } from './learning/evidenceSecurityKeys.js';
+import { createProviderFeynmanEvaluator } from './learning/feynmanEvaluator.js';
+import { ProjectionRecoveryWorker } from './learning/projectionRecoveryWorker.js';
 import path from 'node:path';
 
 dotenv.config();
@@ -34,12 +38,25 @@ const runtimeActor = {
   userId: process.env.RUNTIME_USER_ID?.trim() || 'local-user',
   workspaceId: process.env.RUNTIME_WORKSPACE_ID?.trim() || 'local-workspace',
 };
+const evidenceSecurityKeys = await loadOrCreateEvidenceSecurityKeys(dataRoot, process.env);
+const learningEvidenceService = new LearningEvidenceService({
+  bookStore,
+  owner: runtimeActor,
+  ...evidenceSecurityKeys,
+});
+const projectionRecoveryWorker = new ProjectionRecoveryWorker({
+  drain: () => learningEvidenceService.drainProjectionOutbox(runtimeActor),
+  logger: (event) => console.warn(`[projection-recovery] ${JSON.stringify(event)}`),
+});
+await projectionRecoveryWorker.start();
 const runtime = new AgentRuntime({
   turnStore,
   contextBuilder: new LearningContextBuilder({
     bookAccess: createSingleUserBookAccess(bookStore, runtimeActor),
   }),
   runner: createBookAgentRunner(),
+  learningEvidenceService,
+  feynmanEvaluator: createProviderFeynmanEvaluator(),
 });
 app.use(
   '/api/agent',
@@ -60,6 +77,8 @@ app.use(
   createBooksRouter({
     documentStore,
     bookStore,
+    learningEvidenceService,
+    runtimeActor,
   }),
 );
 app.use(express.json({ limit: '10mb' }));
@@ -73,8 +92,19 @@ app.get('/health', (_req, res) => {
 app.use('/v1', llmRouter);
 app.use('/api', llmRouter);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[HarmonyAgent Server] running on http://localhost:${PORT}`);
   console.log(`[HarmonyAgent Server] provider: ${process.env.LLM_PROVIDER || 'not configured'}`);
   console.log(`[HarmonyAgent Server] audit log: ${process.env.AUDIT_LOG_ENABLED === 'true' ? 'enabled (no content)' : 'disabled'}`);
 });
+
+server.on('close', () => projectionRecoveryWorker.stop());
+let shuttingDown = false;
+const shutdown = (): void => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  projectionRecoveryWorker.stop();
+  server.close();
+};
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);

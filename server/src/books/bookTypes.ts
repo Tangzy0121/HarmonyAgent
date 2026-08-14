@@ -199,7 +199,7 @@ export interface QuizAttempt {
   diagnosis?: AttemptDiagnosis | null
 }
 
-export interface LearningEvidence {
+export interface LegacyLearningEvidence {
   id: string
   chapterId: string
   conceptId: string
@@ -207,6 +207,74 @@ export interface LearningEvidence {
   statement: string
   outcome: 'mastered' | 'review'
   createdAt: string
+}
+
+interface LearningEvidenceBaseV1 {
+  version: '1'
+  id: string
+  chapterId: string
+  conceptId: string
+  sourceBlockId: string
+  statement: string
+  outcome: 'mastered' | 'review'
+  createdAt: string
+}
+
+export interface QuizLearningEvidenceV1 extends LearningEvidenceBaseV1 {
+  kind: 'quiz'
+  payload: {
+    attemptId: string
+    answerId: string
+    isCorrect: boolean
+  }
+}
+
+export interface FeynmanLearningEvidenceV1 extends LearningEvidenceBaseV1 {
+  kind: 'feynman'
+  payload: {
+    confirmedTextDigest: string
+    confirmedTextLength: number
+    passed: boolean
+    feedbackCategory: 'positive' | 'needs_review'
+    gapCategory: 'none' | 'has_gap'
+  }
+}
+
+export interface ReviewLearningEvidenceV1 extends LearningEvidenceBaseV1 {
+  kind: 'review'
+  payload: {
+    reviewKind: ReviewKind
+    remembered: boolean
+  }
+}
+
+export type LearningEvidenceV1 =
+  | QuizLearningEvidenceV1
+  | FeynmanLearningEvidenceV1
+  | ReviewLearningEvidenceV1
+
+/** 读取旧书时仍接受无 version/kind/payload 的历史证据。 */
+export type LearningEvidence = LegacyLearningEvidence | LearningEvidenceV1
+
+export interface ProjectionOutboxEntry {
+  id: string
+  chapterId: string
+  conceptId: string
+  sourceBlockId: string
+  evidenceId: string
+  createdAt: string
+  attempts: number
+  lastAttemptAt?: string
+}
+
+export interface MasteryProjectionReadModelEntry {
+  evidenceId: string
+  chapterId: string
+  conceptId: string
+  sourceBlockId: string
+  mastery: { chapter: number; concept: number }
+  status: 'projected'
+  projectedAt: string
 }
 
 export interface GenerationJob {
@@ -262,6 +330,8 @@ export interface StoredBook {
   evidence: LearningEvidence[]
   pretest?: BookPretest
   reviewSchedule?: Record<string, ReviewScheduleEntry>
+  projectionOutbox?: Record<string, ProjectionOutboxEntry>
+  masteryProjectionReadModel?: Record<string, MasteryProjectionReadModelEntry>
   createdAt: string
   updatedAt: string
   generationJobs: GenerationJob[]

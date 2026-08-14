@@ -11,6 +11,13 @@ import type { StartTurnRequestV1 } from './agentRuntimeTypes.js'
 import type { BookAgentRunner } from './bookAgentRunner.js'
 import { createSingleUserBookAccess, LearningContextBuilder } from './learningContext.js'
 import { createTurnStore } from './turnStore.js'
+import { LearningEvidenceService } from '../../learning/learningEvidenceService.js'
+import {
+  createProviderFeynmanEvaluator,
+  type FeynmanEvaluator,
+} from '../../learning/feynmanEvaluator.js'
+import { ToolRegistry, type ToolId } from './toolRegistry.js'
+import { createLearningEvidenceTools } from './tools/learningEvidenceTools.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -62,6 +69,29 @@ function storedBook(): StoredBook {
         }],
         body: '标签为训练样本提供目标。',
         keyPoint: '标签',
+      }, {
+        id: 'quiz-1',
+        type: 'quiz',
+        status: 'ready',
+        title: '标签小测',
+        revision: 1,
+        sourceAnchors: [],
+        conceptId: 'concept-label',
+        question: '哪个选项代表标签？',
+        options: [
+          { id: '答案.一', marker: 'A', text: '目标值' },
+          { id: 'b', marker: 'B', text: '噪声' },
+        ],
+        correctAnswerId: '答案.一',
+        feedback: '',
+      }, {
+        id: 'flash-1',
+        type: 'flash_cards',
+        status: 'ready',
+        title: '标签卡片',
+        revision: 1,
+        sourceAnchors: [],
+        cards: [{ front: '标签是什么？', back: '监督信号' }],
       }],
     }],
     activeChapterId: 'chapter-1',
@@ -75,7 +105,17 @@ function storedBook(): StoredBook {
   }
 }
 
-async function setup(runner?: BookAgentRunner) {
+async function setup(
+  runner?: BookAgentRunner,
+  options: {
+    createTurnId?: () => string
+    feynmanEvaluator?: FeynmanEvaluator
+    toolHooks?: {
+      before?: (toolId: ToolId, signal?: AbortSignal) => void | Promise<void>
+      after?: (toolId: ToolId, result: unknown) => void | Promise<void>
+    }
+  } = {},
+) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-runtime-'))
   roots.push(root)
   const bookStore = createBookStore(path.join(root, 'books'))
@@ -89,12 +129,43 @@ async function setup(runner?: BookAgentRunner) {
       return {}
     },
   }
+  const learningEvidenceService = new LearningEvidenceService({
+    bookStore,
+    owner: actor,
+    now: () => new Date('2026-08-14T00:00:00.000Z'),
+    createId: () => 'runtime-stable',
+    receiptSecret: 'runtime-receipt-secret',
+    feynmanDigestKey: 'runtime-feynman-key',
+  })
+  const feynmanEvaluator = options.feynmanEvaluator ?? {
+    async evaluate() {
+      return { passed: true, feedback: '评估通过', gap: '' }
+    },
+  }
+  let toolRegistry: ToolRegistry | undefined
+  if (options.toolHooks) {
+    toolRegistry = new ToolRegistry()
+    for (const tool of createLearningEvidenceTools(learningEvidenceService, { feynmanEvaluator })) {
+      toolRegistry.register({
+        ...tool,
+        async execute(input, context, signal) {
+          await options.toolHooks?.before?.(tool.id, signal)
+          const result = await tool.execute(input, context, signal)
+          await options.toolHooks?.after?.(tool.id, result)
+          return result
+        },
+      })
+    }
+  }
   const runtime = new AgentRuntime({
     turnStore,
     contextBuilder: new LearningContextBuilder({ bookAccess: createSingleUserBookAccess(bookStore, actor) }),
     runner: defaultRunner,
-    createTurnId: () => 'turn-1',
+    createTurnId: options.createTurnId ?? (() => 'turn-1'),
     now: () => new Date('2026-08-14T00:00:00.000Z'),
+    learningEvidenceService,
+    feynmanEvaluator,
+    ...(toolRegistry ? { toolRegistry } : {}),
   })
   return { runtime, turnStore, bookStore }
 }
@@ -115,6 +186,246 @@ function request(
 const actor = { userId: 'server-user', workspaceId: 'server-workspace' }
 
 describe('AgentRuntime', () => {
+  it('routes a guided quiz action through the mounted production write tool', async () => {
+    let runnerCalls = 0
+    const { runtime, turnStore, bookStore } = await setup({
+      isConfigured: () => true,
+      reportInternalError: () => undefined,
+      async run() { runnerCalls += 1; return {} },
+    })
+
+    const started = await runtime.start({
+      ...request('guided_learning', {
+        bookId: 'book_one', chapterId: 'chapter-1', blockId: 'quiz-1',
+      }),
+      action: { type: 'grade_quiz', answerId: '答案.一' },
+    }, actor)
+    await started.completion
+
+    expect(runnerCalls).toBe(0)
+    expect((await bookStore.get('book_one'))?.quizAttempts).toHaveLength(1)
+    expect((await bookStore.get('book_one'))?.evidence[0]).toMatchObject({ kind: 'quiz' })
+    expect((await turnStore.listEventsAfter('turn-1')).map((event) => event.type)).toEqual([
+      'turn_started', 'activity', 'evidence_recorded', 'turn_completed',
+    ])
+  })
+
+  it('evaluates and appends Feynman evidence internally without persisting a receipt or action', async () => {
+    const raw = '这是只用于服务端评估的私密复述'
+    const providerFeedback = '只用于服务端的私密评估反馈'
+    const toolCalls: ToolId[] = []
+    let receipt: string | undefined
+    const { runtime, turnStore, bookStore } = await setup(undefined, {
+      feynmanEvaluator: {
+        async evaluate() {
+          return { passed: true, feedback: providerFeedback, gap: '' }
+        },
+      },
+      toolHooks: {
+        before(toolId) { toolCalls.push(toolId) },
+        after(toolId, result) {
+          if (toolId === 'evaluate_feynman') {
+            receipt = (result as { receipt?: string }).receipt
+          }
+        },
+      },
+    })
+    const evaluated = await runtime.start({
+      ...request('guided_learning', { bookId: 'book_one', chapterId: 'chapter-1' }),
+      action: { type: 'evaluate_feynman', confirmedText: raw },
+    }, actor)
+    await evaluated.completion
+
+    expect(toolCalls).toEqual(['evaluate_feynman', 'append_evidence'])
+    expect(typeof receipt).toBe('string')
+    expect((await bookStore.get('book_one'))?.evidence[0]).toMatchObject({ kind: 'feynman' })
+    expect((await bookStore.get('book_one'))?.evidence).toHaveLength(1)
+    const events = await turnStore.listEventsAfter('turn-1')
+    expect(events.map((event) => event.type)).toEqual([
+      'turn_started', 'activity', 'evidence_recorded', 'turn_completed',
+    ])
+    expect(events.find((event) => event.type === 'evidence_recorded')?.payload).toEqual({
+      tools: ['evaluate_feynman', 'append_evidence'],
+      evidenceId: 'evidence_runtime-stable',
+      projectionStatus: 'projected',
+    })
+    const persisted = JSON.stringify(await turnStore.getTurn('turn-1'))
+    expect(persisted).not.toContain(String(receipt))
+    expect(persisted).not.toContain('"receipt"')
+    expect(persisted).not.toContain('"action"')
+    expect(persisted).not.toContain('nextAction')
+    expect(persisted).not.toContain(raw)
+    expect(persisted).not.toContain(providerFeedback)
+  })
+
+  it('fails the turn when the internal append fails without exposing the receipt', async () => {
+    let receipt: string | undefined
+    const { runtime, turnStore, bookStore } = await setup(undefined, {
+      toolHooks: {
+        before(toolId) {
+          if (toolId === 'append_evidence') throw new Error('private_append_failure')
+        },
+        after(toolId, result) {
+          if (toolId === 'evaluate_feynman') {
+            receipt = (result as { receipt?: string }).receipt
+          }
+        },
+      },
+    })
+
+    const started = await runtime.start({
+      ...request('guided_learning', { bookId: 'book_one', chapterId: 'chapter-1' }),
+      action: { type: 'evaluate_feynman', confirmedText: '失败路径私密复述' },
+    }, actor)
+    await started.completion
+
+    expect(typeof receipt).toBe('string')
+    expect((await bookStore.get('book_one'))?.evidence).toEqual([])
+    const record = await turnStore.getTurn('turn-1')
+    expect(record.status).toBe('failed')
+    expect(record.events.at(-1)).toMatchObject({
+      type: 'turn_failed', payload: { code: 'agent_failed' },
+    })
+    expect(JSON.stringify(record)).not.toContain(String(receipt))
+    expect(JSON.stringify(record)).not.toContain('private_append_failure')
+  })
+
+  it('cancels while the internal append is pending without writing learning state', async () => {
+    let markAppendStarted: (() => void) | undefined
+    const appendStarted = new Promise<void>((resolve) => { markAppendStarted = resolve })
+    const { runtime, turnStore, bookStore } = await setup(undefined, {
+      toolHooks: {
+        async before(toolId, signal) {
+          if (toolId !== 'append_evidence') return
+          markAppendStarted?.()
+          await new Promise<void>((_resolve, reject) => {
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        },
+      },
+    })
+
+    const started = await runtime.start({
+      ...request('guided_learning', { bookId: 'book_one', chapterId: 'chapter-1' }),
+      action: { type: 'evaluate_feynman', confirmedText: '追加前取消的私密复述' },
+    }, actor)
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('append_not_started')), 250)
+      appendStarted.then(() => {
+        clearTimeout(timeout)
+        resolve()
+      }, reject)
+    })
+    await runtime.cancel('turn-1', actor)
+    await started.completion
+
+    const saved = await bookStore.get('book_one')
+    expect(saved?.evidence).toEqual([])
+    expect(saved?.projectionOutbox ?? {}).toEqual({})
+    expect(saved?.masteryProjectionReadModel ?? {}).toEqual({})
+    expect((await turnStore.getTurn('turn-1')).status).toBe('cancelled')
+  })
+
+  it('cancels a pending Feynman fetch without writing learning state', async () => {
+    let providerSignal: AbortSignal | undefined
+    let markFetchStarted: (() => void) | undefined
+    const fetchStarted = new Promise<void>((resolve) => { markFetchStarted = resolve })
+    const evaluator = createProviderFeynmanEvaluator({
+      env: { LLM_API_KEY: 'server-key' },
+      timeoutMs: 60_000,
+      timers: {
+        setTimeout: () => 'timeout-handle',
+        clearTimeout: () => undefined,
+      },
+      fetchImpl: async (_url, init) => {
+        providerSignal = init?.signal ?? undefined
+        markFetchStarted?.()
+        return new Promise((_resolve, reject) => {
+          providerSignal?.addEventListener('abort', () => reject(providerSignal?.reason), {
+            once: true,
+          })
+        })
+      },
+    })
+    const { runtime, turnStore, bookStore } = await setup(undefined, {
+      feynmanEvaluator: evaluator,
+    })
+
+    const started = await runtime.start({
+      ...request('guided_learning', { bookId: 'book_one', chapterId: 'chapter-1' }),
+      action: { type: 'evaluate_feynman', confirmedText: '取消中的私密复述' },
+    }, actor)
+    await fetchStarted
+    await runtime.cancel('turn-1', actor)
+    await started.completion
+
+    const saved = await bookStore.get('book_one')
+    expect(providerSignal?.aborted).toBe(true)
+    expect(saved?.evidence).toEqual([])
+    expect(saved?.projectionOutbox ?? {}).toEqual({})
+    expect(saved?.masteryProjectionReadModel ?? {}).toEqual({})
+    expect((await turnStore.getTurn('turn-1')).status).toBe('cancelled')
+  })
+
+  it('schedules review from the authoritative flash-card block and result', async () => {
+    const { runtime, bookStore } = await setup()
+    const started = await runtime.start({
+      ...request('guided_learning', {
+        bookId: 'book_one', chapterId: 'chapter-1', blockId: 'flash-1',
+      }),
+      action: { type: 'schedule_review', result: 'forgotten' },
+    }, actor)
+    await started.completion
+
+    expect((await bookStore.get('book_one'))?.evidence[0]).toMatchObject({
+      kind: 'review', payload: { remembered: false },
+    })
+    expect((await bookStore.get('book_one'))?.reviewSchedule?.['flash-1']).toBeDefined()
+  })
+
+  it('rejects Feynman evaluation for free_chat through the mounted allowlist', async () => {
+    let runnerCalls = 0
+    const { runtime, turnStore, bookStore } = await setup({
+      isConfigured: () => true,
+      reportInternalError: () => undefined,
+      async run() { runnerCalls += 1; return {} },
+    })
+
+    const started = await runtime.start({
+      ...request('free_chat', {
+        bookId: 'book_one', chapterId: 'chapter-1',
+      }),
+      action: { type: 'evaluate_feynman', confirmedText: '不得处理的私密复述' },
+    }, actor)
+    await started.completion
+
+    expect(runnerCalls).toBe(0)
+    expect((await bookStore.get('book_one'))?.evidence).toEqual([])
+    expect((await turnStore.getTurn('turn-1')).status).toBe('failed')
+    expect((await turnStore.listEventsAfter('turn-1')).at(-1)).toMatchObject({
+      type: 'turn_failed', payload: { code: 'agent_failed' },
+    })
+  })
+
+  it('treats submit_quiz message text as ordinary chat and never as a side effect', async () => {
+    let runnerCalls = 0
+    const { runtime, bookStore } = await setup({
+      isConfigured: () => true,
+      reportInternalError: () => undefined,
+      async run() { runnerCalls += 1; return {} },
+    })
+    const started = await runtime.start({
+      ...request('guided_learning', {
+        bookId: 'book_one', chapterId: 'chapter-1', blockId: 'quiz-1',
+      }),
+      message: 'submit_quiz:a',
+    }, actor)
+    await started.completion
+
+    expect(runnerCalls).toBe(1)
+    expect((await bookStore.get('book_one'))?.evidence).toEqual([])
+  })
+
   it('runs free_chat without writing evidence', async () => {
     const { runtime, turnStore, bookStore } = await setup()
 

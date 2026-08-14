@@ -4,6 +4,7 @@ import type { AgentEventEnvelopeV1 } from './agentEvent.js'
 import type {
   CapabilityId,
   RuntimeActor,
+  StartTurnActionV1,
   StartTurnRequestV1,
 } from './agentRuntimeTypes.js'
 import type { BookAgentRunner } from './bookAgentRunner.js'
@@ -23,10 +24,27 @@ import { readSourceTool } from './tools/readSourceTool.js'
 import {
   ToolRegistry,
   type MountedToolRegistry,
+  type ToolId,
 } from './toolRegistry.js'
 import type { RecordAnswerInput, TurnRecord, TurnStore } from './turnStore.js'
+import type { LearningEvidenceService } from '../../learning/learningEvidenceService.js'
+import { registerLearningEvidenceTools } from './tools/learningEvidenceTools.js'
+import type { FeynmanEvaluator } from '../../learning/feynmanEvaluator.js'
 
 const FAILURE_MESSAGE = '学习助手生成失败，请稍后重试。'
+
+function learningActionInput(
+  context: LearningContext,
+  action: StartTurnActionV1,
+): { toolId: StartTurnActionV1['type']; input: Record<string, unknown> } {
+  if (action.type === 'grade_quiz') {
+    return { toolId: action.type, input: { blockId: context.authority.block?.id, answerId: action.answerId } }
+  }
+  if (action.type === 'evaluate_feynman') {
+    return { toolId: action.type, input: { confirmedText: action.confirmedText } }
+  }
+  return { toolId: action.type, input: { blockId: context.authority.block?.id, result: action.result } }
+}
 
 export interface RuntimeStartResult {
   turnId: string
@@ -41,6 +59,8 @@ interface AgentRuntimeDependencies {
   now?: () => Date
   toolRegistry?: ToolRegistry
   capabilityRegistry?: CapabilityRegistry
+  learningEvidenceService?: LearningEvidenceService
+  feynmanEvaluator?: FeynmanEvaluator
 }
 
 export class AgentRuntime {
@@ -66,6 +86,11 @@ export class AgentRuntime {
       this.toolRegistry.register(readSourceTool)
       this.toolRegistry.register(readLearningStateTool)
       this.toolRegistry.register(askUserTool)
+      if (dependencies.learningEvidenceService) {
+        registerLearningEvidenceTools(this.toolRegistry, dependencies.learningEvidenceService, {
+          feynmanEvaluator: dependencies.feynmanEvaluator,
+        })
+      }
     }
     this.capabilityRegistry = dependencies.capabilityRegistry ?? createDefaultCapabilityRegistry()
   }
@@ -112,10 +137,11 @@ export class AgentRuntime {
   async start(request: StartTurnRequestV1, actor: RuntimeActor): Promise<RuntimeStartResult> {
     const turnId = this.createTurnId()
     const capabilityId = request.capabilityHint ?? 'free_chat'
+    const { action: _privateAction, ...persistedRequest } = request
     await this.turnStore.createTurn({
       turnId,
       actor,
-      request,
+      request: persistedRequest,
       capabilityId,
       initialStatus: 'running',
       initialEvent: {
@@ -202,6 +228,52 @@ export class AgentRuntime {
         context,
         this.toolRegistry,
       )
+      const action = request.action === undefined ? undefined : learningActionInput(context, request.action)
+      if (action) {
+        let result = await mountedTools.invoke(action.toolId, action.input, controller.signal) as {
+          evidence?: { id?: unknown }
+          projectionStatus?: unknown
+          receipt?: unknown
+        }
+        controller.signal.throwIfAborted()
+        const executedTools: ToolId[] = [action.toolId]
+        if (action.toolId === 'evaluate_feynman') {
+          if (typeof result.receipt !== 'string') throw new Error('invalid_tool_result')
+          result = await mountedTools.invoke(
+            'append_evidence',
+            { receipt: result.receipt },
+            controller.signal,
+          ) as typeof result
+          executedTools.push('append_evidence')
+          controller.signal.throwIfAborted()
+        }
+        if (typeof result.evidence?.id === 'string') {
+          await this.append(turnId, actor, 'evidence_recorded', {
+            ...(executedTools.length === 1
+              ? { tool: executedTools[0] }
+              : { tools: executedTools }),
+            evidenceId: result.evidence.id,
+            ...(result.projectionStatus === 'projected' || result.projectionStatus === 'pending'
+              ? { projectionStatus: result.projectionStatus }
+              : {}),
+          }, `${turnId}:evidence:${action.toolId}`)
+        }
+        const completionPayload: Record<string, unknown> = { status: 'completed' }
+        controller.signal.throwIfAborted()
+        await this.turnStore.commitTurn(turnId, {
+          actor,
+          expectedStatuses: ['running'],
+          nextStatus: 'completed',
+          event: {
+            type: 'turn_completed',
+            payload: completionPayload,
+            idempotencyKey: `${turnId}:completed`,
+            timestamp: this.now().toISOString(),
+          },
+          pendingQuestion: null,
+        })
+        return
+      }
       if (capabilityId === 'guided_learning' && !context.authority.chapter) {
         await this.askForSelection(turnId, actor, context, mountedTools)
         return

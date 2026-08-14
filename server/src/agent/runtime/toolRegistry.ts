@@ -12,7 +12,7 @@ export type ToolId =
 export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   id: ToolId
   access: 'read' | 'write'
-  execute(input: TInput, context: LearningContext): Promise<TOutput>
+  execute(input: TInput, context: LearningContext, signal?: AbortSignal): Promise<TOutput>
 }
 
 export type ToolRegistryErrorCode =
@@ -48,8 +48,9 @@ export class MountedToolRegistry {
     return tool
   }
 
-  async invoke(id: string, input: unknown): Promise<unknown> {
-    return this.get(id).execute(input, this.context)
+  async invoke(id: string, input: unknown, signal?: AbortSignal): Promise<unknown> {
+    signal?.throwIfAborted()
+    return this.get(id).execute(input, this.context, signal)
   }
 }
 

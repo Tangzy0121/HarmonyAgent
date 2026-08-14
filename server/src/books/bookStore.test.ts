@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -74,6 +74,27 @@ afterEach(async () => {
 })
 
 describe('bookStore', () => {
+  it('reads a legacy book that omitted evidence and backfills quiz evidence deterministically', async () => {
+    const legacy = makeBook('book_legacy-no-evidence', {
+      quizAttempts: [{
+        id: 'attempt-old', chapterId: 'ch-1', blockId: 'quiz-1', answerId: 'a',
+        isCorrect: true, submittedAt: '2026-08-10T01:00:00.000Z',
+      }],
+    }) as StoredBook & { evidence?: StoredBook['evidence'] }
+    delete legacy.evidence
+    await writeFile(path.join(dir, `${legacy.id}.json`), JSON.stringify(legacy))
+    const store = createBookStore(dir)
+
+    const first = await store.get(legacy.id)
+    const second = await store.get(legacy.id)
+
+    expect(first?.evidence).toHaveLength(1)
+    expect(first?.evidence[0]).toMatchObject({
+      version: '1', id: 'evidence_quiz_attempt-old', kind: 'quiz',
+    })
+    expect(second?.evidence).toEqual(first?.evidence)
+  })
+
   it('save→get roundtrip persists the full book record', async () => {
     const store = createBookStore(dir)
     const book = makeBook('book_roundtrip-1')
@@ -130,6 +151,40 @@ describe('bookStore', () => {
     expect(saved.quizAttempts.map((entry) => entry.blockId)).toEqual(['blk-ch-1-quiz-1', 'blk-ch-2-quiz-1'])
     expect(saved.userNotes[0]?.blockId).toBe('blk-ch-2-quiz-1')
     expect(saved.evidence[0]?.sourceBlockId).toBe('blk-ch-2-quiz-1')
+  })
+
+  it('backfills cross-chapter duplicate attempts only after block-id migration with each real concept', async () => {
+    const store = createBookStore(dir)
+    const chapter = (chapterId: string, conceptId: string): StoredBook['chapters'][number] => ({
+      id: chapterId, title: chapterId, order: 1, objective: '', coreConceptId: conceptId,
+      estimatedMinutes: 5, sourceAnchors: [], status: 'ready', blocks: [{
+        id: 'blk-quiz-1', type: 'quiz', status: 'ready', title: '题', revision: 1,
+        sourceAnchors: [], conceptId, question: '问题', options: [
+          { id: 'a', marker: 'A', text: '甲' }, { id: 'b', marker: 'B', text: '乙' },
+        ], correctAnswerId: 'a', feedback: '',
+      }],
+    })
+    const legacy = makeBook('book_migration-order', {
+      chapters: [chapter('ch-1', 'concept-one'), chapter('ch-2', 'concept-two')],
+      quizAttempts: [
+        { id: 'a1', chapterId: 'ch-1', blockId: 'blk-quiz-1', answerId: 'a', isCorrect: true, submittedAt: '2026-08-14T01:00:00.000Z' },
+        { id: 'a2', chapterId: 'ch-2', blockId: 'blk-quiz-1', answerId: 'b', isCorrect: false, submittedAt: '2026-08-14T02:00:00.000Z' },
+      ],
+      evidence: [],
+    })
+    delete (legacy as StoredBook & { evidence?: StoredBook['evidence'] }).evidence
+    await store.save(legacy)
+
+    const saved = (await store.get(legacy.id))!
+    expect(saved.quizAttempts.map((item) => item.blockId)).toEqual([
+      'blk-ch-1-quiz-1', 'blk-ch-2-quiz-1',
+    ])
+    expect(saved.evidence.map((item) => ({
+      sourceBlockId: item.sourceBlockId, conceptId: item.conceptId,
+    }))).toEqual([
+      { sourceBlockId: 'blk-ch-1-quiz-1', conceptId: 'concept-one' },
+      { sourceBlockId: 'blk-ch-2-quiz-1', conceptId: 'concept-two' },
+    ])
   })
 
   it('get leaves books with already-unique block ids untouched', async () => {
@@ -235,5 +290,84 @@ describe('bookStore', () => {
     await store.save(book)
     await expect(store.get(book.id)).resolves.toEqual(book)
     await expect(store.list()).resolves.toHaveLength(1)
+  })
+
+  it('serializes per-book updates so concurrent append-only mutations are never lost', async () => {
+    const store = createBookStore(dir)
+    const initial = makeBook('book_atomic-update')
+    await store.save(initial)
+    let releaseFirst: (() => void) | undefined
+    const firstCanFinish = new Promise<void>((resolve) => { releaseFirst = resolve })
+    let firstStarted: (() => void) | undefined
+    const firstHasSnapshot = new Promise<void>((resolve) => { firstStarted = resolve })
+
+    const first = store.update(initial.id, async (current) => {
+      firstStarted?.()
+      await firstCanFinish
+      current.evidence.push({
+        version: '1', id: 'evidence-1', kind: 'review', chapterId: 'ch-1',
+        conceptId: 'c1', sourceBlockId: 'flash-1', statement: '复习记住',
+        outcome: 'mastered', createdAt: '2026-08-14T01:00:00.000Z',
+        payload: { reviewKind: 'flash_cards', remembered: true },
+      })
+      return 'first'
+    })
+    await firstHasSnapshot
+    const second = store.update(initial.id, (current) => {
+      current.evidence.push({
+        version: '1', id: 'evidence-2', kind: 'review', chapterId: 'ch-1',
+        conceptId: 'c1', sourceBlockId: 'flash-2', statement: '复习遗忘',
+        outcome: 'review', createdAt: '2026-08-14T02:00:00.000Z',
+        payload: { reviewKind: 'flash_cards', remembered: false },
+      })
+      return 'second'
+    })
+    releaseFirst?.()
+
+    await expect(Promise.all([first, second])).resolves.toMatchObject([
+      { result: 'first' }, { result: 'second' },
+    ])
+    expect((await store.get(initial.id))?.evidence.map((item) => item.id)).toEqual([
+      'evidence-1', 'evidence-2',
+    ])
+  })
+
+  it('does not let a stale save erase concurrently appended attempts, evidence, or schedule', async () => {
+    const store = createBookStore(dir)
+    const initial = makeBook('book_stale-save')
+    await store.save(initial)
+    const stale = (await store.get(initial.id))!
+
+    await store.update(initial.id, (current) => {
+      current.quizAttempts.push({
+        id: 'attempt-new', chapterId: 'ch-1', blockId: 'quiz-1', answerId: 'a',
+        isCorrect: true, submittedAt: '2026-08-14T01:00:00.000Z',
+      })
+      current.evidence.push({
+        version: '1', id: 'evidence-new', kind: 'quiz', chapterId: 'ch-1',
+        conceptId: 'c1', sourceBlockId: 'quiz-1', statement: '答对', outcome: 'mastered',
+        createdAt: '2026-08-14T01:00:00.000Z',
+        payload: { attemptId: 'attempt-new', answerId: 'a', isCorrect: true },
+      })
+      current.reviewSchedule = {
+        'quiz-1': { kind: 'quiz', stage: 1, lapses: 0, dueAt: '2026-08-15T00:00:00.000Z', updatedAt: '2026-08-14T01:00:00.000Z' },
+      }
+      current.masteryProjectionReadModel = {
+        'evidence-new': {
+          evidenceId: 'evidence-new', chapterId: 'ch-1', conceptId: 'c1',
+          sourceBlockId: 'quiz-1', mastery: { chapter: 0.5, concept: 0.5 },
+          status: 'projected', projectedAt: '2026-08-14T01:00:00.000Z',
+        },
+      }
+    })
+    stale.proposal.title = 'stale title edit'
+    await store.save(stale)
+
+    const saved = (await store.get(initial.id))!
+    expect(saved.proposal.title).toBe('stale title edit')
+    expect(saved.quizAttempts.map((item) => item.id)).toContain('attempt-new')
+    expect(saved.evidence.map((item) => item.id)).toContain('evidence-new')
+    expect(saved.reviewSchedule?.['quiz-1']?.stage).toBe(1)
+    expect(saved.masteryProjectionReadModel?.['evidence-new']).toMatchObject({ status: 'projected' })
   })
 })

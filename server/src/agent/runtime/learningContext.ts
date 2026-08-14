@@ -1,5 +1,11 @@
 import type { BookStore } from '../../books/bookStore.js'
-import type { BookBlock, BookChapter, SourceAnchor, StoredBook } from '../../books/bookTypes.js'
+import type {
+  BookBlock,
+  BookChapter,
+  MasteryProjectionReadModelEntry,
+  SourceAnchor,
+  StoredBook,
+} from '../../books/bookTypes.js'
 import type {
   AgentObjectRefs,
   AgentSurface,
@@ -29,6 +35,7 @@ export interface LearningStateSummary {
   quizAttemptCount: number
   evidenceCount: number
   dueReviewCount: number
+  masteryProjections?: MasteryProjectionReadModelEntry[]
 }
 
 export interface LearningReadScope {
@@ -171,6 +178,9 @@ export class LearningContextBuilder {
     const dueReviewCount = book === undefined
       ? 0
       : Object.values(book.reviewSchedule ?? {}).filter((entry) => Date.parse(entry.dueAt) <= now).length
+    const masteryProjections = Object.values(book?.masteryProjectionReadModel ?? {}).filter((entry) =>
+      chapters.some((candidate) => candidate.id === entry.chapterId) &&
+      (block === undefined || entry.sourceBlockId === block.id))
     const refs: AgentObjectRefs = {
       ...(book ? { bookId: book.id, documentId: book.source.id } : {}),
       ...(chapter ? { chapterId: chapter.id } : {}),
@@ -194,6 +204,7 @@ export class LearningContextBuilder {
         quizAttemptCount: book?.quizAttempts.length ?? 0,
         evidenceCount: book?.evidence.length ?? 0,
         dueReviewCount,
+        ...(masteryProjections.length === 0 ? {} : { masteryProjections }),
       },
       sources,
       toolAllowlist: [...CAPABILITY_TOOLS[capabilityId]],
