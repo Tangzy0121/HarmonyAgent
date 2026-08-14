@@ -1218,6 +1218,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     emitLog(logger, { category: 'feynman_judged', bookId: book.id, chapterId: chapter.id })
     res.status(200).json({
       ...result,
+      evidenceId: recorded.evidence.id,
       projectionStatus: recorded.projectionStatus,
       ...(recorded.mastery ? { mastery: recorded.mastery } : {}),
     })

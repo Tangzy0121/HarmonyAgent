@@ -1954,7 +1954,11 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
       .send({ explanation })
 
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({ ...feynmanJson, projectionStatus: 'projected' })
+    expect(res.body).toMatchObject({
+      ...feynmanJson,
+      projectionStatus: 'projected',
+      evidenceId: expect.stringMatching(/^evidence_/),
+    })
 
     // 上游请求：800 tokens / json_object（新档位）
     const feynmanCall = fetchImpl.mock.calls.at(-1)!
@@ -1974,6 +1978,7 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
     // 只落确认文本摘要和规范化判定，不保存原始音频/模型原始输出
     const saved = await bookStore.get(id)
     expect(saved?.evidence).toHaveLength(1)
+    expect(res.body.evidenceId).toBe(saved?.evidence[0]?.id)
     expect(saved?.evidence[0]).toMatchObject({
       version: '1', kind: 'feynman',
       payload: {
