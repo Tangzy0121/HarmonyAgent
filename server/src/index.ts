@@ -11,6 +11,11 @@ import { createDocumentsRouter } from './routes/documents.js';
 import { createBooksRouter } from './routes/books.js';
 import { createDocumentStore } from './documents/documentStore.js';
 import { createBookStore } from './books/bookStore.js';
+import { AgentRuntime } from './agent/runtime/agentRuntime.js';
+import { createBookAgentRunner } from './agent/runtime/bookAgentRunner.js';
+import { createSingleUserBookAccess, LearningContextBuilder } from './agent/runtime/learningContext.js';
+import { createTurnStore } from './agent/runtime/turnStore.js';
+import { createAgentTurnsRouter } from './routes/agentTurns.js';
 import path from 'node:path';
 
 dotenv.config();
@@ -23,6 +28,27 @@ app.use(cors());
 app.use('/api/agent', createBookAgentRouter());
 const dataRoot = process.env.DATA_DIR ?? path.join(process.cwd(), 'data');
 const documentStore = createDocumentStore(dataRoot);
+const bookStore = createBookStore(path.join(dataRoot, 'books'));
+const turnStore = createTurnStore(path.join(dataRoot, 'agent-turns'));
+const runtimeActor = {
+  userId: process.env.RUNTIME_USER_ID?.trim() || 'local-user',
+  workspaceId: process.env.RUNTIME_WORKSPACE_ID?.trim() || 'local-workspace',
+};
+const runtime = new AgentRuntime({
+  turnStore,
+  contextBuilder: new LearningContextBuilder({
+    bookAccess: createSingleUserBookAccess(bookStore, runtimeActor),
+  }),
+  runner: createBookAgentRunner(),
+});
+app.use(
+  '/api/agent',
+  createAgentTurnsRouter({
+    runtime,
+    turnStore,
+    actorProvider: () => runtimeActor,
+  }),
+);
 app.use(
   '/api/documents',
   createDocumentsRouter({
@@ -33,7 +59,7 @@ app.use(
   '/api/books',
   createBooksRouter({
     documentStore,
-    bookStore: createBookStore(path.join(dataRoot, 'books')),
+    bookStore,
   }),
 );
 app.use(express.json({ limit: '10mb' }));

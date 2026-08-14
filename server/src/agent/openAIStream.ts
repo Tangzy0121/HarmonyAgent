@@ -156,9 +156,7 @@ export async function parseOpenAIStream(
       throw new OpenAIStreamParseError('incomplete_upstream_stream')
     }
   } catch (error) {
-    if (!reachedNaturalEof && error instanceof OpenAIStreamParseError) {
-      shouldCancel = true
-    }
+    if (!reachedNaturalEof) shouldCancel = true
     throw error
   } finally {
     if (shouldCancel) {
