@@ -47,7 +47,7 @@ export type StoredBook = LearningBook & {
 export interface StoredDocumentMeta {
   id: string
   fileName: string
-  format: 'PDF' | 'Markdown' | 'DOCX'
+  format: 'PDF' | 'Markdown' | 'DOCX' | 'EPUB'
   sizeBytes: number
   pageCount: number
   createdAt: string
@@ -120,7 +120,7 @@ function parseDocumentMeta(value: unknown): StoredDocumentMeta {
     isRecord(value)
     && typeof value.id === 'string'
     && typeof value.fileName === 'string'
-    && (value.format === 'PDF' || value.format === 'Markdown' || value.format === 'DOCX')
+    && (value.format === 'PDF' || value.format === 'Markdown' || value.format === 'DOCX' || value.format === 'EPUB')
     && typeof value.sizeBytes === 'number'
     && typeof value.pageCount === 'number'
     && typeof value.createdAt === 'string'
@@ -139,6 +139,7 @@ function contentTypeFor(file: File): string {
   const lower = file.name.toLowerCase()
   if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'text/markdown'
   if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  if (lower.endsWith('.epub')) return 'application/epub+zip'
   return 'application/pdf'
 }
 
@@ -314,6 +315,62 @@ export async function deleteNote(bookId: string, noteId: string): Promise<void> 
 /** 导出 Markdown 的直连地址（<a download> 使用，不经 JS 拼文件） */
 export function bookExportUrl(bookId: string): string {
   return `/api/books/${encodeURIComponent(bookId)}/export`
+}
+
+export interface ChapterEstimate {
+  chapterId: string
+  title: string
+  estimatedTokens: number
+}
+
+export interface BookEstimate {
+  chapters: ChapterEstimate[]
+  totalTokens: number
+}
+
+function isEstimatePayload(value: unknown): value is BookEstimate {
+  return isRecord(value)
+    && Array.isArray(value.chapters)
+    && value.chapters.every((entry) => isRecord(entry)
+      && typeof entry.chapterId === 'string'
+      && typeof entry.title === 'string'
+      && isFiniteNumber(entry.estimatedTokens))
+    && isFiniteNumber(value.totalTokens)
+}
+
+/** spine 成本估算（只读派生，纯算术） */
+export async function getEstimate(bookId: string): Promise<BookEstimate> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/estimate`)
+  if (!response.ok) throw await readHttpError(response)
+  const value = await readJson(response)
+  if (isRecord(value) && isEstimatePayload(value.estimate)) return value.estimate
+  throw new BookApiError('invalid_estimate_payload', SAFE_HTTP_MESSAGE)
+}
+
+export interface LearnerSuggestion {
+  kind: 'cliff' | 'weak' | 'continue'
+  text: string
+  bookId: string | null
+  conceptLabel: string | null
+}
+
+function isSuggestionPayload(value: unknown): value is LearnerSuggestion {
+  return isRecord(value)
+    && (value.kind === 'cliff' || value.kind === 'weak' || value.kind === 'continue')
+    && typeof value.text === 'string'
+    && (typeof value.bookId === 'string' || value.bookId === null)
+    && (typeof value.conceptLabel === 'string' || value.conceptLabel === null)
+}
+
+/** starter 建议（只读派生，模板化 ≤3 条；失败时调用方静默降级不渲染） */
+export async function getSuggestions(): Promise<LearnerSuggestion[]> {
+  const response = await fetch('/api/learner/suggestions')
+  if (!response.ok) throw await readHttpError(response)
+  const value = await readJson(response)
+  if (isRecord(value) && Array.isArray(value.suggestions) && value.suggestions.every(isSuggestionPayload)) {
+    return value.suggestions
+  }
+  throw new BookApiError('invalid_suggestions_payload', SAFE_HTTP_MESSAGE)
 }
 
 function isConceptMasteryPayload(value: unknown): value is ConceptMastery {

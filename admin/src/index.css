@@ -10113,3 +10113,13 @@ button:disabled {
   font-weight: 640;
   text-align: right;
 }
+
+/* ===== 输入与入口打磨（Sprint G） ===== */
+.today-suggestions { margin: 12px 20px 0; padding: 14px 16px; border: 1px solid rgb(35 31 29 / 0.08); border-radius: 14px; background: #fff; }
+.today-suggestions h2 { color: rgb(35 31 29 / 0.86); font-size: 0.78rem; font-weight: 720; }
+.today-suggestions ul { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.today-suggestions li button, .today-suggestions li span { display: block; width: 100%; padding: 8px 10px; border-radius: 10px; background: rgb(156 88 72 / 0.06); color: rgb(35 31 29 / 0.78); font-size: 0.72rem; text-align: left; }
+.today-suggestions li button { border: 1px solid rgb(156 88 72 / 0.18); }
+.today-suggestions li button:active { background: rgb(156 88 72 / 0.14); }
+.book-proposal-chapter__estimate { display: block; margin-top: 3px; color: #9c5848; font-size: 0.62rem; font-weight: 640; }
+.book-proposal-estimate-total { display: block; margin-top: 2px; color: rgb(35 31 29 / 0.56); font-size: 0.62rem; }

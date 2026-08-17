@@ -7,6 +7,7 @@ import {
   renameChapter,
 } from '../domain/learningBook'
 import type { LearningBook } from '../types/learningBook'
+import type { BookEstimate } from '../services/bookApi'
 
 interface BookProposalPageProps {
   book: LearningBook
@@ -17,9 +18,11 @@ interface BookProposalPageProps {
   isConfirming?: boolean
   /** 真实书确认失败文案（updateProposal/confirmBook 报错时由父层传入） */
   confirmError?: string | null
+  /** 真实书逐章成本估算（纯算术参考值；mock 书不传不显示） */
+  estimate?: BookEstimate | null
 }
 
-export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConfirming = false, confirmError = null }: BookProposalPageProps) {
+export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConfirming = false, confirmError = null, estimate = null }: BookProposalPageProps) {
   const [notice, setNotice] = useState('你可以调整名称与顺序，确认后再生成正文。')
   const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>(() => Object.fromEntries(book.chapters.map((chapter) => [chapter.id, chapter.title])))
 
@@ -100,6 +103,12 @@ export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConf
                   </label>
                   <p>{chapter.objective}</p>
                   <small>{chapter.estimatedMinutes} 分钟 · 原文第 {chapter.sourceAnchors.map((item) => item.pageRange).join('、')} 页</small>
+                  {estimate && (() => {
+                    const chapterEstimate = estimate.chapters.find((entry) => entry.chapterId === chapter.id)
+                    return chapterEstimate
+                      ? <small className="book-proposal-chapter__estimate">预计消耗约 {chapterEstimate.estimatedTokens.toLocaleString()} tokens</small>
+                      : null
+                  })()}
                 </div>
                 <div className="book-proposal-chapter__actions" aria-label={`调整第 ${index + 1} 章`}>
                   <button type="button" aria-label={`上移第 ${index + 1} 章`} disabled={index === 0} onClick={() => applyEdit(moveChapter(book, chapter.id, 'up'), '章节已上移。', '已经是第一章。')}>↑</button>
@@ -117,7 +126,7 @@ export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConf
       </main>
 
       <footer className="book-proposal-primary-action">
-        <div><span>下一步</span><strong>第一章生成后即可开始阅读</strong></div>
+        <div><span>下一步</span><strong>第一章生成后即可开始阅读</strong>{estimate && <span className="book-proposal-estimate-total">全书预计约 {estimate.totalTokens.toLocaleString()} tokens（参考值）</span>}</div>
         <button type="button" disabled={isConfirming} onClick={onConfirm}>{isConfirming ? '正在确认目录…' : '确认目录并生成'}<Icon name="arrow" size={18} /></button>
       </footer>
     </section>

@@ -9,9 +9,11 @@ import {
   createBook,
   deleteNote,
   getBook,
+  getEstimate,
   getLearnerProfile,
   getPretest,
   getReviewDue,
+  getSuggestions,
   listBooks,
   streamChapterGeneration,
   submitAttempt,
@@ -678,6 +680,67 @@ describe('note endpoints', () => {
 describe('bookExportUrl', () => {
   it('builds an encoded export URL', () => {
     expect(bookExportUrl('book_a/b')).toBe('/api/books/book_a%2Fb/export')
+  })
+})
+
+describe('getEstimate', () => {
+  const estimate = {
+    chapters: [{ chapterId: 'ch-1', title: '第一章', estimatedTokens: 9200 }],
+    totalTokens: 9200,
+  }
+
+  it('fetches and parses the estimate envelope', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ estimate })
+    }))
+
+    const result = await getEstimate('book_1')
+
+    expect(actualUrl).toBe('/api/books/book_1/estimate')
+    expect(result).toEqual(estimate)
+  })
+
+  it.each([
+    ['tokens not numeric', { estimate: { chapters: [{ chapterId: 'ch-1', title: 'x', estimatedTokens: '9200' }], totalTokens: 9200 } }],
+    ['missing estimate key', {}],
+  ])('rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getEstimate('book_1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_estimate_payload' })
+  })
+})
+
+describe('getSuggestions', () => {
+  const suggestions = [
+    { kind: 'cliff', text: '复习《机器学习》·「梯度下降」，已经 10 天没碰了', bookId: 'book_1', conceptLabel: '梯度下降' },
+    { kind: 'continue', text: '继续读《机器学习》，接着上次的进度', bookId: 'book_1', conceptLabel: null },
+  ]
+
+  it('fetches and parses the suggestions envelope', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ suggestions })
+    }))
+
+    const result = await getSuggestions()
+
+    expect(actualUrl).toBe('/api/learner/suggestions')
+    expect(result).toEqual(suggestions)
+  })
+
+  it.each([
+    ['unknown kind', { suggestions: [{ kind: 'random', text: 'x', bookId: null, conceptLabel: null }] }],
+    ['bookId wrong type', { suggestions: [{ kind: 'weak', text: 'x', bookId: 1, conceptLabel: null }] }],
+    ['missing suggestions key', {}],
+  ])('rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getSuggestions())
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_suggestions_payload' })
   })
 })
 

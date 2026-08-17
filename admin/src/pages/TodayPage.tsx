@@ -8,6 +8,7 @@ import { TodayLearningPanel } from '../components/today/TodayLearningPanel'
 import { deriveTodayFocus } from '../domain/todayNextStep'
 import type { LearningBook } from '../types/learningBook'
 import type { LearnerProfile } from '../types/learnerProfile'
+import type { LearnerSuggestion } from '../services/bookApi'
 
 interface PageProps {
   isActive: boolean
@@ -16,11 +17,14 @@ interface PageProps {
   learningEvidenceCount?: number
   learningBook?: LearningBook
   learnerProfile?: LearnerProfile | null
+  /** starter 建议（模板化 ≤3 条；空数组/缺省不渲染） */
+  suggestions?: LearnerSuggestion[]
+  onOpenBook?: (bookId: string) => void
 }
 
 type OutcomeOptionId = typeof todayLearningOutcome.options[number]['id']
 
-export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile }: PageProps) {
+export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile, suggestions = [], onOpenBook }: PageProps) {
   const [outcomeSelection, setOutcomeSelection] = useState<OutcomeOptionId>('tomorrow')
   const [isOutcomeConfirmed, setIsOutcomeConfirmed] = useState(false)
   const projectedFocus = deriveTodayFocus(learningBook, new Date(), learnerProfile) ?? todayPageContent.focus
@@ -48,6 +52,23 @@ export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learnin
         <TodayLearningPanel focus={projectedFocus} onContinue={onContinue} />
 
         {learningEvidenceCount > 0 && <p className="today-learning-evidence" role="status">互动学习书已记录 {learningEvidenceCount} 条可验证学习证据</p>}
+
+        {suggestions.length > 0 && (
+          <section className="today-suggestions" aria-labelledby="today-suggestions-title">
+            <h2 id="today-suggestions-title">学习建议</h2>
+            <ul>
+              {suggestions.map((suggestion, index) => (
+                <li key={`${suggestion.kind}-${index}`}>
+                  {suggestion.bookId && onOpenBook ? (
+                    <button type="button" onClick={() => onOpenBook(suggestion.bookId!)}>{suggestion.text}</button>
+                  ) : (
+                    <span>{suggestion.text}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="today-secondary-actions" aria-labelledby="today-actions-title">
           <header>

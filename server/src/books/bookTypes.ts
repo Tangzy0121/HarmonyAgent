@@ -26,7 +26,7 @@ export type BookBlockType =
 export interface SourceDocument {
   id: string
   fileName: string
-  format: 'PDF' | 'Markdown' | 'DOCX'
+  format: 'PDF' | 'Markdown' | 'DOCX' | 'EPUB'
   pageCount: number
   sizeLabel: string
   updatedLabel: string

@@ -31,6 +31,7 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
+import { deriveEstimate } from '../books/estimate.js'
 import { listDueItems } from '../books/schedule.js'
 import type { RuntimeActor } from '../agent/runtime/agentRuntimeTypes.js'
 import {
@@ -985,6 +986,22 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'note_removed', bookId: book.id })
     res.status(204).end()
+  })
+
+  // spine 成本估算：纯算术只读（页均 tokens × 章页数 + 章生成预算），不参与计费
+  router.get('/:id/estimate', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    res.status(200).json({ estimate: deriveEstimate(book) })
   })
 
   // 导出 Markdown：只读投影，无 LLM、无写入；笔记/引用/证据摘要全部随书导出

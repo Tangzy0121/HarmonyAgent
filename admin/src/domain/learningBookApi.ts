@@ -197,7 +197,7 @@ export function parseLearningBook(value: unknown): LearningBook {
     && isRecord(value.source)
     && isString(value.source.id)
     && isString(value.source.fileName)
-    && (value.source.format === 'PDF' || value.source.format === 'Markdown' || value.source.format === 'DOCX')
+    && (value.source.format === 'PDF' || value.source.format === 'Markdown' || value.source.format === 'DOCX' || value.source.format === 'EPUB')
     && isNumber(value.source.pageCount)
     && isString(value.source.sizeLabel)
     && isString(value.source.updatedLabel)
