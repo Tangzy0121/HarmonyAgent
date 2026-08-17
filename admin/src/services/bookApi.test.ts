@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { learningBookFixture } from '../data/learningBook'
 import { BookApiError } from '../domain/learningBookApi'
 import {
+  addNote,
   confirmBook,
   createBook,
+  deleteNote,
   getBook,
   getPretest,
   getReviewDue,
@@ -602,5 +604,70 @@ describe('BookApiError via bookApi', () => {
 
     await expect(createBook({ documentId: 'd', goal: '考试复习', learnerLevel: '入门' }))
       .rejects.toBeInstanceOf(BookApiError)
+  })
+})
+
+describe('note endpoints', () => {
+  const note = {
+    id: 'note_1',
+    chapterId: 'ch-1',
+    blockId: 'blk-1',
+    body: '这个例子可以类比成教小孩认猫。',
+    createdAt: '2026-08-17T02:00:00.000Z',
+  }
+
+  it('addNote posts the note and parses the response', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ note }, 201)
+    }))
+
+    const created = await addNote('book_1', 'ch-1', 'blk-1', note.body)
+
+    expect(actualUrl).toBe('/api/books/book_1/notes')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ chapterId: 'ch-1', blockId: 'blk-1', body: note.body })
+    expect(created).toEqual(note)
+  })
+
+  it.each([
+    ['note missing id', { note: { ...note, id: 1 } }],
+    ['missing note key', {}],
+  ])('addNote rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, 201)))
+
+    await expect(addNote('book_1', 'ch-1', 'blk-1', '笔记'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_note_payload' })
+  })
+
+  it('addNote surfaces server error codes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'block_not_found' }, 409)))
+
+    await expect(addNote('book_1', 'ch-1', 'blk-x', '笔记'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'block_not_found' })
+  })
+
+  it('deleteNote issues DELETE and resolves on 204', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return new Response(null, { status: 204 })
+    }))
+
+    await expect(deleteNote('book_1', 'note_1')).resolves.toBeUndefined()
+    expect(actualUrl).toBe('/api/books/book_1/notes/note_1')
+    expect(actualInit?.method).toBe('DELETE')
+  })
+
+  it('deleteNote surfaces server error codes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'note_not_found' }, 404)))
+
+    await expect(deleteNote('book_1', 'note_x'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'note_not_found' })
   })
 })

@@ -14,6 +14,7 @@ import {
   type LearningGoal,
   type PretestQuestion,
   type StoredBook,
+  type UserNote,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
@@ -69,6 +70,8 @@ export interface BooksLogEvent {
     | 'pretest_result_submitted'
     | 'feynman_judged'
     | 'feynman_validation_failed'
+    | 'note_recorded'
+    | 'note_removed'
   status?: number
   name?: string
   attempt?: number
@@ -896,6 +899,90 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: chapter.id })
     res.status(201).json(recorded)
+  })
+
+  // 用户笔记：用户数据写书级 userNotes，不在生成白名单内，重新生成章节不得覆盖（规格 §6.2）
+  router.post('/:id/notes', async (req, res) => {
+    const body: unknown = req.body
+    const chapterId = isRecord(body) ? body.chapterId : undefined
+    const blockId = isRecord(body) ? body.blockId : undefined
+    const noteBody = isRecord(body) ? body.body : undefined
+    if (
+      typeof chapterId !== 'string' || !chapterId.trim() ||
+      typeof blockId !== 'string' || !blockId.trim() ||
+      typeof noteBody !== 'string' || !noteBody.trim()
+    ) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+
+    const chapter = book.chapters.find((entry) => entry.id === chapterId)
+    const block = chapter?.blocks.find((entry) => entry.id === blockId)
+    if (chapter === undefined || block === undefined) {
+      res.status(409).json({ error: 'block_not_found' })
+      return
+    }
+
+    const note: UserNote = {
+      id: `note_${randomUUID()}`,
+      chapterId,
+      blockId,
+      body: noteBody.trim(),
+      createdAt: new Date().toISOString(),
+    }
+    try {
+      await bookStore.update(book.id, (current) => {
+        current.userNotes.push(note)
+        current.updatedAt = note.createdAt
+      })
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'note_recorded', bookId: book.id, chapterId })
+    res.status(201).json({ note })
+  })
+
+  router.delete('/:id/notes/:noteId', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    if (!book.userNotes.some((note) => note.id === req.params.noteId)) {
+      res.status(404).json({ error: 'note_not_found' })
+      return
+    }
+
+    try {
+      await bookStore.update(book.id, (current) => {
+        current.userNotes = current.userNotes.filter((note) => note.id !== req.params.noteId)
+        current.updatedAt = new Date().toISOString()
+      })
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'note_removed', bookId: book.id })
+    res.status(204).end()
   })
 
   router.get('/:id/review/due', async (req, res) => {

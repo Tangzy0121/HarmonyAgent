@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { AppShell } from './components/AppShell'
 import { AppIdentityBar } from './components/AppIdentityBar'
@@ -17,7 +17,9 @@ import { PretestSheet } from './components/book/PretestSheet'
 import { ReviewQueueSheet } from './components/book/ReviewQueueSheet'
 import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
-import { BookApiError, confirmBook, createBook, getBook, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { projectBooksToMap } from './domain/bookMapProjection'
+import { pickTodayRealBook } from './domain/todayNextStep'
+import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -224,6 +226,11 @@ function App() {
     return focusBlock ? `${base} · 聚焦：${focusBlock.title}` : base
   })()
   const isRealBookLoaded = activeRealBookId !== null && learningBook.id === activeRealBookId
+  // 学习地图数据源：真实书有概念时投影真实书（章=主题簇），否则回退 mock 演示图
+  const bookMap = useMemo(() => projectBooksToMap(realBooks), [realBooks])
+  // 今日页主焦点：优先真实书（到期复习/进行中/最新证据），否则回退 mock 演示书
+  const todayRealBook = useMemo(() => pickTodayRealBook(realBooks), [realBooks])
+  const todayBook = todayRealBook ?? learningBook
   // 今日复习到期项：仅真实书经 getReviewDue 拉取（mock 原型页恒为空，不渲染入口）
   const [reviewDue, setReviewDue] = useState<DueItem[]>([])
   // 到期项刷新：失败静默保持旧值
@@ -509,6 +516,32 @@ function App() {
     }
   }
 
+  // 用户笔记：服务端持久化后并入书状态；失败返回 false，由组件显示可重试提示。
+  // 笔记是用户数据，写书级 userNotes，不参与任何重新生成流程
+  const addRealBookNote = async (chapterId: string, blockId: string, body: string): Promise<boolean> => {
+    const bookId = activeRealBookIdRef.current
+    if (!bookId) return false
+    try {
+      const note = await addNote(bookId, chapterId, blockId, body)
+      setLearningBook((current) => current.id === bookId ? { ...current, userNotes: [...current.userNotes, note] } : current)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const deleteRealBookNote = async (noteId: string): Promise<boolean> => {
+    const bookId = activeRealBookIdRef.current
+    if (!bookId) return false
+    try {
+      await deleteNote(bookId, noteId)
+      setLearningBook((current) => current.id === bookId ? { ...current, userNotes: current.userNotes.filter((note) => note.id !== noteId) } : current)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const openRealBook = (bookId: string) => {
     const book = realBooks.find((entry) => entry.id === bookId)
     const targetHash = book && book.status !== 'proposal'
@@ -767,6 +800,15 @@ function App() {
     })
   }
 
+  // 今日主行动：有真实书下一步时直接打开该书（提案→目录页，其余→阅读页），否则走 mock 演示流程
+  const continueToday = () => {
+    if (todayRealBook) {
+      openRealBook(todayRealBook.id)
+      return
+    }
+    continueTodayLearning()
+  }
+
   return (
     <AppShell
       className={`prototype-app--lighting-pilot prototype-app--third-batch-shell ${isPrimaryShell ? '' : 'prototype-app--third-batch-deep'} ${activeDocumentId || isInteractiveBook || activeRealBookId ? 'prototype-app--book' : ''} ${isThirdBatchToday ? 'prototype-app--third-batch-today' : ''}`}
@@ -800,9 +842,9 @@ function App() {
         <TodayPage
           isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'today'}
           isOutcomeMode={isTodayOutcome}
-          onContinue={continueTodayLearning}
-          learningEvidenceCount={learningBook.evidence.length}
-          learningBook={learningBook}
+          onContinue={continueToday}
+          learningEvidenceCount={todayBook.evidence.length}
+          learningBook={todayBook}
         />
         <LearningMapPage
           isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'learning'}
@@ -811,6 +853,8 @@ function App() {
           isChangeFocus={isMapChangeFocus}
           onScheduleNext={openTodayOutcome}
           learningEvidence={learningBook.evidence}
+          mapNodes={bookMap.nodes.length > 0 ? bookMap.nodes : undefined}
+          mapRelationships={bookMap.nodes.length > 0 ? bookMap.relationships : undefined}
         />
         <KnowledgeLibraryPage
           isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'library'}
@@ -851,6 +895,8 @@ function App() {
               onOpenReview={reviewDue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
               onOpenMasteryBoard={() => setIsMasteryBoardOpen(true)}
               onFlashGrade={submitFlashReviewGrade}
+              onAddNote={activeRealBookId !== null ? addRealBookNote : undefined}
+              onDeleteNote={activeRealBookId !== null ? deleteRealBookNote : undefined}
             />
           )
         )}

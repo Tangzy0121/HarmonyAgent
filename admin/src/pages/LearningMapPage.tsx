@@ -12,6 +12,7 @@ import {
   knowledgeRelationships,
   learningMapSize,
   type KnowledgeNode,
+  type KnowledgeRelationship,
 } from '../data/learningMap'
 import { useMapGesture } from '../hooks/useMapGesture'
 import { projectLearningEvidence } from '../domain/learningProjection'
@@ -26,6 +27,9 @@ interface LearningMapPageProps {
   isChangeFocus?: boolean
   onScheduleNext?: () => void
   learningEvidence?: LearningEvidence[]
+  // 真实书投影：传入后以其为准（学习状态已在投影时从 evidence 烘焙），缺省回退 mock 演示图
+  mapNodes?: KnowledgeNode[]
+  mapRelationships?: KnowledgeRelationship[]
 }
 
 const learningStateStyle: Record<KnowledgeNode['learningState'], {
@@ -60,7 +64,7 @@ function buildRelationshipPath(from: KnowledgeNode, to: KnowledgeNode) {
   ].join(' ')
 }
 
-export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onScheduleNext, learningEvidence = [] }: LearningMapPageProps) {
+export function LearningMapPage({ isActive, viewport, onViewportChange, isChangeFocus = false, onScheduleNext, learningEvidence = [], mapNodes, mapRelationships }: LearningMapPageProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const previousViewportRef = useRef<MapViewport | null>(null)
   const hasAutoFocusedRef = useRef(false)
@@ -74,7 +78,11 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
     onViewportChange,
   })
 
-  const projectedNodes = useMemo(() => projectLearningEvidence(knowledgeNodes, learningEvidence), [learningEvidence])
+  const projectedNodes = useMemo(
+    () => mapNodes ?? projectLearningEvidence(knowledgeNodes, learningEvidence),
+    [mapNodes, learningEvidence],
+  )
+  const relationships = mapRelationships ?? knowledgeRelationships
   const nodeById = useMemo(() => new Map(projectedNodes.map((node) => [node.id, node])), [projectedNodes])
   const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) : undefined
   const activeNodeId = viewport.focusedNodeId ?? selectedNodeId
@@ -180,7 +188,7 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
           }}
         >
           <svg className="map-relationships" viewBox={`0 0 ${learningMapSize.width} ${learningMapSize.height}`} aria-hidden="true">
-            {knowledgeRelationships.map((relationship) => {
+            {relationships.map((relationship) => {
               const from = nodeById.get(relationship.from)
               const to = nodeById.get(relationship.to)
 
@@ -211,7 +219,7 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
             const isRecentChange = isChangeFocus && node.id === 'supervised-learning'
             const categoryLabel = categoryLegend.find((item) => item.category === node.category)?.label
             const stateStyle = learningStateStyle[node.learningState]
-            const isDimmed = (!isChangeFocus && filter !== '全部' && node.learningState !== filter) || (Boolean(activeNodeId) && !isFocused && !knowledgeRelationships.some((relationship) => (
+            const isDimmed = (!isChangeFocus && filter !== '全部' && node.learningState !== filter) || (Boolean(activeNodeId) && !isFocused && !relationships.some((relationship) => (
               (relationship.from === activeNodeId && relationship.to === node.id)
               || (relationship.to === activeNodeId && relationship.from === node.id)
             )))
@@ -249,7 +257,7 @@ export function LearningMapPage({ isActive, viewport, onViewportChange, isChange
         <LearningMapChangePanel node={selectedNode} onScheduleNext={onScheduleNext ?? (() => undefined)} />
       ) : selectedNode && <NodeDetailPanel
         node={selectedNode}
-        relatedCount={knowledgeRelationships.filter((relationship) => relationship.from === selectedNode.id || relationship.to === selectedNode.id).length}
+        relatedCount={relationships.filter((relationship) => relationship.from === selectedNode.id || relationship.to === selectedNode.id).length}
         onClose={closeNodePanel}
       />}
       {selectedNode && !isChangeFocus && (

@@ -1,5 +1,6 @@
 import { Icon } from '../components/Icon'
 import { BookBlockRenderer } from '../components/book/BookBlockRenderer'
+import { BlockNotesSection } from '../components/book/BlockNotesSection'
 import { BookContextBar } from '../components/book/BookContextBar'
 import { BookGenerationRail } from '../components/book/BookGenerationRail'
 import { FeynmanCard } from '../components/book/FeynmanCard'
@@ -33,10 +34,13 @@ interface InteractiveBookPageProps {
   onOpenMasteryBoard?: () => void
   /** 真实书闪卡自评（与复习 Sheet 同一条链路；仅真实书传入，mock 不渲染自评区） */
   onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => Promise<boolean | void>
+  /** 真实书用户笔记：走服务端持久化（异步，false 表示失败）；仅真实书传入 */
+  onAddNote?: (chapterId: string, blockId: string, body: string) => Promise<boolean | void>
+  onDeleteNote?: (noteId: string) => Promise<boolean | void>
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade, onAddNote, onDeleteNote } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
@@ -102,23 +106,31 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
                   ? { ...block, concepts: block.concepts.map((concept) => ({ ...concept, learningState: deriveConceptLearningState(book, concept.id) })) }
                   : block
                 return (
-                  <BookBlockRenderer
-                    key={block.id}
-                    block={displayBlock}
-                    note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
-                    attempt={latestAttemptForBlock(book.quizAttempts, block.id)}
-                    evidence={block.type === 'quiz' ? latestEvidenceForBlock(book.evidence, block.id) : undefined}
-                    allowBlockRegenerate={!isRealBook}
-                    allowQuizRetry={isRealBook}
-                    onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
-                    onSubmitQuiz={isRealBook && onSubmitQuizAttempt
-                      ? (blockId, answerId) => onSubmitQuizAttempt(blockId, answerId)
-                      : (blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
-                    onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
-                    onStartDeepLearning={onStartDeepLearning}
-                    onAskAgent={onAskAgent}
-                    onFlashGrade={isRealBook ? onFlashGrade : undefined}
-                  />
+                  <div key={block.id} className="interactive-book-block-group">
+                    <BookBlockRenderer
+                      block={displayBlock}
+                      note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
+                      attempt={latestAttemptForBlock(book.quizAttempts, block.id)}
+                      evidence={block.type === 'quiz' ? latestEvidenceForBlock(book.evidence, block.id) : undefined}
+                      allowBlockRegenerate={!isRealBook}
+                      allowQuizRetry={isRealBook}
+                      onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
+                      onSubmitQuiz={isRealBook && onSubmitQuizAttempt
+                        ? (blockId, answerId) => onSubmitQuizAttempt(blockId, answerId)
+                        : (blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
+                      onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
+                      onStartDeepLearning={onStartDeepLearning}
+                      onAskAgent={onAskAgent}
+                      onFlashGrade={isRealBook ? onFlashGrade : undefined}
+                    />
+                    {isRealBook && onAddNote && onDeleteNote && block.type !== 'user_note' && (
+                      <BlockNotesSection
+                        notes={book.userNotes.filter((note) => note.blockId === block.id)}
+                        onAdd={(body) => onAddNote(activeChapter.id, block.id, body)}
+                        onDelete={(noteId) => onDeleteNote(noteId)}
+                      />
+                    )}
+                  </div>
                 )
               })}
             </div>

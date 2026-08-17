@@ -17,6 +17,7 @@ import type {
   QuizAttempt,
   ReviewKind,
   ReviewScheduleEntry,
+  UserNote,
 } from '../types/learningBook'
 import {
   createSseFrameParserState,
@@ -268,6 +269,35 @@ export async function getReviewDue(bookId: string): Promise<DueItem[]> {
   const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/review/due`)
   if (!response.ok) throw await readHttpError(response)
   return parseReviewDuePayload(await readJson(response))
+}
+
+function isUserNotePayload(value: unknown): value is UserNote {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.chapterId === 'string'
+    && typeof value.blockId === 'string'
+    && typeof value.body === 'string'
+    && typeof value.createdAt === 'string'
+}
+
+function parseNoteEnvelope(value: unknown): UserNote {
+  if (isRecord(value) && isUserNotePayload(value.note)) return value.note
+  throw new BookApiError('invalid_note_payload', SAFE_HTTP_MESSAGE)
+}
+
+export async function addNote(bookId: string, chapterId: string, blockId: string, body: string): Promise<UserNote> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterId, blockId, body }),
+  })
+  if (!response.ok) throw await readHttpError(response)
+  return parseNoteEnvelope(await readJson(response))
+}
+
+export async function deleteNote(bookId: string, noteId: string): Promise<void> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' })
+  if (!response.ok) throw await readHttpError(response)
 }
 
 function parseReviewResultPayload(value: unknown): ReviewScheduleEntry | null {

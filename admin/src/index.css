@@ -5346,6 +5346,19 @@ button:disabled {
 .book-user-note { display: flex; gap: 10px; min-height: 88px; padding: 14px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 13px; color: rgb(35 31 29 / 0.58); background: rgb(255 248 213 / 0.25); }
 .book-user-note textarea { width: 100%; min-width: 0; min-height: 76px; resize: vertical; padding: 0; border: 0; outline: 0; color: rgb(35 31 29 / 0.72); background: transparent; font: inherit; font-size: 0.78rem; line-height: 1.65; }
 .book-user-note textarea::placeholder { color: rgb(35 31 29 / 0.4); }
+.block-notes { display: grid; gap: 8px; margin: -6px 0 10px 12px; }
+.block-notes__item { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 12px; color: rgb(35 31 29 / 0.72); background: rgb(255 248 213 / 0.25); font-size: 0.78rem; line-height: 1.6; }
+.block-notes__item p { flex: 1; margin: 0; white-space: pre-wrap; }
+.block-notes__item button { display: grid; flex: none; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 8px; color: rgb(35 31 29 / 0.45); background: transparent; }
+.block-notes__item button:hover { color: #9c5848; background: rgb(35 31 29 / 0.05); }
+.block-notes__add { display: inline-flex; align-items: center; justify-self: start; gap: 6px; padding: 6px 12px; border: 1px dashed rgb(35 31 29 / 0.2); border-radius: 999px; color: rgb(35 31 29 / 0.55); background: transparent; font: inherit; font-size: 0.72rem; }
+.block-notes__add:hover { color: #9c5848; border-color: #bd725f; }
+.block-notes__composer { display: grid; gap: 8px; padding: 12px; border: 1px dashed rgb(35 31 29 / 0.16); border-radius: 12px; background: rgb(255 248 213 / 0.25); }
+.block-notes__composer textarea { width: 100%; min-height: 68px; resize: vertical; padding: 0; border: 0; outline: 0; color: rgb(35 31 29 / 0.72); background: transparent; font: inherit; font-size: 0.78rem; line-height: 1.65; }
+.block-notes__composer textarea::placeholder { color: rgb(35 31 29 / 0.4); }
+.block-notes__composer > div { display: flex; gap: 8px; }
+.block-notes__composer > div button:last-child { padding: 6px 12px; border: 1px solid rgb(35 31 29 / 0.12); border-radius: 999px; color: rgb(35 31 29 / 0.6); background: transparent; font: inherit; font-size: 0.72rem; }
+.block-notes__composer p[role='alert'] { margin: 0; color: #b66b58; font-size: 0.72rem; }
 .book-callout { padding: 14px 16px; border-left: 3px solid #9c5848; border-radius: 13px; background: rgb(235 204 194 / 0.32); }
 .book-callout__kind { color: #ad6655; font-size: 0.6rem; font-weight: 780; letter-spacing: 0.05em; }
 .book-callout p { margin: 6px 0 0; color: rgb(35 31 29 / 0.76); font-size: 0.85rem; line-height: 1.75; }
