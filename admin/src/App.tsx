@@ -19,7 +19,7 @@ import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
 import { projectBooksToMap } from './domain/bookMapProjection'
 import { pickTodayRealBook } from './domain/todayNextStep'
-import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getLearnerProfile, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getCompletion, getLearnerProfile, getReviewDue, listBooks, postReadingProgress, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -29,7 +29,7 @@ import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
 import { LearningDataPage } from './pages/LearningDataPage'
 import { TodayPage } from './pages/TodayPage'
-import type { AgentContextScope, LearningBook, ReviewScheduleEntry } from './types/learningBook'
+import type { AgentContextScope, BookCompletion, LearningBook, ReviewScheduleEntry } from './types/learningBook'
 import type { LearnerProfile } from './types/learnerProfile'
 import type { BookAgentSource } from './types/bookAgent'
 import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
@@ -245,6 +245,70 @@ function App() {
   const refreshReviewDue = useCallback((bookId: string) => {
     getReviewDue(bookId).then(setReviewDue).catch(() => undefined)
   }, [])
+  // 阅读进度上报：真实书开书/切章防抖 800ms POST visit，失败静默（不阻断阅读）
+  useEffect(() => {
+    if (activeRealBookId === null || !isRealBookLoaded) return
+    const bookId = activeRealBookId
+    const chapterId = activeBookChapterId
+    const timer = window.setTimeout(() => {
+      postReadingProgress(bookId, chapterId, 'visit')
+        .then(({ progress }) => {
+          setLearningBook((current) => current.id === bookId ? { ...current, readingProgress: progress } : current)
+          setRealBooks((current) => current.map((entry) => entry.id === bookId ? { ...entry, readingProgress: progress } : entry))
+        })
+        .catch(() => undefined)
+    }, 800)
+    return () => window.clearTimeout(timer)
+  }, [activeRealBookId, activeBookChapterId, isRealBookLoaded])
+  // 最近阅读书的完成度：供学习数据页「完成度」区与今日页「继续读」
+  const [recentCompletion, setRecentCompletion] = useState<{ bookId: string; bookTitle: string; chapterTitle: string; completion: BookCompletion } | null>(null)
+  useEffect(() => {
+    const recent = realBooks
+      .filter((book) => book.readingProgress && Object.keys(book.readingProgress.lastReadAt).length > 0)
+      .map((book) => {
+        const [chapterId, at] = Object.entries(book.readingProgress!.lastReadAt).sort((a, b) => b[1].localeCompare(a[1]))[0]
+        return { book, chapterId, at }
+      })
+      .sort((a, b) => b.at.localeCompare(a.at))[0]
+    if (!recent) {
+      setRecentCompletion(null)
+      return
+    }
+    let cancelled = false
+    getCompletion(recent.book.id)
+      .then((completion) => {
+        if (cancelled) return
+        setRecentCompletion({
+          bookId: recent.book.id,
+          bookTitle: recent.book.proposal.title,
+          chapterTitle: recent.book.chapters.find((chapter) => chapter.id === recent.chapterId)?.title ?? '',
+          completion,
+        })
+      })
+      .catch(() => { if (!cancelled) setRecentCompletion(null) })
+    return () => { cancelled = true }
+  }, [realBooks])
+  // 书签切换：乐观更新，失败回滚
+  const toggleBookmark = (chapterId: string) => {
+    if (activeRealBookId === null) return
+    const bookId = activeRealBookId
+    const bookmarked = learningBook.readingProgress?.bookmarkedChapterIds.includes(chapterId) ?? false
+    const action = bookmarked ? 'unbookmark' : 'bookmark'
+    const applyLocal = (ids: string[]) => {
+      setLearningBook((current) => current.id === bookId
+        ? { ...current, readingProgress: { visitedChapterIds: [], lastReadAt: {}, ...current.readingProgress, bookmarkedChapterIds: ids } }
+        : current)
+    }
+    applyLocal(bookmarked
+      ? (learningBook.readingProgress?.bookmarkedChapterIds ?? []).filter((id) => id !== chapterId)
+      : [...(learningBook.readingProgress?.bookmarkedChapterIds ?? []), chapterId])
+    postReadingProgress(bookId, chapterId, action)
+      .then(({ progress }) => {
+        setLearningBook((current) => current.id === bookId ? { ...current, readingProgress: progress } : current)
+        setRealBooks((current) => current.map((entry) => entry.id === bookId ? { ...entry, readingProgress: progress } : entry))
+      })
+      .catch(() => applyLocal(learningBook.readingProgress?.bookmarkedChapterIds ?? []))
+  }
   // 作答/自评返回的调度并入书状态：null 表示该块不再调度（删 key）
   const mergeReviewSchedule = (current: LearningBook, blockId: string, schedule: ReviewScheduleEntry | null): LearningBook => {
     const reviewSchedule = { ...(current.reviewSchedule ?? {}) }
@@ -873,6 +937,7 @@ function App() {
           learningEvidenceCount={todayBook.evidence.length}
           learningBook={todayBook}
           learnerProfile={learnerProfile}
+          continueReadingLabel={recentCompletion ? `继续读《${recentCompletion.bookTitle}》${recentCompletion.chapterTitle}` : undefined}
           onOpenLearningData={openLearningData}
         />
         <LearningMapPage
@@ -896,6 +961,7 @@ function App() {
         <LearningDataPage
           isActive={isLearningDataOpen}
           learnerProfile={learnerProfile}
+          recentCompletion={recentCompletion}
           onOpenBook={openRealBook}
         />
         {activeDocumentId === 'ml-chapter-03' && !activeRealBookId && (
@@ -928,6 +994,7 @@ function App() {
               chapterReviewCount={reviewDue.filter((item) => item.chapterId === activeBookChapterId).length}
               onOpenReview={reviewDue.length > 0 ? () => setIsReviewSheetOpen(true) : undefined}
               onOpenMasteryBoard={() => setIsMasteryBoardOpen(true)}
+              onToggleBookmark={toggleBookmark}
               onFlashGrade={submitFlashReviewGrade}
               onAddNote={activeRealBookId !== null ? addRealBookNote : undefined}
               onDeleteNote={activeRealBookId !== null ? deleteRealBookNote : undefined}

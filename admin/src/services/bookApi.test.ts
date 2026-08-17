@@ -9,10 +9,12 @@ import {
   createBook,
   deleteNote,
   getBook,
+  getCompletion,
   getLearnerProfile,
   getPretest,
   getReviewDue,
   listBooks,
+  postReadingProgress,
   streamChapterGeneration,
   submitAttempt,
   submitFeynman,
@@ -678,6 +680,76 @@ describe('note endpoints', () => {
 describe('bookExportUrl', () => {
   it('builds an encoded export URL', () => {
     expect(bookExportUrl('book_a/b')).toBe('/api/books/book_a%2Fb/export')
+  })
+})
+
+describe('reading progress endpoints', () => {
+  const progress = {
+    visitedChapterIds: ['ch-1'],
+    bookmarkedChapterIds: ['ch-2'],
+    lastReadAt: { 'ch-1': '2026-08-17T08:00:00.000Z' },
+  }
+  const completion = {
+    completionScore: 0.2,
+    visitedCount: 1,
+    totalChapters: 2,
+    weakChapters: [{ chapterId: 'ch-1', title: '第一章', mastery: 0.3 }],
+  }
+
+  it('postReadingProgress posts the action and parses the envelope', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ progress, completion })
+    }))
+
+    const result = await postReadingProgress('book_1', 'ch-1', 'visit')
+
+    expect(actualUrl).toBe('/api/books/book_1/progress')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ chapterId: 'ch-1', action: 'visit' })
+    expect(result).toEqual({ progress, completion })
+  })
+
+  it.each([
+    ['progress not an array pair', { progress: { ...progress, visitedChapterIds: 'ch-1' }, completion }],
+    ['completion score not numeric', { progress, completion: { ...completion, completionScore: '0.2' } }],
+    ['weak chapter missing title', { progress, completion: { ...completion, weakChapters: [{ chapterId: 'ch-1', mastery: 0.3 }] } }],
+    ['missing keys', {}],
+  ])('postReadingProgress rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(postReadingProgress('book_1', 'ch-1', 'visit'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_progress_payload' })
+  })
+
+  it('postReadingProgress surfaces server error codes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'chapter_not_found' }, 409)))
+
+    await expect(postReadingProgress('book_1', 'ch-9', 'visit'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'chapter_not_found' })
+  })
+
+  it('getCompletion parses the completion envelope', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ completion })
+    }))
+
+    const result = await getCompletion('book_1')
+
+    expect(actualUrl).toBe('/api/books/book_1/completion')
+    expect(result).toEqual(completion)
+  })
+
+  it('getCompletion rejects a malformed payload', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ completion: { visitedCount: 'x' } })))
+
+    await expect(getCompletion('book_1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_completion_payload' })
   })
 })
 

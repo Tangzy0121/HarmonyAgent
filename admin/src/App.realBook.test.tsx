@@ -856,6 +856,8 @@ describe('App · 真实学习书接线', () => {
     expect(windowStub.location.hash).toBe('#proposal/book_new')
 
     await flushEffects()
+    // 书籍加载经「getBook 解析 → setState → 渲染」链，异步周期多时需再 flush 一轮（防时序抖动）
+    await flushEffects()
     expect(getBook).toHaveBeenCalledWith('book_new')
     expect(container.textContent).toContain('确认目录并生成')
   })

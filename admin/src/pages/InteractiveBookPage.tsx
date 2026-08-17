@@ -38,11 +38,14 @@ interface InteractiveBookPageProps {
   /** 真实书用户笔记：走服务端持久化（异步，false 表示失败）；仅真实书传入 */
   onAddNote?: (chapterId: string, blockId: string, body: string) => Promise<boolean | void>
   onDeleteNote?: (noteId: string) => Promise<boolean | void>
+  /** 真实书章节书签切换（仅真实书传入，按钮在导航头部） */
+  onToggleBookmark?: (chapterId: string) => void
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade, onAddNote, onDeleteNote } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade, onAddNote, onDeleteNote, onToggleBookmark } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
+  const isChapterBookmarked = book.readingProgress?.bookmarkedChapterIds.includes(activeChapter.id) ?? false
   const nextChapter = book.chapters[activeChapter.order + 1]
   const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
   // 掌握度与概念学习状态仅对真实书从 attempts 派生（mock 原型页行为不变）
@@ -61,6 +64,17 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         <button type="button" onClick={onBack} aria-label="返回知识库"><Icon name="back" size={21} />知识库</button>
         <div><span>互动学习书</span><strong>{book.proposal.title}</strong></div>
         <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
+        {isRealBook && onToggleBookmark && (
+          <button
+            type="button"
+            className={isChapterBookmarked ? 'interactive-book-navigation__bookmark is-bookmarked' : 'interactive-book-navigation__bookmark'}
+            aria-pressed={isChapterBookmarked}
+            aria-label={isChapterBookmarked ? '取消本章书签' : '收藏本章书签'}
+            onClick={() => onToggleBookmark(activeChapter.id)}
+          >
+            <Icon name="bookmark" size={16} />
+          </button>
+        )}
         {isRealBook && (
           <a className="interactive-book-navigation__export" href={bookExportUrl(book.id)} download>
             <Icon name="document" size={16} />导出 Markdown

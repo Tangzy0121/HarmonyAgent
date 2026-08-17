@@ -8,6 +8,7 @@ import {
 import type {
   AttemptDiagnosis,
   BookBlock,
+  BookCompletion,
   BookPretest,
   LearningBook,
   LearningEvidence,
@@ -15,6 +16,7 @@ import type {
   LearnerLevel,
   PretestQuestion,
   QuizAttempt,
+  ReadingProgress,
   ReviewKind,
   ReviewScheduleEntry,
   UserNote,
@@ -314,6 +316,56 @@ export async function deleteNote(bookId: string, noteId: string): Promise<void> 
 /** 导出 Markdown 的直连地址（<a download> 使用，不经 JS 拼文件） */
 export function bookExportUrl(bookId: string): string {
   return `/api/books/${encodeURIComponent(bookId)}/export`
+}
+
+export type ProgressAction = 'visit' | 'bookmark' | 'unbookmark'
+
+export interface ProgressEnvelope {
+  progress: ReadingProgress
+  completion: BookCompletion
+}
+
+function isReadingProgressPayload(value: unknown): value is ReadingProgress {
+  return isRecord(value)
+    && Array.isArray(value.visitedChapterIds) && value.visitedChapterIds.every((id) => typeof id === 'string')
+    && Array.isArray(value.bookmarkedChapterIds) && value.bookmarkedChapterIds.every((id) => typeof id === 'string')
+    && isRecord(value.lastReadAt) && Object.values(value.lastReadAt).every((iso) => typeof iso === 'string')
+}
+
+function isCompletionPayload(value: unknown): value is BookCompletion {
+  return isRecord(value)
+    && isFiniteNumber(value.completionScore)
+    && isFiniteNumber(value.visitedCount)
+    && isFiniteNumber(value.totalChapters)
+    && Array.isArray(value.weakChapters)
+    && value.weakChapters.every((entry) => isRecord(entry)
+      && typeof entry.chapterId === 'string'
+      && typeof entry.title === 'string'
+      && isFiniteNumber(entry.mastery))
+}
+
+/** 上报阅读进度（visit/bookmark/unbookmark，幂等），返回最新进度与完成度 */
+export async function postReadingProgress(bookId: string, chapterId: string, action: ProgressAction): Promise<ProgressEnvelope> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/progress`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterId, action }),
+  })
+  if (!response.ok) throw await readHttpError(response)
+  const value = await readJson(response)
+  if (isRecord(value) && isReadingProgressPayload(value.progress) && isCompletionPayload(value.completion)) {
+    return { progress: value.progress, completion: value.completion }
+  }
+  throw new BookApiError('invalid_progress_payload', SAFE_HTTP_MESSAGE)
+}
+
+/** 派生完成度（只读） */
+export async function getCompletion(bookId: string): Promise<BookCompletion> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/completion`)
+  if (!response.ok) throw await readHttpError(response)
+  const value = await readJson(response)
+  if (isRecord(value) && isCompletionPayload(value.completion)) return value.completion
+  throw new BookApiError('invalid_completion_payload', SAFE_HTTP_MESSAGE)
 }
 
 function isConceptMasteryPayload(value: unknown): value is ConceptMastery {

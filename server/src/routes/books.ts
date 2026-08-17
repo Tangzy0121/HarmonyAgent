@@ -31,6 +31,7 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
+import { applyProgressEvent, deriveCompletion, type ProgressAction } from '../books/readingProgress.js'
 import { listDueItems } from '../books/schedule.js'
 import type { RuntimeActor } from '../agent/runtime/agentRuntimeTypes.js'
 import {
@@ -985,6 +986,67 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'note_removed', bookId: book.id })
     res.status(204).end()
+  })
+
+  // 阅读进度：幂等三动作（visit/bookmark/unbookmark），返回更新后进度与派生完成度
+  router.post('/:id/progress', async (req, res) => {
+    const body: unknown = req.body
+    const chapterId = isRecord(body) ? body.chapterId : undefined
+    const action = isRecord(body) ? body.action : undefined
+    const ACTIONS: readonly ProgressAction[] = ['visit', 'bookmark', 'unbookmark']
+    if (
+      typeof chapterId !== 'string' || !chapterId.trim() ||
+      typeof action !== 'string' || !ACTIONS.includes(action as ProgressAction)
+    ) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    if (!book.chapters.some((chapter) => chapter.id === chapterId)) {
+      res.status(409).json({ error: 'chapter_not_found' })
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    try {
+      await bookStore.update(book.id, (current) => {
+        applyProgressEvent(current, { chapterId, action: action as ProgressAction }, nowIso)
+        current.updatedAt = nowIso
+      })
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    const updated = await bookStore.get(book.id)
+    emitLog(logger, { category: 'reading_progress', bookId: book.id, chapterId, action })
+    res.status(200).json({ progress: updated?.readingProgress, completion: deriveCompletion(updated ?? book) })
+  })
+
+  // 完成度派生：只读，无写入
+  router.get('/:id/completion', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    res.status(200).json({ completion: deriveCompletion(book) })
   })
 
   // 导出 Markdown：只读投影，无 LLM、无写入；笔记/引用/证据摘要全部随书导出

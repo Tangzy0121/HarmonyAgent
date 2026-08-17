@@ -209,6 +209,26 @@ export interface BookPretest {
 
 export type ReviewKind = 'quiz' | 'flash_cards'
 
+/** 章节阅读进度：已读（首读顺序）、书签、逐章最近阅读时间（ISO），镜像 server bookTypes */
+export interface ReadingProgress {
+  visitedChapterIds: string[]
+  bookmarkedChapterIds: string[]
+  lastReadAt: Record<string, string>
+}
+
+export interface WeakChapter {
+  chapterId: string
+  title: string
+  mastery: number
+}
+
+export interface BookCompletion {
+  completionScore: number
+  visitedCount: number
+  totalChapters: number
+  weakChapters: WeakChapter[]
+}
+
 export interface ReviewScheduleEntry {
   kind: ReviewKind
   stage: number
@@ -230,6 +250,7 @@ export interface LearningBook {
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest
+  readingProgress?: ReadingProgress
   reviewSchedule?: Record<string, ReviewScheduleEntry>
 }
 

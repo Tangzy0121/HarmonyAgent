@@ -285,6 +285,13 @@ export interface GenerationJob {
   updatedAt: string
 }
 
+/** 章节阅读进度：已读（首读顺序）、书签、逐章最近阅读时间（ISO） */
+export interface ReadingProgress {
+  visitedChapterIds: string[]
+  bookmarkedChapterIds: string[]
+  lastReadAt: Record<string, string>
+}
+
 export interface PretestQuestion {
   id: string
   chapterId: string
@@ -329,6 +336,7 @@ export interface StoredBook {
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest
+  readingProgress?: ReadingProgress
   reviewSchedule?: Record<string, ReviewScheduleEntry>
   projectionOutbox?: Record<string, ProjectionOutboxEntry>
   masteryProjectionReadModel?: Record<string, MasteryProjectionReadModelEntry>

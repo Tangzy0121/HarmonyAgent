@@ -16,12 +16,14 @@ interface PageProps {
   learningEvidenceCount?: number
   learningBook?: LearningBook
   learnerProfile?: LearnerProfile | null
+  /** 有最近阅读书时学习数据卡片前缀（如「继续读《xxx》第二章」） */
+  continueReadingLabel?: string
   onOpenLearningData?: () => void
 }
 
 type OutcomeOptionId = typeof todayLearningOutcome.options[number]['id']
 
-export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile, onOpenLearningData }: PageProps) {
+export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile, continueReadingLabel, onOpenLearningData }: PageProps) {
   const [outcomeSelection, setOutcomeSelection] = useState<OutcomeOptionId>('tomorrow')
   const [isOutcomeConfirmed, setIsOutcomeConfirmed] = useState(false)
   const projectedFocus = deriveTodayFocus(learningBook, new Date(), learnerProfile) ?? todayPageContent.focus
@@ -53,7 +55,7 @@ export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learnin
         {learnerProfile && onOpenLearningData && (
           <button type="button" className="today-learning-data-card" onClick={onOpenLearningData}>
             <strong>学习数据</strong>
-            <span>已连续学习 {learnerProfile.rhythm.streakDays} 天 · 近 30 天活跃 {learnerProfile.rhythm.activeDays30} 天，点击查看</span>
+            <span>{continueReadingLabel ? `${continueReadingLabel} · ` : ''}已连续学习 {learnerProfile.rhythm.streakDays} 天 · 近 30 天活跃 {learnerProfile.rhythm.activeDays30} 天，点击查看</span>
           </button>
         )}
 
