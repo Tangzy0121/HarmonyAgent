@@ -66,6 +66,9 @@ const REAL_BOOK_ERROR_MESSAGES: Record<string, string> = {
   pdf_encrypted: '这份 PDF 已加密，暂不支持解析。',
   pdf_no_text: '这份 PDF 没有可提取的文字（可能是扫描件），暂不支持。',
   pdf_unreadable: '这份 PDF 无法读取，请检查文件是否损坏。',
+  doc_no_text: '这份文档没有可提取的文字内容，暂不支持。',
+  doc_too_long: '这份文档超过 45,000 字上限，请拆分后再上传。',
+  docx_unreadable: '这份 DOCX 无法读取，请检查文件是否损坏或加密。',
   invalid_proposal_edit: '目录修改未通过校验，请检查后重试。',
 }
 

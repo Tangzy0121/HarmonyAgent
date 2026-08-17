@@ -47,6 +47,7 @@ export type StoredBook = LearningBook & {
 export interface StoredDocumentMeta {
   id: string
   fileName: string
+  format: 'PDF' | 'Markdown' | 'DOCX'
   sizeBytes: number
   pageCount: number
   createdAt: string
@@ -119,6 +120,7 @@ function parseDocumentMeta(value: unknown): StoredDocumentMeta {
     isRecord(value)
     && typeof value.id === 'string'
     && typeof value.fileName === 'string'
+    && (value.format === 'PDF' || value.format === 'Markdown' || value.format === 'DOCX')
     && typeof value.sizeBytes === 'number'
     && typeof value.pageCount === 'number'
     && typeof value.createdAt === 'string'
@@ -132,11 +134,19 @@ function parseBookEnvelope(value: unknown): LearningBook {
   return parseLearningBook(isRecord(value) && 'book' in value ? value.book : value)
 }
 
+/** 按扩展名推断上传 Content-Type（部分浏览器对 .md 不给具体 MIME） */
+function contentTypeFor(file: File): string {
+  const lower = file.name.toLowerCase()
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'text/markdown'
+  if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  return 'application/pdf'
+}
+
 export async function uploadDocument(file: File): Promise<StoredDocumentMeta> {
   const response = await fetch('/api/documents', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/pdf',
+      'Content-Type': contentTypeFor(file),
       // HTTP 头只能携带 latin-1，中文文件名须百分号编码传输
       'x-file-name': encodeURIComponent(file.name),
     },

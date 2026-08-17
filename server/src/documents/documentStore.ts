@@ -4,9 +4,12 @@ import path from 'node:path'
 
 import type { ParsedDocument, ParsedPage } from './pdfParser.js'
 
+export type DocumentFormat = 'PDF' | 'Markdown' | 'DOCX'
+
 export interface StoredDocumentMeta {
   id: string
   fileName: string
+  format: DocumentFormat
   sizeBytes: number
   pageCount: number
   createdAt: string
@@ -19,6 +22,8 @@ export interface DocumentStore {
     fileName: string
     pdf: Buffer
     parsed: ParsedDocument
+    /** 缺省 'PDF'（存量文档兼容） */
+    format?: DocumentFormat
   }): Promise<StoredDocumentMeta>
   get(id: string): Promise<StoredDocument | null>
   list(): Promise<StoredDocumentMeta[]>
@@ -50,13 +55,18 @@ export function createDocumentStore(rootDir: string): DocumentStore {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error
     }
-    return JSON.parse(raw) as StoredDocument
+    const document = JSON.parse(raw) as StoredDocument
+    // 存量文档无 format 字段，视为 PDF
+    document.format ??= 'PDF'
+    return document
   }
 
   function toMeta(document: StoredDocument): StoredDocumentMeta {
     return {
       id: document.id,
       fileName: document.fileName,
+      // 存量文档无 format 字段，视为 PDF
+      format: document.format ?? 'PDF',
       sizeBytes: document.sizeBytes,
       pageCount: document.pageCount,
       createdAt: document.createdAt,
@@ -64,11 +74,12 @@ export function createDocumentStore(rootDir: string): DocumentStore {
   }
 
   return {
-    async save({ fileName, pdf, parsed }) {
+    async save({ fileName, pdf, parsed, format = 'PDF' }) {
       await ensureDir()
       const meta: StoredDocumentMeta = {
         id: `doc_${randomUUID()}`,
         fileName,
+        format,
         sizeBytes: pdf.byteLength,
         pageCount: parsed.pageCount,
         createdAt: new Date().toISOString(),

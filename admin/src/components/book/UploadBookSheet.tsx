@@ -20,6 +20,13 @@ const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 const GOALS: readonly LearningGoal[] = ['理解概念', '课程学习', '考试复习']
 const LEVELS: readonly LearnerLevel[] = ['入门', '了解', '熟悉']
 
+function formatLabelFor(fileName: string): string {
+  const lower = fileName.toLowerCase()
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'Markdown'
+  if (lower.endsWith('.docx')) return 'DOCX'
+  return 'PDF'
+}
+
 function formatSizeLabel(sizeBytes: number): string {
   if (sizeBytes >= 1024 * 1024) return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
   return `${Math.max(1, Math.ceil(sizeBytes / 1024))} KB`
@@ -76,14 +83,14 @@ export function UploadBookSheet({ onSubmit, onClose, errorMessage = null }: Uplo
         <label className="upload-book-sheet__file">
           <input
             type="file"
-            accept="application/pdf,.pdf"
-            aria-label="选择 PDF 文件"
+            accept="application/pdf,.pdf,text/markdown,.md,.markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
+            aria-label="选择学习资料文件"
             onChange={handleFileChange}
           />
           {file === null ? (
             <span className="upload-book-sheet__file-placeholder">
               <Icon name="upload" size={20} />
-              <strong>选择 PDF 文件</strong>
+              <strong>选择 PDF / Markdown / DOCX 文件</strong>
               <small>单个文件，不超过 20MB</small>
             </span>
           ) : (
@@ -91,7 +98,7 @@ export function UploadBookSheet({ onSubmit, onClose, errorMessage = null }: Uplo
               <Icon name="document" size={20} />
               <span>
                 <strong>{file.name}</strong>
-                <small>{formatSizeLabel(file.size)} · PDF</small>
+                <small>{formatSizeLabel(file.size)} · {formatLabelFor(file.name)}</small>
               </span>
             </span>
           )}
@@ -137,7 +144,7 @@ export function UploadBookSheet({ onSubmit, onClose, errorMessage = null }: Uplo
         </section>
 
         <p className="upload-book-sheet__note">
-          PDF 将上传至云端解析，用于生成互动学习书；原始文件与解析结果可随时在知识库删除。
+          文件将上传至云端解析，用于生成互动学习书；原始文件与解析结果可随时在知识库删除。DOCX 中的图片与表格样式不会保留。
         </p>
 
         {errorMessage && (
