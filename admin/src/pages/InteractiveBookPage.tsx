@@ -6,6 +6,7 @@ import { BookGenerationRail } from '../components/book/BookGenerationRail'
 import { FeynmanCard } from '../components/book/FeynmanCard'
 import { advanceGeneration, regenerateBlock, retryChapterGeneration, submitQuizAttempt, updateUserNote } from '../domain/learningBook'
 import { chapterMastery, deriveConceptLearningState, latestAttemptForBlock, latestEvidenceForBlock } from '../domain/learningProjection'
+import { bookExportUrl } from '../services/bookApi'
 import type { AgentContextScope, LearningBook } from '../types/learningBook'
 
 interface InteractiveBookPageProps {
@@ -60,6 +61,11 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         <button type="button" onClick={onBack} aria-label="返回知识库"><Icon name="back" size={21} />知识库</button>
         <div><span>互动学习书</span><strong>{book.proposal.title}</strong></div>
         <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
+        {isRealBook && (
+          <a className="interactive-book-navigation__export" href={bookExportUrl(book.id)} download>
+            <Icon name="document" size={16} />导出 Markdown
+          </a>
+        )}
       </header>
 
       <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} reviewCount={isRealBook ? reviewCount : 0} onOpenReview={isRealBook ? onOpenReview : undefined} onOpenMasteryBoard={isRealBook ? onOpenMasteryBoard : undefined} />

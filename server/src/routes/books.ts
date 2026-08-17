@@ -17,6 +17,7 @@ import {
   type UserNote,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
+import { renderBookMarkdown } from '../books/bookMarkdown.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
 import { buildDiagnosisMessages, normalizeDiagnosis } from '../books/diagnosisPrompt.js'
 import {
@@ -72,6 +73,7 @@ export interface BooksLogEvent {
     | 'feynman_validation_failed'
     | 'note_recorded'
     | 'note_removed'
+    | 'book_exported'
   status?: number
   name?: string
   attempt?: number
@@ -983,6 +985,30 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'note_removed', bookId: book.id })
     res.status(204).end()
+  })
+
+  // 导出 Markdown：只读投影，无 LLM、无写入；笔记/引用/证据摘要全部随书导出
+  router.get('/:id/export', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+
+    const markdown = renderBookMarkdown(book)
+    const fileName = encodeURIComponent(`${book.proposal.title}.md`)
+    emitLog(logger, { category: 'book_exported', bookId: book.id })
+    res
+      .status(200)
+      .setHeader('Content-Type', 'text/markdown; charset=utf-8')
+      .setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`)
+      .send(markdown)
   })
 
   router.get('/:id/review/due', async (req, res) => {

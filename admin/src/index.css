@@ -5268,6 +5268,8 @@ button:disabled {
 .interactive-book-navigation > div span { color: rgb(35 31 29 / 0.42); font-size: 0.56rem; font-weight: 700; }
 .interactive-book-navigation > div strong { overflow: hidden; font-size: 0.73rem; text-overflow: ellipsis; white-space: nowrap; }
 .interactive-book-navigation__source { display: none; }
+.interactive-book-navigation__export { display: flex; align-items: center; gap: 5px; padding: 6px 12px; border: 1px solid rgb(35 31 29 / 0.12); border-radius: 999px; color: rgb(35 31 29 / 0.6); font-size: 0.68rem; text-decoration: none; }
+.interactive-book-navigation__export:hover { color: #9c5848; border-color: #bd725f; }
 
 .book-generation-rail { min-width: 0; padding: 10px 12px; border-bottom: 1px solid rgb(35 31 29 / 0.08); }
 .book-generation-rail > header { display: none; }

@@ -4,6 +4,7 @@ import { learningBookFixture } from '../data/learningBook'
 import { BookApiError } from '../domain/learningBookApi'
 import {
   addNote,
+  bookExportUrl,
   confirmBook,
   createBook,
   deleteNote,
@@ -669,5 +670,11 @@ describe('note endpoints', () => {
 
     await expect(deleteNote('book_1', 'note_x'))
       .rejects.toMatchObject({ name: 'BookApiError', code: 'note_not_found' })
+  })
+})
+
+describe('bookExportUrl', () => {
+  it('builds an encoded export URL', () => {
+    expect(bookExportUrl('book_a/b')).toBe('/api/books/book_a%2Fb/export')
   })
 })

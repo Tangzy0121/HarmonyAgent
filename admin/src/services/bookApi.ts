@@ -300,6 +300,11 @@ export async function deleteNote(bookId: string, noteId: string): Promise<void> 
   if (!response.ok) throw await readHttpError(response)
 }
 
+/** 导出 Markdown 的直连地址（<a download> 使用，不经 JS 拼文件） */
+export function bookExportUrl(bookId: string): string {
+  return `/api/books/${encodeURIComponent(bookId)}/export`
+}
+
 function parseReviewResultPayload(value: unknown): ReviewScheduleEntry | null {
   if (isRecord(value) && 'schedule' in value && (value.schedule === null || isReviewScheduleEntry(value.schedule))) {
     return value.schedule
