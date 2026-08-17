@@ -1,6 +1,6 @@
 # Interactive Learning Book Prototype Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build a mobile-first, high-fidelity interactive learning-book vertical slice that turns the existing file-understanding screen into an editable proposal, progressively generated reader, chapter-scoped Agent entry, quiz evidence, and downstream map/today updates.
 
@@ -37,11 +37,11 @@
 - Produces: `LearningBook`, `BookChapter`, `BookBlock`, `BookProposal`, `BookGenerationState`, `AgentContextScope`, `LearningEvidence`.
 - Produces: `removeChapter(book, chapterId)`, `moveChapter(book, chapterId, direction)`, `mergeChapterWithNext(book, chapterId)`, `advanceGeneration(book)`, `resolveAgentContext(book, chapterId, scope)`, `submitQuizAttempt(book, blockId, answerId)`, `regenerateBlock(book, blockId)`.
 
-- [ ] **Step 1: Add Vitest and a deterministic test command**
+- [x] **Step 1: Add Vitest and a deterministic test command**
 
 Add `"test": "vitest run"` and `"test:watch": "vitest"` to scripts, and add a Vitest version compatible with Node 24 to `devDependencies` using `npm install -D vitest` so the lockfile is generated mechanically.
 
-- [ ] **Step 2: Write failing domain tests**
+- [x] **Step 2: Write failing domain tests**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -93,21 +93,21 @@ describe('learning book domain', () => {
 })
 ```
 
-- [ ] **Step 3: Run tests and verify the missing-module failure**
+- [x] **Step 3: Run tests and verify the missing-module failure**
 
 Run: `npm test`  
 Expected: FAIL because the learning-book fixture/domain modules do not exist.
 
-- [ ] **Step 4: Implement typed immutable domain operations**
+- [x] **Step 4: Implement typed immutable domain operations**
 
 Use discriminated unions for chapter, block, and generation states. Keep user-authored and generated records in separate arrays. Return the original object when an invalid edit is rejected so UI code can detect the no-op.
 
-- [ ] **Step 5: Run unit tests**
+- [x] **Step 5: Run unit tests**
 
 Run: `npm test`  
 Expected: all domain tests PASS.
 
-- [ ] **Step 6: Verify TypeScript production build**
+- [x] **Step 6: Verify TypeScript production build**
 
 Run: `npm run build`  
 Expected: TypeScript and Vite complete with exit code 0.
@@ -125,23 +125,23 @@ Expected: TypeScript and Vite complete with exit code 0.
 - Produces: `BookProposalPage({ book, onBookChange, onConfirm, onBack })`.
 - Navigation: `#library/ml-chapter-03/proposal` → `#book/ml-chapter-03/chapter/ch-1`.
 
-- [ ] **Step 1: Create the approved single-PDF fixture**
+- [x] **Step 1: Create the approved single-PDF fixture**
 
 Model one 24-page machine-learning PDF, three learning goals, three learner levels, a four-chapter proposal, source page ranges, estimated minutes, concept candidates, block payloads, quiz answers, citations, and one user note.
 
-- [ ] **Step 2: Render upload context and proposal summary**
+- [x] **Step 2: Render upload context and proposal summary**
 
 Show PDF metadata, learning goal, learner level, recommended title, one-sentence description, total estimate, source coverage, and a clear “目录待确认” state.
 
-- [ ] **Step 3: Add chapter editing controls**
+- [x] **Step 3: Add chapter editing controls**
 
 Each chapter row supports rename, move up/down, merge with next, and delete. Disable invalid actions at the first/last row and when deletion would leave fewer than three chapters. Announce rejected edits with visible inline text instead of a transient toast.
 
-- [ ] **Step 4: Confirm the outline**
+- [x] **Step 4: Confirm the outline**
 
 The primary action persists the confirmed spine in App state, changes the book to `generating`, marks chapter 1 as `generating`, and navigates to the reader.
 
-- [ ] **Step 5: Run tests and build**
+- [x] **Step 5: Run tests and build**
 
 Run: `npm test && npm run build`  
 Expected: all unit tests pass and production build succeeds.
@@ -160,27 +160,27 @@ Expected: all unit tests pass and production build succeeds.
 - Consumes: confirmed `LearningBook`, `advanceGeneration`, `regenerateBlock`, `submitQuizAttempt`, and `resolveAgentContext`.
 - Produces: `InteractiveBookPage({ book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning })`.
 
-- [ ] **Step 1: Render the book shell**
+- [x] **Step 1: Render the book shell**
 
 Add a compact title/header, horizontally scrollable chapter navigator, chapter status, estimated time, learning objective, source range, and original-source action. Keep the body editorial and flat; reserve glass treatment for navigation and controls.
 
-- [ ] **Step 2: Render seven MVP block types**
+- [x] **Step 2: Render seven MVP block types**
 
 Implement exhaustive rendering for `explanation`, `example`, `formula`, `citation`, `concept`, `quiz`, and `user_note`. Unknown types must render an accessible unsupported-block message, never a blank area.
 
-- [ ] **Step 3: Add progressive generation states**
+- [x] **Step 3: Add progressive generation states**
 
 Show pending, generating, ready, partial, and error chapter states. The first “继续生成” action makes chapter 1 readable while the book remains generating; later actions progress one chapter at a time. Failed chapters expose a local retry action.
 
-- [ ] **Step 4: Add block regeneration and quiz evidence**
+- [x] **Step 4: Add block regeneration and quiz evidence**
 
 Generated blocks expose a regenerate action. User notes do not. Submitting the quiz locks the selected attempt, shows cited feedback, and creates one `LearningEvidence` record. Regeneration preserves notes and attempts.
 
-- [ ] **Step 5: Add chapter/whole-book context control**
+- [x] **Step 5: Add chapter/whole-book context control**
 
 The visible context bar defaults to current chapter, supports an explicit whole-book choice, and sends its resolved label to the shared Agent drawer.
 
-- [ ] **Step 6: Run tests and build**
+- [x] **Step 6: Run tests and build**
 
 Run: `npm test && npm run build`  
 Expected: all tests pass and production build succeeds.
@@ -197,19 +197,19 @@ Expected: all tests pass and production build succeeds.
 - Consumes: resolved `AgentContext` from Task 3.
 - Produces: visible removable context chip and book-scoped conversation copy.
 
-- [ ] **Step 1: Make book context explicit**
+- [x] **Step 1: Make book context explicit**
 
 Pass the current book/chapter label into `AgentDrawer`, keep the existing removable context behavior, and add copy that distinguishes “优先参考当前章节” from “允许检索整本学习书”.
 
-- [ ] **Step 2: Preserve overlay and back behavior**
+- [x] **Step 2: Preserve overlay and back behavior**
 
 Opening Agent from the reader uses the existing 75% drawer and history state. Closing returns to the same chapter and scroll context. Expanding the drawer to full screen retains the selected context scope.
 
-- [ ] **Step 3: Add safe book follow-up actions**
+- [x] **Step 3: Add safe book follow-up actions**
 
 Mock responses may expose “加入本章笔记” and “进入深入学习”. Neither action silently updates mastery; the latter routes to the existing explanation flow with the selected concept.
 
-- [ ] **Step 4: Run tests and build**
+- [x] **Step 4: Run tests and build**
 
 Run: `npm test && npm run build`  
 Expected: all tests pass and production build succeeds.
@@ -230,23 +230,23 @@ Expected: all tests pass and production build succeeds.
 - Consumes: `LearningBook.status`, ready chapter count, concept candidates, confirmed relations, and `LearningEvidence`.
 - Produces: consistent downstream status on Library, Learning Map, and Today.
 
-- [ ] **Step 1: Reflect book lifecycle in Knowledge Library**
+- [x] **Step 1: Reflect book lifecycle in Knowledge Library**
 
 Replace “已理解” with book-specific states such as “目录待确认”, “生成中 1/4”, “部分可读”, and “可阅读”. Opening the PDF routes to the proposal before confirmation and to the last-read chapter afterward.
 
-- [ ] **Step 2: Project chapters and concepts into the map**
+- [x] **Step 2: Project chapters and concepts into the map**
 
 Use book chapters as theme clusters and concept candidates as nodes. Keep source files out of the main graph. New nodes start at “暂无学习记录”; only quiz evidence changes the relevant node to “已学习”.
 
-- [ ] **Step 3: Add one justified Today action**
+- [x] **Step 3: Add one justified Today action**
 
 Before completion, Today shows “继续生成/继续阅读”. After evidence exists, it shows one next step with book title, chapter, estimated minutes, and reason.
 
-- [ ] **Step 4: Verify the complete hash flow**
+- [x] **Step 4: Verify the complete hash flow**
 
 Manually exercise: Library → Proposal → Confirm → Chapter 1 generation → Read → Ask Agent → Quiz → Map → Today → Back to book.
 
-- [ ] **Step 5: Run tests and build**
+- [x] **Step 5: Run tests and build**
 
 Run: `npm test && npm run build`  
 Expected: all tests pass and production build succeeds.
@@ -266,29 +266,29 @@ Expected: all tests pass and production build succeeds.
 - Consumes: completed prototype flow.
 - Produces: verified responsive UI and an evidence record with commands, screenshots, and remaining limitations.
 
-- [ ] **Step 1: Run automated verification**
+- [x] **Step 1: Run automated verification**
 
 Run: `npm test && npm run build`  
 Expected: zero test or build failures.
 
-- [ ] **Step 2: Start the Vite development server**
+- [x] **Step 2: Start the Vite development server**
 
 Run: `npm run dev -- --host 127.0.0.1`  
 Expected: Vite reports a local URL without compile errors.
 
-- [ ] **Step 3: Verify in a 393 × 852 mobile viewport**
+- [x] **Step 3: Verify in a 393 × 852 mobile viewport**
 
 Check proposal editing, focus order, disabled controls, chapter navigation, context scope, block actions, quiz feedback, drawer/back behavior, and no horizontal overflow.
 
-- [ ] **Step 4: Verify reduced motion and keyboard access**
+- [x] **Step 4: Verify reduced motion and keyboard access**
 
 Confirm all icon buttons have accessible names, context changes are visible in text, focus remains visible, and `prefers-reduced-motion` removes nonessential transitions.
 
-- [ ] **Step 5: Record evidence and limitations**
+- [x] **Step 5: Record evidence and limitations**
 
 Document the fixed DeepTutor commit, tests/build results, screenshots, mock-only boundaries, and the next real-service phase. Do not describe mock parsing or generation as a real backend capability.
 
-- [ ] **Step 6: Review Git status before any commit**
+- [x] **Step 6: Review Git status before any commit**
 
 Run: `git status --short`  
 Expected: only files directly related to the learning-book prototype and its design/plan/evidence are present. `HelpCC/`, upstream DeepTutor, `node_modules/`, and build output must be absent.

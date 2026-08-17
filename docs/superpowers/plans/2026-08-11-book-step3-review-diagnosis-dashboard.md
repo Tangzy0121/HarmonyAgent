@@ -1,6 +1,6 @@
 # Step 3 批次一 Implementation Plan：间隔重复调度 + 错题四类诊断 + 掌握度看板
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 答错的题与闪卡按固定间隔序列到期复习，答错给四类诊断并可带诊断问 Agent，全书概念掌握状态一页可见。
 
@@ -46,7 +46,7 @@
   - `listDueItems(book: StoredBook, now: Date): DueItem[]`
   - `DueItem = { blockId: string; chapterId: string; kind: ReviewKind; title: string; dueAt: string; stage: number; lapses: number }`
 
-- [ ] **Step 1: 写失败测试** `server/src/books/schedule.test.ts`
+- [x] **Step 1: 写失败测试** `server/src/books/schedule.test.ts`
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -146,12 +146,12 @@ describe('listDueItems', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认 RED**
+- [x] **Step 2: 跑测试确认 RED**
 
 Run: `cd server && npx vitest run src/books/schedule.test.ts`
 Expected: FAIL（模块不存在 / applyReviewGrade 未定义）
 
-- [ ] **Step 3: 实现 `schedule.ts` + 类型**
+- [x] **Step 3: 实现 `schedule.ts` + 类型**
 
 `server/src/books/bookTypes.ts` 在 `StoredBook` 接口加（紧随 `pretest?` 字段后），并新增导出类型：
 
@@ -241,12 +241,12 @@ export function listDueItems(book: StoredBook, now: Date): DueItem[] {
 
 注意测试里 `flash 首次自评记住了` 断言 `stage: 1` 与 `dueAt = now + intervals[0]`——实现已对应（flash 首次记住 = 入队并直接完成第 0 档）。若 RED 阶段对语义有异议，以实现与测试一致为准。
 
-- [ ] **Step 4: 跑测试确认 GREEN**
+- [x] **Step 4: 跑测试确认 GREEN**
 
 Run: `cd server && npx vitest run src/books/schedule.test.ts`
 Expected: PASS（9 个用例）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/books/schedule.ts server/src/books/schedule.test.ts server/src/books/bookTypes.ts
@@ -265,7 +265,7 @@ git commit -m "feat(books): add spaced review schedule pure functions"
 - Consumes: Task 1 的 `applyReviewGrade`、`ReviewScheduleEntry`。
 - Produces: `POST /:id/attempts` 201 响应变为 `{ attempt, evidence, mastery, schedule: ReviewScheduleEntry | null }`；`StoredBook.reviewSchedule` 持久化。
 
-- [ ] **Step 1: 写失败测试**（在 attempts 相关 describe 内追加）
+- [x] **Step 1: 写失败测试**（在 attempts 相关 describe 内追加）
 
 ```ts
 it('答错后将该 quiz 块写入调度并在响应中返回 schedule', async () => {
@@ -284,12 +284,12 @@ it('答对调度中的块会推进档位；首次答对（从未答错）schedul
 })
 ```
 
-- [ ] **Step 2: 跑测试确认 RED**（响应无 `schedule` 字段）
+- [x] **Step 2: 跑测试确认 RED**（响应无 `schedule` 字段）
 
 Run: `cd server && npx vitest run src/routes/books.test.ts -t '调度'`
 Expected: FAIL
 
-- [ ] **Step 3: 实现**——`books.ts` attempts 处理器内，`book.quizAttempts.push(attempt)` 之后、`bookStore.save` 之前插入：
+- [x] **Step 3: 实现**——`books.ts` attempts 处理器内，`book.quizAttempts.push(attempt)` 之后、`bookStore.save` 之前插入：
 
 ```ts
 // 间隔重复调度：答错入队/重置，答对推进或毕业（never-wrong 的块不入调度）
@@ -306,12 +306,12 @@ import 加 `import { applyReviewGrade } from '../books/schedule.js'` 与类型 `
 res.status(201).json({ attempt, evidence, mastery, schedule: nextSchedule })
 ```
 
-- [ ] **Step 4: 跑测试确认 GREEN + server 全量**
+- [x] **Step 4: 跑测试确认 GREEN + server 全量**
 
 Run: `cd server && npx vitest run src/routes/books.test.ts && npm run test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/routes/books.ts server/src/routes/books.test.ts
@@ -332,7 +332,7 @@ git commit -m "feat(books): update spaced schedule inside quiz attempts"
   - `GET /api/books/:id/review/due` → `200 { items: DueItem[] }`；404 `book_not_found`。
   - `POST /api/books/:id/review/:blockId/result`，body `{ result: 'remembered' | 'forgotten' }` → `200 { schedule: ReviewScheduleEntry | null }`；错误：`400 invalid_request`（result 非法）、`404 book_not_found`、`409 review_target_invalid`（块不存在或不是 flash_cards）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('GET review/due 返回到期项并按 dueAt 升序', async () => {
@@ -355,12 +355,12 @@ it('POST review/:blockId/result 拒绝非闪卡块与非法 result', async () =>
 })
 ```
 
-- [ ] **Step 2: 跑测试确认 RED**（404/路由不存在）
+- [x] **Step 2: 跑测试确认 RED**（404/路由不存在）
 
 Run: `cd server && npx vitest run src/routes/books.test.ts -t 'review'`
 Expected: FAIL
 
-- [ ] **Step 3: 实现**——attempts 路由后追加：
+- [x] **Step 3: 实现**——attempts 路由后追加：
 
 ```ts
 router.get('/:id/review/due', async (req, res) => {
@@ -422,12 +422,12 @@ router.post('/:id/review/:blockId/result', async (req, res) => {
 
 （`isRecord` 为路由内既有 helper；`StoredBook` 已在导入中。）
 
-- [ ] **Step 4: GREEN + server 全量**
+- [x] **Step 4: GREEN + server 全量**
 
 Run: `cd server && npx vitest run src/routes/books.test.ts && npm run test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/routes/books.ts server/src/routes/books.test.ts
@@ -451,7 +451,7 @@ git commit -m "feat(books): add review due list and flash self-grade endpoints"
   - `normalizeDiagnosis(value: unknown): AttemptDiagnosis`（非法抛 `DiagnosisValidationError`）
   - `QuizAttempt.diagnosis?: AttemptDiagnosis | null`；attempts 201 响应加 `diagnosis` 字段；审计 category 加 `attempt_diagnosed` / `attempt_diagnosis_failed`。
 
-- [ ] **Step 1: 写失败测试** `diagnosisPrompt.test.ts`
+- [x] **Step 1: 写失败测试** `diagnosisPrompt.test.ts`
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -516,12 +516,12 @@ it('未配置 LLM_API_KEY 时 diagnosis 为 null', async () => { /* env 置空�
 it('答对时 diagnosis 为 null 且不调用上游', async () => { /* 答对路径 fetch 调用次数为 0 */ })
 ```
 
-- [ ] **Step 2: 跑测试确认 RED**
+- [x] **Step 2: 跑测试确认 RED**
 
 Run: `cd server && npx vitest run src/books/diagnosisPrompt.test.ts src/routes/books.test.ts -t '诊断|diagnosis'`
 Expected: FAIL
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `server/src/books/diagnosisPrompt.ts`：
 
@@ -632,12 +632,12 @@ if (!isCorrect && env.LLM_API_KEY) {
 
 **顺序约束**：Task 2 已加 `schedule`；本任务在其基础上加 `diagnosis`，两者共存。
 
-- [ ] **Step 4: GREEN + server 全量 + build**
+- [x] **Step 4: GREEN + server 全量 + build**
 
 Run: `cd server && npx vitest run src/books/diagnosisPrompt.test.ts src/routes/books.test.ts && npm run test && npm run build`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/books/diagnosisPrompt.ts server/src/books/diagnosisPrompt.test.ts server/src/books/bookTypes.ts server/src/routes/books.ts server/src/routes/books.test.ts
@@ -662,7 +662,7 @@ git commit -m "feat(books): classify wrong answers into four diagnosis types"
   - `getReviewDue(bookId: string): Promise<DueItem[]>`
   - `submitFlashReview(bookId: string, blockId: string, result: 'remembered' | 'forgotten'): Promise<ReviewScheduleEntry | null>`
 
-- [ ] **Step 1: 写失败测试**——bookApi 测试追加：
+- [x] **Step 1: 写失败测试**——bookApi 测试追加：
 
 ```ts
 it('submitAttempt 解析 schedule 与 diagnosis 字段', async () => {
@@ -683,12 +683,12 @@ it('getReviewDue 返回 items 数组；submitFlashReview 提交 remembered', asy
 })
 ```
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `cd admin && npx vitest run src/services/bookApi.test.ts`
 Expected: FAIL（函数未定义/解析拒绝）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `types/learningBook.ts` 加（与 server `bookTypes.ts` 逐字镜像）：
 
@@ -761,12 +761,12 @@ export async function submitFlashReview(bookId: string, blockId: string, result:
 }
 ```
 
-- [ ] **Step 4: GREEN + admin 全量**
+- [x] **Step 4: GREEN + admin 全量**
 
 Run: `cd admin && npx vitest run src/services/bookApi.test.ts && npm run test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add admin/src/types/learningBook.ts admin/src/domain/learningBookApi.ts admin/src/services/bookApi.ts admin/src/services/bookApi.test.ts
@@ -792,7 +792,7 @@ git commit -m "feat(admin): mirror review schedule and diagnosis types, add revi
   - `ReviewQueueSheet` 新 props：`{ book: LearningBook; dueItems: DueItem[]; onSubmitQuiz: (blockId, answerId) => Promise<boolean | void>; onFlashGrade: (blockId, result: 'remembered' | 'forgotten') => Promise<void>; onClose: () => void }`
   - `onAskAgent?: (blockId: string, draft?: string) => void`（BookBlockRenderer → InteractiveBookPage → App）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ReviewQueueSheet 重写测试（Fake DOM 模式同既有）：
 
@@ -822,12 +822,12 @@ it('答错但无诊断时不显示诊断区', async () => { /* diagnosis: null �
 
 诊断标签映射（组件内常量）：`concept→概念不清`、`application→应用偏差`、`misread→审题偏差`、`overconfident→会但做错`。
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `cd admin && npx vitest run src/components/book/ReviewQueueSheet.test.tsx src/components/book/BookBlockRenderer.test.tsx`
 Expected: FAIL
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 App.tsx：
 - 新增 `reviewDue` state（`DueItem[]`）；真实书加载后与每次 attempt/闪卡自评后 `getReviewDue(book.id).then(setReviewDue)`（失败静默保持旧值）。
@@ -856,12 +856,12 @@ BookBlockRenderer quiz 反馈区（`:86-101` 附近）答错分支加：
 
 CSS：`.book-quiz__diagnosis` 复用 `.book-quiz__feedback` 色系，新增几条规则即可（保持 44px 触控）。
 
-- [ ] **Step 4: GREEN + admin 全量 + build**
+- [x] **Step 4: GREEN + admin 全量 + build**
 
 Run: `cd admin && npm run test && npm run build`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add admin/src
@@ -888,7 +888,7 @@ git commit -m "feat(admin): switch review sheet to spaced due items with diagnos
   - `buildMasteryBoard(book: LearningBook, now: Date): MasteryBoardRow[]`
   - `MasteryBoardSheet` props：`{ rows: MasteryBoardRow[]; onOpenConcept: (chapterId: string, blockId: string) => void; onClose: () => void }`
 
-- [ ] **Step 1: 写失败测试** `masteryBoard.test.ts`
+- [x] **Step 1: 写失败测试** `masteryBoard.test.ts`
 
 ```ts
 const now = new Date('2026-08-11T08:00:00.000Z')
@@ -916,12 +916,12 @@ it('conceptId 为空串的 quiz 只计入自身块', () => { /* 镜像 server �
 it('按章分组渲染概念行与状态，点击行回调 onOpenConcept', () => { /* Fake DOM，点「概念甲」→ onOpenConcept('ch-1', 'blk-concept-1') */ })
 ```
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `cd admin && npx vitest run src/domain/masteryBoard.test.ts src/components/book/MasteryBoardSheet.test.tsx`
 Expected: FAIL
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `masteryBoard.ts`：
 
@@ -982,12 +982,12 @@ export function buildMasteryBoard(book: LearningBook, now: Date): MasteryBoardRo
 
 App/rail 接线：rail header 加「掌握度」按钮 → `onOpenMasteryBoard`；App 挂 Sheet，`onOpenConcept` = 切章（既有 `changeBookChapter`）+ 关 Sheet + 延迟滚动到块（复用来源跳转的滚动机制）；行数据 `buildMasteryBoard(learningBook, new Date())`（仅真实书模式渲染入口）。
 
-- [ ] **Step 4: GREEN + admin 全量 + build**
+- [x] **Step 4: GREEN + admin 全量 + build**
 
 Run: `cd admin && npm run test && npm run build`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add admin/src
@@ -1002,15 +1002,15 @@ git commit -m "feat(admin): add mastery board sheet with five-state projection"
 **Files:**
 - 无新代码；证据写入 `.superpowers/sdd/2026-08-11-book-step3/e2e.md`
 
-- [ ] **Step 1: 新鲜基线**——双端 `npm run test` + `npm run build` 全绿；dev server（3456/5173）已在获批网络环境运行（tsx watch/vite 热重载）。
-- [ ] **Step 2: 浏览器 390×844**（agent-browser 缓存二进制 `--cdp 9227`，本地命令必须 `env -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy NO_PROXY='*'`，Chrome 加 `--no-proxy-server`）：
+- [x] **Step 1: 新鲜基线**——双端 `npm run test` + `npm run build` 全绿；dev server（3456/5173）已在获批网络环境运行（tsx watch/vite 热重载）。
+- [x] **Step 2: 浏览器 390×844**（agent-browser 缓存二进制 `--cdp 9227`，本地命令必须 `env -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy NO_PROXY='*'`，Chrome 加 `--no-proxy-server`）：
   1. 打开《机器学习测试章节》书 → 答错一道 quiz → 反馈区出现诊断标签 + advice + 「带着诊断问 Agent」；
   2. 点击「带着诊断问 Agent」→ 抽屉打开且输入框已预填含错误类型的草稿；
   3. rail「今日复习（1）」徽标出现 → 打开 → 重新作答答对 → 该项进入下一档（徽标消失，dueAt 在未来）；
   4. 闪卡块自评「没记住」→ 今日复习出现闪卡项 → 翻面 →「记住了」→ 入调度；
   5. 打开「掌握度」看板 → 概念状态与答题历史一致；
   6. 320px 视口复查无横向溢出。
-- [ ] **Step 3: 证据归档**——截图与断言记录写入 `.superpowers/sdd/2026-08-11-book-step3/e2e.md`；四件套 `HelpCC/book-step3/checklist.md` 逐项勾完。
+- [x] **Step 3: 证据归档**——截图与断言记录写入 `.superpowers/sdd/2026-08-11-book-step3/e2e.md`；四件套 `HelpCC/book-step3/checklist.md` 逐项勾完。
 
 ## Self-Review 记录
 

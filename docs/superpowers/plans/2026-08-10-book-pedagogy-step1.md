@@ -1,6 +1,6 @@
 # 学习书内容形态多样化（Step 1）Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 学习书新增 callout / flash_cards / figure(mermaid) 三种内容块，章节生成提示词升级为"排版架构师"，前端新增三个渲染组件，让学习书不再是纯文字介绍。
 
@@ -41,7 +41,7 @@
   - `FigureBlock { type:'figure'; kind:'flowchart'|'mindmap'|'timeline'|'sequence'; mermaid:string; caption:string }`
   - `normalizeChapterBlocks(value, ctx)` 签名不变；新块走同一入口。
 
-- [ ] **Step 1: 写失败测试（新块 schema 校验）**
+- [x] **Step 1: 写失败测试（新块 schema 校验）**
 
 在 `server/src/books/chapterValidation.test.ts` 追加 describe。沿用文件内既有 ctx fixture（pages/fileName/pageStart/pageEnd/remainingBookBudget 的既有构造方式，照抄文件顶部现有用例的 ctx）。核心用例：
 
@@ -73,7 +73,7 @@ expect(result.blocks.map((b) => b.type)).toEqual(['explanation', 'citation', 'qu
 // 以上每个用例断言 blocks 中无该块且 warnings 非空
 ```
 
-- [ ] **Step 2: 写失败测试（章级 ≥4 类型硬要求 + 截断保必备类型）**
+- [x] **Step 2: 写失败测试（章级 ≥4 类型硬要求 + 截断保必备类型）**
 
 ```ts
 // 只有 explanation+citation+quiz 三种类型 → 抛 ChapterValidationError('chapter_invalid')
@@ -88,16 +88,16 @@ expect(trimmed.blocks.length).toBeLessThanOrEqual(tightCtx.remainingBookBudget)
 // 截断后若仍缺必备类型或不足 4 种 → chapter_invalid（复检在截断后）
 ```
 
-- [ ] **Step 3: 跑测试确认 RED**
+- [x] **Step 3: 跑测试确认 RED**
 
 Run: `cd server && npx vitest run src/books/chapterValidation.test.ts`
 Expected: 新用例 FAIL（未知类型块被丢弃 → 类型断言不符；三种类型章未抛错；quiz 被 slice 裁掉）
 
-- [ ] **Step 4: 双端类型扩展**
+- [x] **Step 4: 双端类型扩展**
 
 `server/src/books/bookTypes.ts`：`BookBlockType` 联合追加 `'callout' | 'flash_cards' | 'figure'`；新增三接口（字段与上方 Interfaces 完全一致，均 `extends BaseBookBlock`）；`BookBlock` 联合追加三接口。`admin/src/types/learningBook.ts` 做完全相同的镜像修改。
 
-- [ ] **Step 5: chapterValidation.ts 实现**
+- [x] **Step 5: chapterValidation.ts 实现**
 
 1. 常量与默认标题：
 
@@ -191,12 +191,12 @@ return { blocks, warnings }
 
 同步更新 `normalizeChapterBlocks` 的 JSDoc（硬要求改为四条、截断在复检之前）。
 
-- [ ] **Step 6: 跑测试确认 GREEN + 服务端全量**
+- [x] **Step 6: 跑测试确认 GREEN + 服务端全量**
 
 Run: `cd server && npx vitest run src/books/chapterValidation.test.ts && npm test && npm run build`
 Expected: 全 PASS，tsc exit 0
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/src/books/bookTypes.ts server/src/books/chapterValidation.ts server/src/books/chapterValidation.test.ts admin/src/types/learningBook.ts
@@ -216,7 +216,7 @@ git commit -m "feat(server): add callout/flash_cards/figure block types with val
 - Consumes: Task 1 的新块类型与枚举值（提示词字面量必须与 `CALLOUT_KINDS`/`FIGURE_KINDS` 完全一致）。
 - Produces: `buildChapterMessages(input)` 签名不变；system 提示词内容变更。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `chapterPrompt.test.ts` 追加：
 
@@ -237,12 +237,12 @@ expect(system.content).toContain('逐字')
 
 `books.test.ts`：把章节生成的 `max_completion_tokens` 断言从 4000 改为 6000（若该断言不存在则新增：在既有"章节生成请求体"用例中断言 `max_completion_tokens: 6000`；提案的 1500 断言保持不动）。
 
-- [ ] **Step 2: 跑测试确认 RED**
+- [x] **Step 2: 跑测试确认 RED**
 
 Run: `cd server && npx vitest run src/books/chapterPrompt.test.ts src/routes/books.test.ts`
 Expected: 新断言 FAIL
 
-- [ ] **Step 3: 重写 systemRules（chapterPrompt.ts）**
+- [x] **Step 3: 重写 systemRules（chapterPrompt.ts）**
 
 在现有规则数组中，把"type 只能是以下六种之一"段替换为九种，并追加排版规则。精确文案：
 
@@ -268,16 +268,16 @@ mermaid 约束（防语法错误，追加）：
 'figure 块的 mermaid 源码必须与 kind 对应：flowchart 用 "flowchart LR/TD"，mindmap 用 "mindmap"，timeline 用 "timeline"，sequence 用 "sequenceDiagram"；节点文字避免引号与换行，保持语法简单。',
 ```
 
-- [ ] **Step 4: books.ts token 上调**
+- [x] **Step 4: books.ts token 上调**
 
 `server/src/routes/books.ts:275`：`max_completion_tokens: 4000` → `max_completion_tokens: 6000`（仅章节生成这处；219 行提案 1500 不动）。
 
-- [ ] **Step 5: GREEN + 全量**
+- [x] **Step 5: GREEN + 全量**
 
 Run: `cd server && npx vitest run src/books/chapterPrompt.test.ts src/routes/books.test.ts && npm test && npm run build`
 Expected: 全 PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/src/books/chapterPrompt.ts server/src/books/chapterPrompt.test.ts server/src/routes/books.ts server/src/routes/books.test.ts
@@ -303,12 +303,12 @@ git commit -m "feat(server): upgrade chapter prompt to layout-architect rules wi
 - Consumes: Task 1 的类型（admin 侧镜像已在 Task 1 改好）。
 - Produces: `CalloutCard({ block: CalloutBlock })`、`FlashCards({ block: FlashCardsBlock })`、`FigureBlockView({ block: FigureBlock })` 三个组件，供 BookBlockRenderer 调用。
 
-- [ ] **Step 1: 装依赖**
+- [x] **Step 1: 装依赖**
 
 Run: `cd admin && npm install mermaid`
 核对 package.json 新增 `mermaid`（dependencies），并确认构建后主包不含 mermaid（Step 6 验证）。
 
-- [ ] **Step 2: 写失败测试（守卫 + 上下文）**
+- [x] **Step 2: 写失败测试（守卫 + 上下文）**
 
 `learningBookApi.test.ts` 追加（fixture 照抄文件内 storedPayload 的构造）：
 
@@ -329,7 +329,7 @@ expect(context.chapters[0].blocks.find((b) => b.type === 'callout')?.content).to
 expect(context.chapters[0].blocks.find((b) => b.type === 'figure')?.content).toContain('flowchart LR')
 ```
 
-- [ ] **Step 3: 写失败测试（组件）**
+- [x] **Step 3: 写失败测试（组件）**
 
 `BookBlockRenderer.test.tsx`（新建则沿用现有 Fake DOM 挂载风格；mermaid 用 `vi.mock('mermaid', ...)` 控制）：
 
@@ -340,12 +340,12 @@ expect(context.chapters[0].blocks.find((b) => b.type === 'figure')?.content).toC
 // figure：mermaid.parse reject → 显示降级文案"图示生成失败"且 mermaid 源码出现在可折叠元素中，不抛错
 ```
 
-- [ ] **Step 4: 跑测试确认 RED**
+- [x] **Step 4: 跑测试确认 RED**
 
 Run: `cd admin && npx vitest run src/domain/learningBookApi.test.ts src/components/book/BookBlockRenderer.test.tsx`
 Expected: FAIL（未知类型抛 invalid / 组件不存在）
 
-- [ ] **Step 5: 实现守卫与上下文**
+- [x] **Step 5: 实现守卫与上下文**
 
 `learningBookApi.ts` 的 `isBookBlock` switch 追加：
 
@@ -374,7 +374,7 @@ case 'figure':
   return `${block.caption}\n${block.mermaid}`
 ```
 
-- [ ] **Step 6: 实现三个组件并接线**
+- [x] **Step 6: 实现三个组件并接线**
 
 `CalloutCard.tsx`：
 
@@ -443,12 +443,12 @@ export function FigureBlockView({ block }: { block: FigureBlock }) {
 
 `index.css` 追加（对齐现有暖白/陶土/烟晶色板，具体色值沿用文件内既有 CSS 变量）：`.book-callout` 四种 kind 左边框+底色、`.book-flashcards`（卡片 44px 最小触控、翻转过渡）、`.book-figure`（`.book-figure__canvas { max-width: 100%; overflow-x: auto; }`，内部 `svg { max-width: 100%; height: auto; }`）、降级样式。320px 下不得横向溢出。
 
-- [ ] **Step 7: GREEN + 全量 + 懒加载验证**
+- [x] **Step 7: GREEN + 全量 + 懒加载验证**
 
 Run: `cd admin && npx vitest run src/domain/learningBookApi.test.ts src/components/book/BookBlockRenderer.test.tsx && npm test && npm run build`
 Expected: 全 PASS；构建产物中 mermaid 为独立 chunk（`dist/assets/` 下出现独立 mermaid chunk 文件，主 index chunk 不内联 mermaid）
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add admin/src admin/package.json admin/package-lock.json
@@ -466,16 +466,16 @@ git commit -m "feat(admin): render callout/flash_cards/figure blocks with lazy-l
 **Interfaces:**
 - Consumes: Task 1–3 全部。
 
-- [ ] **Step 1: 新鲜基线**
+- [x] **Step 1: 新鲜基线**
 
 Run: `cd server && npm test && npm run build`；`cd admin && npm test && npm run build`
 Expected: 双端全绿后再启动服务。
 
-- [ ] **Step 2: 启动服务与隔离 Chrome**
+- [x] **Step 2: 启动服务与隔离 Chrome**
 
 后台启动 server（3456）与 admin（5173）；Chrome `--remote-debugging-port=9227 --no-proxy-server`，390×844。本地 curl/agent-browser 命令一律 `env -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy NO_PROXY='*'`；agent-browser 用缓存路径 `.superpowers/sdd/2026-08-09-real-book-agent/npm-cache-final/_npx/6de2aa2fded2970c/node_modules/agent-browser/bin/agent-browser-win32-x64.exe --cdp 9227`。
 
-- [ ] **Step 3: 真实链路**
+- [x] **Step 3: 真实链路**
 
 上传 8 页中文 PDF → 提案确认（不删章）→ 逐章生成完成。断言（浏览器实测，非 mock）：
 
@@ -486,11 +486,11 @@ Expected: 双端全绿后再启动服务。
 5. 320×844 与 390×844 零横向溢出；axe 无 critical/serious
 6. 旧书（E2E 前已生成的书或 mock 原型）打开渲染不回归
 
-- [ ] **Step 4: 缺陷处理**
+- [x] **Step 4: 缺陷处理**
 
 任何 Critical/Important 缺陷：TDD 修复（先失败测试）→ 定向复跑 → 全量回归。Minor 记 HelpCC/book-pedagogy/tasks.md 延期清单。
 
-- [ ] **Step 5: 清理与报告**
+- [x] **Step 5: 清理与报告**
 
 停掉本任务启动的 server/admin/Chrome（先核对 PID 归属）；证据（截图 + axe JSON + 文字报告）落 `.superpowers/book-pedagogy/e2e-report.md`；确认端口 3456/5173/9227 释放、`git status` 干净。
 

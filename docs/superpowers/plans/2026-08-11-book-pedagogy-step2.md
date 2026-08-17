@@ -1,6 +1,6 @@
 # 学习闭环 MVP（Step 2）Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 让学习书从"读物"变成"教练"：答题与掌握度持久化、摸底诊断定起点、错题重做、章末费曼检验、Agent 苏格拉底化。
 
@@ -39,7 +39,7 @@
   - 服务端 QuizAttempt：`id = attempt_<randomUUID()>`，`submittedAt = new Date().toISOString()`；允许同一块多次作答（复习需要）。
   - 服务端 Evidence：`id = evidence_<randomUUID()>`，`conceptId` 取 quiz 块的 conceptId，`sourceBlockId = blockId`，`statement = 「${question}」答对/答错记录` 格式：`答对：${question}` 或 `答错待复习：${question}`（question ≤80 字符截断），`outcome = isCorrect ? 'mastered' : 'review'`，`createdAt` ISO。
 
-- [ ] **Step 1: mastery 纯函数失败测试**
+- [x] **Step 1: mastery 纯函数失败测试**
 
 ```ts
 // mastery.test.ts
@@ -51,7 +51,7 @@ expect(computeMastery([{ isCorrect: true, submittedAt: '2026-08-11T01:00:00Z' }]
 expect(computeMastery(fiveRecent)).toBe(0.75)
 ```
 
-- [ ] **Step 2: 端点失败测试**（books.test.ts，沿用 appWith/createConfirmedBook + chapterAwareFetch 让 ch-1 ready 后答题）
+- [x] **Step 2: 端点失败测试**（books.test.ts，沿用 appWith/createConfirmedBook + chapterAwareFetch 让 ch-1 ready 后答题）
 
 ```ts
 // 答对：201，attempt.isCorrect=true，evidence.outcome='mastered'，mastery.chapter=0.5
@@ -61,11 +61,11 @@ expect(computeMastery(fiveRecent)).toBe(0.75)
 // 落盘核实：bookStore.get(id) 的 quizAttempts/evidence 包含新记录（刷新恢复的关键）
 ```
 
-- [ ] **Step 3: RED → 实现 → GREEN**
+- [x] **Step 3: RED → 实现 → GREEN**
 
 `mastery.ts` 实现（约 25 行纯函数）；books.ts 新增路由（无 LLM 调用，直接读写 bookStore；复用既有 404/409/500 模式与 `emitLog`，category 用新值 `'attempt_recorded'`，需加入 BooksLogEvent 联合）。mastery 的 chapter 范围 = 该章全部 quiz 块的 attempts；concept 范围 = 该 quiz 块 conceptId 对应块的 attempts。
 
-- [ ] **Step 4: server 全量 + build → Commit**
+- [x] **Step 4: server 全量 + build → Commit**
 
 ```bash
 git add server/src/books/mastery.ts server/src/books/mastery.test.ts server/src/routes/books.ts server/src/routes/books.test.ts
@@ -88,9 +88,9 @@ git commit -m "feat(server): persist quiz attempts with mastery scoring endpoint
 - 展示规则：章节卡/章标题处显示掌握度百分比（仅当该章有 attempts）；概念 `learningState`：无作答→'暂无学习记录'，最近一次答错→'待复习'，其余→'已学习'（客户端从 attempts 派生，不改服务端块数据）。
 - 已答过的 quiz 块展示最近一次结果；答错的块允许"重新作答"（清掉选中态再提交，服务端多次记录）。
 
-- [ ] **Step 1: 失败测试**：bookApi.submitAttempt 形状守卫（201 正常/409 code 透传）；真实书答题后 attempts 出现在页面且刷新（重新 getBook）后仍在；答错块出现"重新作答"。
-- [ ] **Step 2: RED → 实现 → GREEN**：mock fetch 模式照抄 bookApi.test.ts 现有用例。
-- [ ] **Step 3: admin 全量 + build → Commit** `feat(admin): submit real-book quiz attempts to server with mastery display`
+- [x] **Step 1: 失败测试**：bookApi.submitAttempt 形状守卫（201 正常/409 code 透传）；真实书答题后 attempts 出现在页面且刷新（重新 getBook）后仍在；答错块出现"重新作答"。
+- [x] **Step 2: RED → 实现 → GREEN**：mock fetch 模式照抄 bookApi.test.ts 现有用例。
+- [x] **Step 3: admin 全量 + build → Commit** `feat(admin): submit real-book quiz attempts to server with mastery display`
 
 ---
 
@@ -109,9 +109,9 @@ git commit -m "feat(server): persist quiz attempts with mastery scoring endpoint
   - `POST /:id/pretest/result`：请求 `{answers: Record<questionId, optionId>}`；判定规则——某章 5 题中**该章关联题**全对 → 进 skippableChapterIds；suggestedStartChapterId = 第一个非可跳过章（全可跳过则为最后一章）；落盘返回整书。
   - 生成提示词（pretestPrompt.ts）：基于书名+目录+各章 objective（不传原文全文），5 题覆盖不同章，json_object；校验（pretestValidation.ts）：5 题、选项 2–4、correctAnswerId 命中、chapterId 必须是真实章节 id——非法即 pretest_invalid 重试一次后 502。
 
-- [ ] **Step 1: 失败测试**（生成形状/校验丢弃/幂等返回/result 判定三态：全对可跳过、部分对、全错）
-- [ ] **Step 2: RED → 实现 → GREEN → server 全量 + build**
-- [ ] **Step 3: Commit** `feat(server): add diagnostic pretest generation and scoring endpoints`
+- [x] **Step 1: 失败测试**（生成形状/校验丢弃/幂等返回/result 判定三态：全对可跳过、部分对、全错）
+- [x] **Step 2: RED → 实现 → GREEN → server 全量 + build**
+- [x] **Step 3: Commit** `feat(server): add diagnostic pretest generation and scoring endpoints`
 
 ---
 
@@ -127,9 +127,9 @@ git commit -m "feat(server): persist quiz attempts with mastery scoring endpoint
 - Consumes: Task 3 端点；`getPretest(bookId)` 返回 `{ questions: PretestQuestion[] }`；`submitPretest(bookId, answers)` 返回整书（parseLearningBook 过守卫，含 pretest.result）。
 - UI 约束：可选、可跳过（"直接开始生成"不受影响）；44px 触控；320px 无溢出；结论页给出建议起点按钮（点击跳到该章）。
 
-- [ ] **Step 1: 失败测试**（5 题流→提交→结论渲染可跳过标注；跳过入口不阻塞直接生成）
-- [ ] **Step 2: RED → 实现 → GREEN → admin 全量 + build**
-- [ ] **Step 3: Commit** `feat(admin): add optional pretest flow with chapter recommendations`
+- [x] **Step 1: 失败测试**（5 题流→提交→结论渲染可跳过标注；跳过入口不阻塞直接生成）
+- [x] **Step 2: RED → 实现 → GREEN → admin 全量 + build**
+- [x] **Step 3: Commit** `feat(admin): add optional pretest flow with chapter recommendations`
 
 ---
 
@@ -145,9 +145,9 @@ git commit -m "feat(server): persist quiz attempts with mastery scoring endpoint
 - Produces: `buildReviewQueue(book: LearningBook): { chapterId: string; blockId: string; question: string }[]`——规则：按块分组取**最近一次**作答，答错且之后无答对记录的块入队，按提交时间升序。
 - 交互：复习入口打开含这些 quiz 块的列表（复用 BookBlockRenderer quiz 渲染，服务端已支持多次作答）；答对后该项出队（最近一次为对）。
 
-- [ ] **Step 1: 失败测试**（答错入队/答对出队/先错后对出队/多块排序；空队列不渲染入口）
-- [ ] **Step 2: RED → 实现 → GREEN → admin 全量 + build**
-- [ ] **Step 3: Commit** `feat(admin): add wrong-answer review queue derived from persisted attempts`
+- [x] **Step 1: 失败测试**（答错入队/答对出队/先错后对出队/多块排序；空队列不渲染入口）
+- [x] **Step 2: RED → 实现 → GREEN → admin 全量 + build**
+- [x] **Step 3: Commit** `feat(admin): add wrong-answer review queue derived from persisted attempts`
 
 ---
 
@@ -166,9 +166,9 @@ git commit -m "feat(server): persist quiz attempts with mastery scoring endpoint
   - 提示词要点：给章节 title+objective+各块 keyPoint 摘要（≤2000 字符，走不可信包裹），判定学生复述是否抓住核心；passed 标准宽松（覆盖主要概念即可），gap 指出缺失点。
   - 前端：`FeynmanCard` 输入框（≤2000 字计数）→ 提交（loading）→ 结果卡（passed 显示鼓励+feedback；未过显示 gap + "回看建议"链接到相关块）。FE 守卫校验返回形状。
 
-- [ ] **Step 1: 失败测试**（server：200 passed/gap 形状、400/409/502 路径、提示词不含密钥；admin：提交流程与两种结果渲染）
-- [ ] **Step 2: RED → 实现 → GREEN → 双端全量 + build**
-- [ ] **Step 3: Commit** `feat: add per-chapter Feynman self-explanation check`
+- [x] **Step 1: 失败测试**（server：200 passed/gap 形状、400/409/502 路径、提示词不含密钥；admin：提交流程与两种结果渲染）
+- [x] **Step 2: RED → 实现 → GREEN → 双端全量 + build**
+- [x] **Step 3: Commit** `feat: add per-chapter Feynman self-explanation check`
 
 ---
 
@@ -191,9 +191,9 @@ git commit -m "feat(server): persist quiz attempts with mastery scoring endpoint
   6. 320/390 零溢出；控制台无错误
 - 发现的缺陷 TDD 修复后 commit；minor 记 HelpCC 延期清单。
 
-- [ ] **Step 1: 提示词测试 + 实现（server 全量 + build）→ Commit** `feat(server): make book agent socratic`
-- [ ] **Step 2: 真实 E2E 六项断言全过 + 证据落盘**
-- [ ] **Step 3: 全分支终审（review-package 自本计划 BASE 到 HEAD）**
+- [x] **Step 1: 提示词测试 + 实现（server 全量 + build）→ Commit** `feat(server): make book agent socratic`
+- [x] **Step 2: 真实 E2E 六项断言全过 + 证据落盘**
+- [x] **Step 3: 全分支终审（review-package 自本计划 BASE 到 HEAD）**
 
 ---
 

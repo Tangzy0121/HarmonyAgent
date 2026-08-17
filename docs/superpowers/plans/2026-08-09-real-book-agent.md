@@ -1,6 +1,6 @@
 # Real Interactive-Book Agent Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the interactive learning book's fixed demo answer with a real DeepSeek streaming conversation grounded in the selected chapter or block and rendered with verifiable source cards.
 
@@ -50,7 +50,7 @@
 - Produces: `npm test` for server-side Vitest tests.
 - Establishes: `LLM_BASE_URL=https://api.deepseek.com`, `LLM_MODEL=deepseek-v4-flash`.
 
-- [ ] **Step 1: Write the configuration test before changing dependencies**
+- [x] **Step 1: Write the configuration test before changing dependencies**
 
 Create `server/tests/config.test.ts`:
 
@@ -70,7 +70,7 @@ describe('server environment example', () => {
 })
 ```
 
-- [ ] **Step 2: Install and wire the server test harness**
+- [x] **Step 2: Install and wire the server test harness**
 
 Run:
 
@@ -85,12 +85,12 @@ Add scripts:
 "test:watch": "vitest"
 ```
 
-- [ ] **Step 3: Run the test and observe the expected default mismatch**
+- [x] **Step 3: Run the test and observe the expected default mismatch**
 
 Run: `npm test -- tests/config.test.ts`
 Expected: FAIL because the restored `.env.example` still contains the temporary Kimi defaults.
 
-- [ ] **Step 4: Restore the public example to safe DeepSeek values**
+- [x] **Step 4: Restore the public example to safe DeepSeek values**
 
 Keep the existing comments and safe example key, but set:
 
@@ -101,12 +101,12 @@ LLM_API_KEY=your-api-key-here
 LLM_MODEL=deepseek-v4-flash
 ```
 
-- [ ] **Step 5: Verify the task**
+- [x] **Step 5: Verify the task**
 
 Run: `npm test -- tests/config.test.ts && npm run build`
 Expected: one passing test and TypeScript build exit code 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add server/package.json server/package-lock.json server/.env.example server/tests/config.test.ts
@@ -125,7 +125,7 @@ git commit -m "test: add server agent harness"
 - Produces: `buildBookAgentContext(book, options): BookAgentContext`.
 - Produces: `BookAgentSource`, `BookAgentBlock`, `BookAgentChapter`, `BookAgentContext`, `BookAgentRequest`, `BookAgentStreamEvent`, `BookAgentMessage`, `BookAgentSession`.
 
-- [ ] **Step 1: Define the browser contract types**
+- [x] **Step 1: Define the browser contract types**
 
 Create discriminated stream events and explicit source records:
 
@@ -163,7 +163,7 @@ export interface BookAgentContext {
 
 Define stream events as `start | delta | sources | done | error` and session message status as `complete | streaming | error | cancelled`.
 
-- [ ] **Step 2: Write failing context tests**
+- [x] **Step 2: Write failing context tests**
 
 Cover these assertions in `bookAgentContext.test.ts` using a readable first chapter:
 
@@ -180,12 +180,12 @@ expect(JSON.stringify(context).length).toBeLessThanOrEqual(24_000)
 
 For whole-book scope, mark chapters 2–4 ready in the fixture before expecting all four. Also test missing chapter warnings, hidden/pending/error filtering, duplicate source-anchor de-duplication, 2,000-character block clipping, 8,000-character chapter clipping, and user-note labeling.
 
-- [ ] **Step 3: Run the tests and observe the missing-module failure**
+- [x] **Step 3: Run the tests and observe the missing-module failure**
 
 Run: `npm test -- src/domain/bookAgentContext.test.ts`
 Expected: FAIL because `bookAgentContext.ts` and `bookAgent.ts` do not exist.
 
-- [ ] **Step 4: Implement deterministic serialization and budgeting**
+- [x] **Step 4: Implement deterministic serialization and budgeting**
 
 Use exhaustive block serialization:
 
@@ -205,12 +205,12 @@ function blockText(block: BookBlock, noteBody: string): string {
 
 Only ready/partial chapters and ready blocks enter context. Stable-sort the focused block first without changing the book. Assign sources after ordering, de-duplicate by `sourceId + pageRange + excerpt`, and clip with an explicit `…[已截断]` suffix while recording warnings.
 
-- [ ] **Step 5: Verify the task**
+- [x] **Step 5: Verify the task**
 
 Run: `npm test -- src/domain/bookAgentContext.test.ts && npm run build`
 Expected: all context tests pass and admin production build succeeds.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add admin/src/types/bookAgent.ts admin/src/domain/bookAgentContext.ts admin/src/domain/bookAgentContext.test.ts
@@ -230,7 +230,7 @@ git commit -m "feat: build bounded book agent context"
 - Produces: `normalizeBookAgentRequest(value): NormalizedBookAgentRequest` throwing `BookAgentValidationError`.
 - Produces: `buildBookAgentMessages(request): Array<{ role: 'system' | 'user' | 'assistant'; content: string }>`.
 
-- [ ] **Step 1: Write failing validation tests**
+- [x] **Step 1: Write failing validation tests**
 
 Create a valid request with eight history entries and 21 numbered sources, then test exact rejection/normalization cases:
 
@@ -244,16 +244,16 @@ expect(() => normalizeBookAgentRequest({ ...validRequest, question: '问'.repeat
 
 Reject invalid history roles, duplicate source IDs, blocks referencing unknown source IDs, more than eight chapters, or more than 40 blocks. Normalize text whitespace and cap question at 2,000 characters, each history entry at 4,000, sources at 20, and serialized context at 24,000.
 
-- [ ] **Step 2: Run the contract test and observe failure**
+- [x] **Step 2: Run the contract test and observe failure**
 
 Run: `npm test -- tests/bookAgentContract.test.ts`
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 3: Implement the contract as a pure dependency-free module**
+- [x] **Step 3: Implement the contract as a pure dependency-free module**
 
 Use manual runtime checks rather than adding a schema dependency. Define stable public error codes (`question_required`, `question_too_long`, `invalid_history`, `invalid_context`, `context_too_large`) and never include rejected input in error messages.
 
-- [ ] **Step 4: Write failing prompt tests**
+- [x] **Step 4: Write failing prompt tests**
 
 Assert that the built messages contain:
 
@@ -266,16 +266,16 @@ expect(messages.at(-1)).toEqual({ role: 'user', content: validRequest.question }
 expect(JSON.stringify(messages)).not.toContain(process.env.LLM_API_KEY ?? 'never-present')
 ```
 
-- [ ] **Step 5: Implement grounded message construction**
+- [x] **Step 5: Implement grounded message construction**
 
 Order messages as system rules → serialized context → six recent user/assistant turns → current user question. Serialize sources separately from blocks, and tell the model to cite only IDs present in the source section. When `context` is null, explicitly state that no book evidence is attached and citations are unavailable.
 
-- [ ] **Step 6: Verify the task**
+- [x] **Step 6: Verify the task**
 
 Run: `npm test -- tests/bookAgentContract.test.ts tests/bookAgentPrompt.test.ts && npm run build`
 Expected: contract/prompt tests pass and server build succeeds.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add server/src/agent/bookAgentContract.ts server/src/agent/bookAgentPrompt.ts server/tests/bookAgentContract.test.ts server/tests/bookAgentPrompt.test.ts
@@ -297,7 +297,7 @@ git commit -m "feat: define grounded book agent prompt"
 - Produces: `createBookAgentRouter({ fetchImpl, env, createTurnId }): Router`.
 - HTTP: `POST /api/agent/book-chat` returning internal SSE events.
 
-- [ ] **Step 1: Write failing arbitrary-chunk parser tests**
+- [x] **Step 1: Write failing arbitrary-chunk parser tests**
 
 Feed encoded upstream data split inside `data:`, inside JSON, and between UTF-8 bytes. Assert emitted deltas, usage, `[DONE]`, ignored blank/comment lines, malformed-frame error, and abort propagation.
 
@@ -306,16 +306,16 @@ const chunks = ['data: {"choices":[{"delta":{"con', 'tent":"监督"}}]}\n\n', 'd
 expect(events).toEqual([{ type: 'delta', text: '监督' }, { type: 'done' }])
 ```
 
-- [ ] **Step 2: Run the parser test and observe failure**
+- [x] **Step 2: Run the parser test and observe failure**
 
 Run: `npm test -- tests/openAIStream.test.ts`
 Expected: FAIL because `openAIStream.ts` does not exist.
 
-- [ ] **Step 3: Implement incremental OpenAI SSE parsing**
+- [x] **Step 3: Implement incremental OpenAI SSE parsing**
 
 Use one `TextDecoder`, retain an incomplete line buffer, parse only `data:` fields, and flush decoder/buffer at stream end. Never log full frames. Convert provider content into typed `delta`, capture usage if present, and stop at `[DONE]`.
 
-- [ ] **Step 4: Write failing route tests with injected fetch**
+- [x] **Step 4: Write failing route tests with injected fetch**
 
 Use Supertest and a fake `fetchImpl` to assert:
 
@@ -327,7 +327,7 @@ Use Supertest and a fake `fetchImpl` to assert:
 - request close aborts upstream;
 - no response contains the API Key.
 
-- [ ] **Step 5: Implement the dependency-injected route**
+- [x] **Step 5: Implement the dependency-injected route**
 
 Call `${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions` with:
 
@@ -344,7 +344,7 @@ Call `${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions` with:
 
 Write internal SSE using `event: <type>\ndata: <json>\n\n`. Use a 60-second abort timeout, clear it in `finally`, set `Cache-Control: no-cache, no-transform`, and send only stable Chinese error copy.
 
-- [ ] **Step 6: Mount only the dedicated route**
+- [x] **Step 6: Mount only the dedicated route**
 
 In `server/src/index.ts`:
 
@@ -356,12 +356,12 @@ app.use('/api/agent', createBookAgentRouter())
 
 Keep the legacy `/api/chat/completions` route for ArkTS compatibility, but the learning-book UI must not call it.
 
-- [ ] **Step 7: Verify the task**
+- [x] **Step 7: Verify the task**
 
 Run: `npm test -- tests/openAIStream.test.ts tests/bookAgentRoute.test.ts && npm run build`
 Expected: all stream/route tests pass and server build succeeds.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```powershell
 git add server/src/agent/openAIStream.ts server/src/routes/bookAgent.ts server/src/index.ts server/tests/openAIStream.test.ts server/tests/bookAgentRoute.test.ts
@@ -383,20 +383,20 @@ git commit -m "feat: stream grounded book agent answers"
 - Produces: `bookAgentSessionReducer(state, action)`.
 - Produces: `useBookAgentSessions({ book, activeChapterId, scope })` returning `session`, `focusBlockId`, `setFocusBlockId`, `submit`, `stop`, `retry`, and `newConversation`.
 
-- [ ] **Step 1: Write failing browser SSE parser/client tests**
+- [x] **Step 1: Write failing browser SSE parser/client tests**
 
 Mock `fetch` with a `ReadableStream`. Test event names split across chunks, multiple events per chunk, JSON parse failure, HTTP 400 before streaming, AbortError, and a provider-safe error event. Assert the request URL is exactly `/api/agent/book-chat`.
 
-- [ ] **Step 2: Run and observe the missing client failure**
+- [x] **Step 2: Run and observe the missing client failure**
 
 Run: `npm test -- src/services/bookAgentClient.test.ts`
 Expected: FAIL because `bookAgentClient.ts` does not exist.
 
-- [ ] **Step 3: Implement the cancellable internal SSE client**
+- [x] **Step 3: Implement the cancellable internal SSE client**
 
 Parse `event:` and `data:` fields independently, dispatch only recognized discriminated events, reject a stream that ends without `done` or `error`, and preserve `AbortError` so the hook can mark cancellation rather than failure.
 
-- [ ] **Step 4: Write failing reducer tests**
+- [x] **Step 4: Write failing reducer tests**
 
 Cover `submit → start → delta → sources → done`, `error`, `cancel`, `retry`, and isolation by session key. Use keys:
 
@@ -407,16 +407,16 @@ const bookKey = `${bookId}:book:all`
 
 Assert delta accumulation does not create multiple assistant messages and retry reuses the last user question without duplicating older history.
 
-- [ ] **Step 5: Implement reducer and hook**
+- [x] **Step 5: Implement reducer and hook**
 
 The hook builds context at submit time, sends only the last six complete user/assistant messages, owns one `AbortController`, aborts on unmount, and never calls `setLearningBook`. Store sessions in React memory only; switching chapter/scope selects another map entry and restores it when returning.
 
-- [ ] **Step 6: Verify the task**
+- [x] **Step 6: Verify the task**
 
 Run: `npm test -- src/services/bookAgentClient.test.ts src/hooks/bookAgentSessionReducer.test.ts && npm run build`
 Expected: all client/session tests pass and admin build succeeds.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add admin/src/services/bookAgentClient.ts admin/src/services/bookAgentClient.test.ts admin/src/hooks/useBookAgentSessions.ts admin/src/hooks/bookAgentSessionReducer.ts admin/src/hooks/bookAgentSessionReducer.test.ts
@@ -441,7 +441,7 @@ git commit -m "feat: manage streaming book agent sessions"
 - `onAskAgent(focusBlockId?: string)` flows from a block or context bar into App.
 - Non-book destinations retain their existing prototype conversation; book mode always uses the real controlled session.
 
-- [ ] **Step 1: Write failing Drawer rendering tests**
+- [x] **Step 1: Write failing Drawer rendering tests**
 
 Server-render controlled states and assert:
 
@@ -454,16 +454,16 @@ expect(completedHtml).not.toContain('固定演示回答中的句子')
 
 Also assert only sources referenced by `/\[S\d+\]/g` appear as cards, unknown `[S99]` is ignored, and cancelled messages show “已停止”.
 
-- [ ] **Step 2: Write failing focus propagation tests**
+- [x] **Step 2: Write failing focus propagation tests**
 
 Update `InteractiveBookPage.test.tsx` so the context-bar button calls `onAskAgent(undefined)` and a block-level “向 Agent 提问” button calls `onAskAgent('blk-explanation-1')`.
 
-- [ ] **Step 3: Run and observe the expected prop/UI failures**
+- [x] **Step 3: Run and observe the expected prop/UI failures**
 
 Run: `npm test -- src/components/AgentDrawer.test.tsx src/pages/InteractiveBookPage.test.tsx`
 Expected: FAIL because controlled session props and block focus actions do not exist.
 
-- [ ] **Step 4: Add a distinct block-level Agent action**
+- [x] **Step 4: Add a distinct block-level Agent action**
 
 Do not repurpose “深入学习这一段”. Add a second action:
 
@@ -475,13 +475,13 @@ Do not repurpose “深入学习这一段”. Add a second action:
 
 The context bar continues to call `onAskAgent()` without a focus block.
 
-- [ ] **Step 5: Integrate the real controlled session in App**
+- [x] **Step 5: Integrate the real controlled session in App**
 
 Instantiate `useBookAgentSessions` with the current book/chapter/scope. `askBookAgent(focusBlockId?)` records focus, preserves the existing workflow label, and opens the drawer. Pass `contextEnabled` so removing context sends `context: null`; re-adding it restores the current chapter context.
 
 When a source card is clicked, call `changeBookChapter(source.chapterId)`, close the drawer so the cited content is visible, and schedule `document.getElementById(source.blockId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })` after navigation settles. Give each block article `id={block.id}`.
 
-- [ ] **Step 6: Render controlled book messages and controls**
+- [x] **Step 6: Render controlled book messages and controls**
 
 In real-book mode:
 
@@ -493,16 +493,16 @@ In real-book mode:
 - keep IME-safe Enter behavior and existing keyboard expansion behavior;
 - keep the legacy mock only for Today/Map/old deep-learning prototype surfaces.
 
-- [ ] **Step 7: Add focused, accessible CSS**
+- [x] **Step 7: Add focused, accessible CSS**
 
 Reuse existing typography and smoke-crystal controls. Add no new glass content cards. Source cards use an opaque reader surface, controls keep 44px touch targets, streaming/cancel/error states use text in addition to color, and 320px width must not overflow.
 
-- [ ] **Step 8: Verify the task**
+- [x] **Step 8: Verify the task**
 
 Run: `npm test && npm run build` from `admin`.
 Expected: all admin tests pass and production build succeeds.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```powershell
 git add admin/src/App.tsx admin/src/components/AgentDrawer.tsx admin/src/components/AgentDrawer.test.tsx admin/src/components/book/BookBlockRenderer.tsx admin/src/components/book/BookContextBar.tsx admin/src/pages/InteractiveBookPage.tsx admin/src/pages/InteractiveBookPage.test.tsx admin/src/index.css
@@ -520,7 +520,7 @@ git commit -m "feat: connect real agent to learning book"
 - Acceptance URL: `http://localhost:5173/#book/ml-chapter-03/ch-1`.
 - Server health: `http://localhost:3456/health`.
 
-- [ ] **Step 1: Run all automated verification from the committed tree**
+- [x] **Step 1: Run all automated verification from the committed tree**
 
 Run in `server`:
 
@@ -538,11 +538,11 @@ npm run build
 
 Expected: every test and both TypeScript production builds exit 0.
 
-- [ ] **Step 2: Start the server and admin dev processes without exposing `.env`**
+- [x] **Step 2: Start the server and admin dev processes without exposing `.env`**
 
 Run server with `npm run dev` on port 3456 and admin with `npm run dev` on port 5173. Confirm `/health` returns `{ "status": "ok" }`. Do not print environment values.
 
-- [ ] **Step 3: Exercise the real first-turn path at 390 × 844px**
+- [x] **Step 3: Exercise the real first-turn path at 390 × 844px**
 
 Open chapter 1, finish its mock generation if needed, focus `blk-explanation-1`, open Agent, and ask:
 
@@ -552,15 +552,15 @@ Open chapter 1, finish its mock generation if needed, focus `blk-explanation-1`,
 
 Expected: visible streaming begins, the final answer contains a valid `[S#]`, at least one card shows `机器学习 · 第三章.pdf` and `4–6`, no mock answer is injected, horizontal overflow is 0, and console errors are empty.
 
-- [ ] **Step 4: Exercise continuity, stop, retry, and isolation**
+- [x] **Step 4: Exercise continuity, stop, retry, and isolation**
 
 Continue with “那没有标签时模型还能学什么？”, stop one response, retry it successfully, switch to chapter 2, verify chapter 1 messages are absent, then return to chapter 1 and verify the in-memory conversation returns.
 
-- [ ] **Step 5: Verify the evidence boundary**
+- [x] **Step 5: Verify the evidence boundary**
 
 Record `learningBook.evidence.length`, ask and complete two chat turns, then verify the length is unchanged. Submit the chapter quiz and verify it increases exactly once.
 
-- [ ] **Step 6: Inspect security and repository state**
+- [x] **Step 6: Inspect security and repository state**
 
 Run:
 
@@ -573,7 +573,7 @@ git grep -n "sk-" -- ':!server/.env.example'
 
 Expected: no secret-like tracked values; `.env` and HelpCC are ignored; only intentional task files appear; no uncommitted implementation changes remain after any defect-fix commit.
 
-- [ ] **Step 7: Final local commit if verification required fixes**
+- [x] **Step 7: Final local commit if verification required fixes**
 
 Stage only verified defect fixes, inspect `git status --short`, and commit:
 

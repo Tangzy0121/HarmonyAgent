@@ -1,6 +1,6 @@
 # 真实文档生成互动学习书 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 上传单个文本型 PDF，服务端解析后由 DeepSeek 生成目录提案与渐进章节内容（真实页码引用），前端完成上传、提案确认、渐进生成与刷新恢复。
 
@@ -44,11 +44,11 @@
   - `StoredDocumentMeta = { id: string; fileName: string; sizeBytes: number; pageCount: number; createdAt: string }`；`StoredDocument = StoredDocumentMeta & { pages: ParsedPage[] }`；id 形如 `doc_<crypto.randomUUID()>`。
   - 路由：`POST /api/documents`、`GET /api/documents`、`DELETE /api/documents/:id`。
 
-- [ ] **Step 1: 选型 spike（先做，决定 pdfjs-dist vs pdf-parse）**
+- [x] **Step 1: 选型 spike（先做，决定 pdfjs-dist vs pdf-parse）**
 
 安装 `npm i pdfjs-dist` 与 `npm i -D pdf-lib`，写最小脚本：pdf-lib 生成 2 页含文本 PDF → `pdfjs-dist/legacy/build/pdf.mjs` 的 `getDocument({ data: new Uint8Array(buf), isEvalSupported: false })` 提取文本。成功则用 pdfjs-dist；Node 兼容失败则换装 `pdf-parse` 并把下列 import 换成对应 API，接口签名不变。
 
-- [ ] **Step 2: 写失败测试 pdfParser.test.ts**
+- [x] **Step 2: 写失败测试 pdfParser.test.ts**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -94,11 +94,11 @@ describe('parsePdf', () => {
 
 加密映射用依赖注入或 vi.mock 覆盖（pdf-lib 不能生成加密 PDF）。
 
-- [ ] **Step 3: 跑测试确认 RED**（`npm test -- pdfParser`，模块不存在而失败）
-- [ ] **Step 4: 实现 pdfParser.ts**：逐页 `getTextContent`，按 item 换行拼接；`maxPages` 默认 30；总字符 <200 → `pdf_no_text`；`PasswordException`（name 匹配）→ `pdf_encrypted`；其余异常 → `pdf_unreadable`。GREEN。
-- [ ] **Step 5: 写失败测试 documentStore.test.ts**：save→get 往返（含 pages 与 pdf 文件落盘）、list 按 createdAt 排序、remove 删除 json+pdf 返回 true/不存在返回 false、并发 save 不产生半成品（tmp+rename）。
-- [ ] **Step 6: RED → 实现 documentStore.ts（原子写）→ GREEN**
-- [ ] **Step 7: 写失败测试 documents.test.ts**（supertest + 内存临时目录 store）：
+- [x] **Step 3: 跑测试确认 RED**（`npm test -- pdfParser`，模块不存在而失败）
+- [x] **Step 4: 实现 pdfParser.ts**：逐页 `getTextContent`，按 item 换行拼接；`maxPages` 默认 30；总字符 <200 → `pdf_no_text`；`PasswordException`（name 匹配）→ `pdf_encrypted`；其余异常 → `pdf_unreadable`。GREEN。
+- [x] **Step 5: 写失败测试 documentStore.test.ts**：save→get 往返（含 pages 与 pdf 文件落盘）、list 按 createdAt 排序、remove 删除 json+pdf 返回 true/不存在返回 false、并发 save 不产生半成品（tmp+rename）。
+- [x] **Step 6: RED → 实现 documentStore.ts（原子写）→ GREEN**
+- [x] **Step 7: 写失败测试 documents.test.ts**（supertest + 内存临时目录 store）：
 
 ```ts
 // POST /api/documents 合法 PDF → 200 { id, fileName, pageCount, sizeBytes, createdAt }
@@ -108,12 +108,12 @@ describe('parsePdf', () => {
 // DELETE /api/documents/:id → 200 { deleted: true, note: '原始文件与解析结果已删除' }；再 GET → null
 ```
 
-- [ ] **Step 8: RED → 实现 routes/documents.ts → GREEN**
+- [x] **Step 8: RED → 实现 routes/documents.ts → GREEN**
 
 路由工厂 `createDocumentsRouter({ store, logger })`；路由内 `express.raw({ type: 'application/pdf', limit: '20mb' })`；超限由 raw 的 413 经路由级错误处理器映射 `{ error: 'pdf_too_large' }`；文件名取 `x-file-name` 头（缺省 `未命名.pdf`，截 120 字符，去控制字符）。
 
-- [ ] **Step 9: index.ts 挂载** `app.use('/api/documents', createDocumentsRouter({ store: createDocumentStore(process.env.DATA_DIR ?? path.join(process.cwd(), 'data')) }))`，注意挂在全局 `express.json()` 之前（raw 与 json 不冲突，但保持与 bookAgent 相同的"专用路由先行"顺序）。`.git/info/exclude` 追加 `server/data/`。
-- [ ] **Step 10: 全量** `npm test && npm run build` 通过；`git status` 核对暂存区；提交 `feat: add pdf upload and parsing`
+- [x] **Step 9: index.ts 挂载** `app.use('/api/documents', createDocumentsRouter({ store: createDocumentStore(process.env.DATA_DIR ?? path.join(process.cwd(), 'data')) }))`，注意挂在全局 `express.json()` 之前（raw 与 json 不冲突，但保持与 bookAgent 相同的"专用路由先行"顺序）。`.git/info/exclude` 追加 `server/data/`。
+- [x] **Step 10: 全量** `npm test && npm run build` 通过；`git status` 核对暂存区；提交 `feat: add pdf upload and parsing`
 
 ---
 
@@ -137,8 +137,8 @@ describe('parsePdf', () => {
   - `normalizeProposal(value: unknown, pageCount: number): NormalizedProposal`；`NormalizedProposal = { title: string; description: string; rationale: string; estimatedMinutes: number; chapters: { title: string; objective: string; coreConcept: string; estimatedMinutes: number; pageStart: number; pageEnd: number }[] }`；抛 `ProposalValidationError('proposal_invalid')`。
   - 路由：`POST /api/books`、`GET /api/books`、`GET /api/books/:id`、`DELETE /api/books/:id`。
 
-- [ ] **Step 1: bookTypes + bookStore 失败测试**：save/get 往返、remove、list；写 Read→RED→实现→GREEN（模式同 documentStore）。
-- [ ] **Step 2: proposalValidation 失败测试**（核心，逐条 RED）：
+- [x] **Step 1: bookTypes + bookStore 失败测试**：save/get 往返、remove、list；写 Read→RED→实现→GREEN（模式同 documentStore）。
+- [x] **Step 2: proposalValidation 失败测试**（核心，逐条 RED）：
 
 ```ts
 // 4 章合法输入 → 通过，页码/标题原样保留
@@ -150,10 +150,10 @@ describe('parsePdf', () => {
 // 文本前带思考前序 → 从最后一个 { 起解析成功（借鉴 _strip_thinking_preamble）
 ```
 
-- [ ] **Step 3: RED → 实现 proposalValidation.ts（含 `extractJsonObject(text)` 末尾定位 + 形状归一 + clamp/截断）→ GREEN**
-- [ ] **Step 4: proposalPrompt 失败测试**：消息含 goal/learnerLevel/章数约束；digest 超 24k 被截断；digest 中伪造的 `</document_data>` 被转义；system 不含密钥字样。
-- [ ] **Step 5: RED → 实现 proposalPrompt.ts + buildDocumentDigest → GREEN**
-- [ ] **Step 6: 路由失败测试**（注入 fake `fetchImpl` 返回 json_object 流）：
+- [x] **Step 3: RED → 实现 proposalValidation.ts（含 `extractJsonObject(text)` 末尾定位 + 形状归一 + clamp/截断）→ GREEN**
+- [x] **Step 4: proposalPrompt 失败测试**：消息含 goal/learnerLevel/章数约束；digest 超 24k 被截断；digest 中伪造的 `</document_data>` 被转义；system 不含密钥字样。
+- [x] **Step 5: RED → 实现 proposalPrompt.ts + buildDocumentDigest → GREEN**
+- [x] **Step 6: 路由失败测试**（注入 fake `fetchImpl` 返回 json_object 流）：
 
 ```ts
 // POST /api/books 合法 → 201 { book }：status 'proposal'，章壳 ch-1..N（pending、blocks: []、
@@ -165,8 +165,8 @@ describe('parsePdf', () => {
 // GET /api/books/:id → 完整 book；GET /api/books → 列表；DELETE → 200 且 get 为 null
 ```
 
-- [ ] **Step 7: RED → 实现 routes/books.ts → GREEN**：上游走非流式 `chat/completions`（`stream:false` 或流式收集均可，选流式收集复用 `parseOpenAIStream`）；失败分类借鉴 `_classify_failure`；重试一次（messages 追加“上次输出未通过校验：{原因}，请只输出合法 JSON”）。
-- [ ] **Step 8: index.ts 挂载 `/api/books`；全量测试 + 构建；提交** `feat: add book proposal generation`
+- [x] **Step 7: RED → 实现 routes/books.ts → GREEN**：上游走非流式 `chat/completions`（`stream:false` 或流式收集均可，选流式收集复用 `parseOpenAIStream`）；失败分类借鉴 `_classify_failure`；重试一次（messages 追加“上次输出未通过校验：{原因}，请只输出合法 JSON”）。
+- [x] **Step 8: index.ts 挂载 `/api/books`；全量测试 + 构建；提交** `feat: add book proposal generation`
 
 ---
 
@@ -182,10 +182,10 @@ describe('parsePdf', () => {
   - `applyProposalEdits(book: StoredBook, edits: ProposalEdits): StoredBook`；`ProposalEdits = { title?: string; description?: string; chapters: { id: string; title: string; order: number; objective: string; estimatedMinutes: number }[] }`（整体替换可编辑字段；章节 id 必须与原壳一一对应；3–6 章；标题非空 ≤40）。抛 `ProposalEditError('invalid_proposal_edit'|'book_not_editable')`。
   - 路由：`PUT /api/books/:id/proposal`、`POST /api/books/:id/confirm`。
 
-- [ ] **Step 1: applyProposalEdits 失败测试**：合法改名/重排序通过；章节 id 集合不匹配 → invalid_proposal_edit；2 章 → 拒绝；7 章 → 拒绝；book.status ≠ 'proposal' → book_not_editable；order 重排后归一化为 1..N。
-- [ ] **Step 2: RED → 实现 → GREEN**
-- [ ] **Step 3: 路由失败测试**：PUT 合法 → 200 且 updatedAt 变化；confirm 后 PUT → 409 `book_not_editable`；POST confirm（proposal 态）→ 200，book.status 'generating'、activeChapterId 第一章、章状态不变（pending 等客户端触发）；非 proposal 态 confirm → 409。
-- [ ] **Step 4: RED → 实现路由 → GREEN；全量 + 构建；提交** `feat: add proposal edit and confirm routes`
+- [x] **Step 1: applyProposalEdits 失败测试**：合法改名/重排序通过；章节 id 集合不匹配 → invalid_proposal_edit；2 章 → 拒绝；7 章 → 拒绝；book.status ≠ 'proposal' → book_not_editable；order 重排后归一化为 1..N。
+- [x] **Step 2: RED → 实现 → GREEN**
+- [x] **Step 3: 路由失败测试**：PUT 合法 → 200 且 updatedAt 变化；confirm 后 PUT → 409 `book_not_editable`；POST confirm（proposal 态）→ 200，book.status 'generating'、activeChapterId 第一章、章状态不变（pending 等客户端触发）；非 proposal 态 confirm → 409。
+- [x] **Step 4: RED → 实现路由 → GREEN；全量 + 构建；提交** `feat: add proposal edit and confirm routes`
 
 ---
 
@@ -204,7 +204,7 @@ describe('parsePdf', () => {
   - SSE 事件：`chapter_start { chapterId }` → `block { index, block }` × N → `chapter_done { blockCount, warnings }`；失败 `error { code, message }`，code ∈ `chapter_not_generatable|chapter_generation_failed|upstream_unavailable|upstream_timeout`。
   - 端点：`POST /api/books/:id/chapters/:cid/generate`。
 
-- [ ] **Step 1: chapterValidation 失败测试**（逐条 RED）：
+- [x] **Step 1: chapterValidation 失败测试**（逐条 RED）：
 
 ```ts
 // 合法 6 块（explanation/example/citation/concept/quiz/formula）→ 通过，块 id 按 blk-{type}-{n}
@@ -218,10 +218,10 @@ describe('parsePdf', () => {
 // concept 块 relation type '因果' → 丢弃该 relation + warning（白名单：前置/包含/相似/对比/应用）
 ```
 
-- [ ] **Step 2: RED → 实现 chapterValidation.ts → GREEN**（去空白子串比对：`text.replace(/\s+/g,'')`）。
-- [ ] **Step 3: chapterPrompt 失败测试**：含书概述/章目标/页文本/块类型白名单/JSON-only 约束；页文本超预算截断；伪造标签转义；无密钥。
-- [ ] **Step 4: RED → 实现 → GREEN**
-- [ ] **Step 5: 端点失败测试**（fake fetchImpl 流式返回块 JSON）：
+- [x] **Step 2: RED → 实现 chapterValidation.ts → GREEN**（去空白子串比对：`text.replace(/\s+/g,'')`）。
+- [x] **Step 3: chapterPrompt 失败测试**：含书概述/章目标/页文本/块类型白名单/JSON-only 约束；页文本超预算截断；伪造标签转义；无密钥。
+- [x] **Step 4: RED → 实现 → GREEN**
+- [x] **Step 5: 端点失败测试**（fake fetchImpl 流式返回块 JSON）：
 
 ```ts
 // pending 章 → SSE 事件序 chapter_start → block×N → chapter_done；store 中章 ready、块落盘、job ready
@@ -233,8 +233,8 @@ describe('parsePdf', () => {
 // 全部章 ready 后 book.status → 'ready'；有 error 章 → 'partial'
 ```
 
-- [ ] **Step 6: RED → 实现端点 → GREEN**：SSE 写出、60s 超时、`req aborted/res close` 联动中止、白名单脱敏日志全部仿照 bookAgent.ts；LLM 非流式收集后逐块 emit 并逐块落盘（借鉴 `persist_after_each_block`）。
-- [ ] **Step 7: 全量 + 构建；提交** `feat: add chapter generation stream`
+- [x] **Step 6: RED → 实现端点 → GREEN**：SSE 写出、60s 超时、`req aborted/res close` 联动中止、白名单脱敏日志全部仿照 bookAgent.ts；LLM 非流式收集后逐块 emit 并逐块落盘（借鉴 `persist_after_each_block`）。
+- [x] **Step 7: 全量 + 构建；提交** `feat: add chapter generation stream`
 
 ---
 
@@ -256,15 +256,15 @@ describe('parsePdf', () => {
   - `parseLearningBook(value: unknown): LearningBook`（运行时守卫，字段/类型不符抛 `BookApiError('invalid_book_payload')`）。
   - `<UploadBookSheet onSubmit({ file, goal, learnerLevel }) onClose />`：文件信息、目标/基础选择、云端处理与删除说明文案。
 
-- [ ] **Step 1: 抽取 sseFrames**：先把 bookAgentClient 的帧解析原样移入共享模块并改 import，跑现有 81 项测试确认零回归（这一步不改行为，单独提交 `refactor: share sse frame parser`）。
-- [ ] **Step 2: parseLearningBook 失败测试**：合法 fixture 通过；缺 chapters/非数组/块类型未知/章缺 status → 抛 invalid_book_payload。
-- [ ] **Step 3: RED → 实现 → GREEN**
-- [ ] **Step 4: bookApi 失败测试**（mock fetch）：upload 以 raw body + `x-file-name` 头发送；错误码映射（413→pdf_too_large 等）；streamChapterGeneration 事件序与 AbortError 保真；HTTP 400/409 预流错误映射。
-- [ ] **Step 5: RED → 实现 → GREEN**
-- [ ] **Step 6: UploadBookSheet 失败测试**：渲染文件信息/两个选择组/说明文案；>20MB 文件 onSubmit 不调并显示 `pdf_too_large` 文案；缺目标或基础时提交禁用。
-- [ ] **Step 7: RED → 实现 → GREEN**（样式沿用 index.css 既有 sheet/card 模式，320px 零溢出）。
-- [ ] **Step 8: 知识库接线**：顶部加"上传学习资料"入口；API 返回的真实书合并进列表（状态列：目录待确认/生成中 n/N/可阅读/部分可读/生成失败）；点击真实书 → `onOpenRealBook(bookId)`（App 接线在 Task 6，本任务只传 prop 并测渲染）。
-- [ ] **Step 9: 全量 + 构建；提交** `feat: add book api client and upload entry`
+- [x] **Step 1: 抽取 sseFrames**：先把 bookAgentClient 的帧解析原样移入共享模块并改 import，跑现有 81 项测试确认零回归（这一步不改行为，单独提交 `refactor: share sse frame parser`）。
+- [x] **Step 2: parseLearningBook 失败测试**：合法 fixture 通过；缺 chapters/非数组/块类型未知/章缺 status → 抛 invalid_book_payload。
+- [x] **Step 3: RED → 实现 → GREEN**
+- [x] **Step 4: bookApi 失败测试**（mock fetch）：upload 以 raw body + `x-file-name` 头发送；错误码映射（413→pdf_too_large 等）；streamChapterGeneration 事件序与 AbortError 保真；HTTP 400/409 预流错误映射。
+- [x] **Step 5: RED → 实现 → GREEN**
+- [x] **Step 6: UploadBookSheet 失败测试**：渲染文件信息/两个选择组/说明文案；>20MB 文件 onSubmit 不调并显示 `pdf_too_large` 文案；缺目标或基础时提交禁用。
+- [x] **Step 7: RED → 实现 → GREEN**（样式沿用 index.css 既有 sheet/card 模式，320px 零溢出）。
+- [x] **Step 8: 知识库接线**：顶部加"上传学习资料"入口；API 返回的真实书合并进列表（状态列：目录待确认/生成中 n/N/可阅读/部分可读/生成失败）；点击真实书 → `onOpenRealBook(bookId)`（App 接线在 Task 6，本任务只传 prop 并测渲染）。
+- [x] **Step 9: 全量 + 构建；提交** `feat: add book api client and upload entry`
 
 ---
 
@@ -284,7 +284,7 @@ describe('parsePdf', () => {
   - hash 约定：真实书提案 `#proposal/{bookId}`；阅读 `#book/{bookId}/{chapterId}`；mock 仍走 `#library/ml-chapter-03`。
   - `InteractiveBookPage` 新 props：`isRealBook: boolean`、`chapterProgress: { blocksReceived: number } | null`；真实书 generating 视图显示"已生成 N 块"且无"完成本章生成"按钮；`allowBlockRegenerate={!isRealBook}` 控制块级重生成按钮显隐。
 
-- [ ] **Step 1: App.realBook.test 失败测试**（mock bookApi）：
+- [x] **Step 1: App.realBook.test 失败测试**（mock bookApi）：
 
 ```ts
 // #proposal/book_x 初始渲染 → 调 getBook('book_x') 并显示提案页
@@ -295,10 +295,10 @@ describe('parsePdf', () => {
 // 真实书块级"重生成"按钮不渲染；mock 书仍渲染且"完成本章生成"行为不变
 ```
 
-- [ ] **Step 2: RED → 实现 useBookGeneration → 该 hook 单测 GREEN**
-- [ ] **Step 3: App.tsx 改造**：`activeRealBookId` 状态；`syncHistoryState` 识别 `#proposal/` 与 `#book/{id}/`；真实书经 getBook 载入 `learningBook` 状态（与 mock 共用同一状态位，bookId 区分来源）；`openRealBook` 从知识库 prop 接入；移除 `openDocument` 之外路径对 `ml-chapter-03` 的硬编码判断。
-- [ ] **Step 4: BookProposalPage/InteractiveBookPage 最小改动**（props 透传与条件渲染，样式沿用）。
-- [ ] **Step 5: 全量 + 构建；提交** `feat: wire real book flow into app`
+- [x] **Step 2: RED → 实现 useBookGeneration → 该 hook 单测 GREEN**
+- [x] **Step 3: App.tsx 改造**：`activeRealBookId` 状态；`syncHistoryState` 识别 `#proposal/` 与 `#book/{id}/`；真实书经 getBook 载入 `learningBook` 状态（与 mock 共用同一状态位，bookId 区分来源）；`openRealBook` 从知识库 prop 接入；移除 `openDocument` 之外路径对 `ml-chapter-03` 的硬编码判断。
+- [x] **Step 4: BookProposalPage/InteractiveBookPage 最小改动**（props 透传与条件渲染，样式沿用）。
+- [x] **Step 5: 全量 + 构建；提交** `feat: wire real book flow into app`
 
 ---
 
@@ -308,7 +308,7 @@ describe('parsePdf', () => {
 - Create: `.superpowers/real-book-generation/make-e2e-pdf.mjs`（本地工具，不入库）
 - Create: `.superpowers/real-book-generation/`（证据目录：截图、axe JSON、日志）
 
-- [ ] **Step 1: 生成 E2E 用 PDF**：pdf-lib + `@pdf-lib/fontkit` + `C:/Windows/Fonts/msyh.ttc` 生成约 8 页中文"机器学习第三章"文本 PDF（含小节标题与关键句，便于校验引用子串）；字体嵌入失败则降级英文内容并在报告中注明。
+- [x] **Step 1: 生成 E2E 用 PDF**（2026-08-17 完成：pdf-lib 生成 20 页英文文本 PDF，走降级路径；见 2026-08-17 worklog）：pdf-lib + `@pdf-lib/fontkit` + `C:/Windows/Fonts/msyh.ttc` 生成约 8 页中文"机器学习第三章"文本 PDF（含小节标题与关键句，便于校验引用子串）；字体嵌入失败则降级英文内容并在报告中注明。
 - [ ] **Step 2: 新鲜基线**：server/admin 全量测试 + 构建；端口 3456/5173/9227 空闲确认。
 - [ ] **Step 3: 真实链路**（`env -u HTTP_PROXY -u HTTPS_PROXY`；Chrome `--no-proxy-server`；390×844）：上传 PDF → 解析成功 → 提案 3–6 章 → 改名+删一章 → 确认 → ch-1 先可读（块逐出）→ 等全部章完成 → citation 跳转锚点正确 → 章节追问真实回答带来源卡 → 答题生成证据 → 刷新恢复书与进度。
 - [ ] **Step 4: 320×844 零溢出 + axe**（agent-browser a11y，目标无 critical/serious；moderate 记录）。
