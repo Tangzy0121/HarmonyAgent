@@ -9,6 +9,7 @@ import {
   createBook,
   deleteNote,
   getBook,
+  getLearnerProfile,
   getPretest,
   getReviewDue,
   listBooks,
@@ -676,5 +677,52 @@ describe('note endpoints', () => {
 describe('bookExportUrl', () => {
   it('builds an encoded export URL', () => {
     expect(bookExportUrl('book_a/b')).toBe('/api/books/book_a%2Fb/export')
+  })
+})
+
+describe('getLearnerProfile', () => {
+  const profile = {
+    concepts: [{
+      label: '监督学习',
+      displayLabel: '监督学习',
+      mastery: 0.5,
+      attempts: 2,
+      lastOutcome: 'review',
+      lastAttemptAt: '2026-08-12T10:00:00.000Z',
+      sources: [{ bookId: 'book_1', chapterId: 'ch-1', conceptId: 'c-1' }],
+      forgettingCliff: false,
+    }],
+    rhythm: {
+      activeDays30: 4,
+      streakDays: 3,
+      periodDistribution: { morning: 0.5, afternoon: 0.5, evening: 0, night: 0 },
+      dailyAverageEvents: 0.13,
+      studiedToday: true,
+    },
+    derivedAt: '2026-08-17T08:00:00.000Z',
+  }
+
+  it('reads and parses the learner profile', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse(profile)
+    }))
+
+    const result = await getLearnerProfile()
+
+    expect(actualUrl).toBe('/api/learner/profile')
+    expect(result).toEqual(profile)
+  })
+
+  it.each([
+    ['concepts not array', { ...profile, concepts: 'nope' }],
+    ['concept missing sources', { ...profile, concepts: [{ ...profile.concepts[0], sources: 1 }] }],
+    ['missing rhythm', (({ rhythm: _rhythm, ...rest }) => rest)(profile)],
+  ])('rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getLearnerProfile())
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_learner_profile_payload' })
   })
 })

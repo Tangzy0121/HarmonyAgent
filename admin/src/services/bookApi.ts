@@ -19,6 +19,7 @@ import type {
   ReviewScheduleEntry,
   UserNote,
 } from '../types/learningBook'
+import type { ConceptMastery, LearnerProfile, LearningRhythm } from '../types/learnerProfile'
 import {
   createSseFrameParserState,
   parseSseFrames,
@@ -303,6 +304,53 @@ export async function deleteNote(bookId: string, noteId: string): Promise<void> 
 /** 导出 Markdown 的直连地址（<a download> 使用，不经 JS 拼文件） */
 export function bookExportUrl(bookId: string): string {
   return `/api/books/${encodeURIComponent(bookId)}/export`
+}
+
+function isConceptMasteryPayload(value: unknown): value is ConceptMastery {
+  return isRecord(value)
+    && typeof value.label === 'string'
+    && typeof value.displayLabel === 'string'
+    && isFiniteNumber(value.mastery)
+    && isFiniteNumber(value.attempts)
+    && (value.lastOutcome === 'mastered' || value.lastOutcome === 'review' || value.lastOutcome === null)
+    && (typeof value.lastAttemptAt === 'string' || value.lastAttemptAt === null)
+    && Array.isArray(value.sources)
+    && value.sources.every((source) => isRecord(source)
+      && typeof source.bookId === 'string'
+      && typeof source.chapterId === 'string'
+      && typeof source.conceptId === 'string')
+    && typeof value.forgettingCliff === 'boolean'
+}
+
+function isRhythmPayload(value: unknown): value is LearningRhythm {
+  return isRecord(value)
+    && isFiniteNumber(value.activeDays30)
+    && isFiniteNumber(value.streakDays)
+    && isRecord(value.periodDistribution)
+    && isFiniteNumber(value.periodDistribution.morning)
+    && isFiniteNumber(value.periodDistribution.afternoon)
+    && isFiniteNumber(value.periodDistribution.evening)
+    && isFiniteNumber(value.periodDistribution.night)
+    && isFiniteNumber(value.dailyAverageEvents)
+    && typeof value.studiedToday === 'boolean'
+}
+
+function parseLearnerProfilePayload(value: unknown): LearnerProfile {
+  if (isRecord(value)
+    && Array.isArray(value.concepts)
+    && value.concepts.every(isConceptMasteryPayload)
+    && isRhythmPayload(value.rhythm)
+    && typeof value.derivedAt === 'string') {
+    return value as unknown as LearnerProfile
+  }
+  throw new BookApiError('invalid_learner_profile_payload', SAFE_HTTP_MESSAGE)
+}
+
+/** 长期学习者模型（只读派生；失败时调用方静默降级，不影响今日页/地图基础行为） */
+export async function getLearnerProfile(): Promise<LearnerProfile> {
+  const response = await fetch('/api/learner/profile')
+  if (!response.ok) throw await readHttpError(response)
+  return parseLearnerProfilePayload(await readJson(response))
 }
 
 function parseReviewResultPayload(value: unknown): ReviewScheduleEntry | null {

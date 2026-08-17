@@ -19,7 +19,7 @@ import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
 import { projectBooksToMap } from './domain/bookMapProjection'
 import { pickTodayRealBook } from './domain/todayNextStep'
-import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getLearnerProfile, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -29,6 +29,7 @@ import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
 import { TodayPage } from './pages/TodayPage'
 import type { AgentContextScope, LearningBook, ReviewScheduleEntry } from './types/learningBook'
+import type { LearnerProfile } from './types/learnerProfile'
 import type { BookAgentSource } from './types/bookAgent'
 import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
 
@@ -136,6 +137,7 @@ function App() {
   const [activeRealBookId, setActiveRealBookId] = useState<string | null>(() => realBookIdFromHash(window.location.hash))
   const [realBookLoadError, setRealBookLoadError] = useState<string | null>(null)
   const [realBooks, setRealBooks] = useState<StoredBook[]>([])
+  const [learnerProfile, setLearnerProfile] = useState<LearnerProfile | null>(null)
   const [isUploadSheetOpen, setIsUploadSheetOpen] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isPretestSheetOpen, setIsPretestSheetOpen] = useState(false)
@@ -228,8 +230,8 @@ function App() {
   const isRealBookLoaded = activeRealBookId !== null && learningBook.id === activeRealBookId
   // 学习地图数据源：真实书有概念时投影真实书（章=主题簇），否则回退 mock 演示图
   const bookMap = useMemo(() => projectBooksToMap(realBooks), [realBooks])
-  // 今日页主焦点：优先真实书（到期复习/进行中/最新证据），否则回退 mock 演示书
-  const todayRealBook = useMemo(() => pickTodayRealBook(realBooks), [realBooks])
+  // 今日页主焦点：优先真实书（到期复习/遗忘悬崖/进行中/最新证据），否则回退 mock 演示书
+  const todayRealBook = useMemo(() => pickTodayRealBook(realBooks, new Date(), learnerProfile), [realBooks, learnerProfile])
   const todayBook = todayRealBook ?? learningBook
   // 今日复习到期项：仅真实书经 getReviewDue 拉取（mock 原型页恒为空，不渲染入口）
   const [reviewDue, setReviewDue] = useState<DueItem[]>([])
@@ -398,6 +400,15 @@ function App() {
       .catch(() => undefined)
     return () => { cancelled = true }
   }, [])
+
+  // 长期学习者模型：真实书变化后重新派生（今日页悬崖/节律候选的数据源）；失败静默保持旧值
+  useEffect(() => {
+    let cancelled = false
+    getLearnerProfile()
+      .then((profile) => { if (!cancelled) setLearnerProfile(profile) })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [realBooks])
 
   // mock 书会话内进度快照：真实书占用 learningBook 状态位期间保留，回到 mock 场景时恢复
   useEffect(() => {
@@ -845,6 +856,7 @@ function App() {
           onContinue={continueToday}
           learningEvidenceCount={todayBook.evidence.length}
           learningBook={todayBook}
+          learnerProfile={learnerProfile}
         />
         <LearningMapPage
           isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'learning'}
