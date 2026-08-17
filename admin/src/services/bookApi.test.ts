@@ -7,6 +7,7 @@ import {
   bookExportUrl,
   confirmBook,
   createBook,
+  createBookDocumentIds,
   deleteNote,
   getBook,
   getEstimate,
@@ -128,6 +129,64 @@ describe('book collection endpoints', () => {
       learnerLevel: '入门',
     })
     expect(book.id).toBe(storedBook.id)
+  })
+
+  it('sends documentIds instead of documentId for a multi-source create', async () => {
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      actualInit = init
+      return jsonResponse({ book: storedBook }, 201)
+    }))
+
+    const book = await createBook({ documentIds: ['doc_a-1', 'doc_b-2'], goal: '考试复习', learnerLevel: '入门' })
+
+    expect(JSON.parse(String(actualInit?.body))).toEqual({
+      documentIds: ['doc_a-1', 'doc_b-2'],
+      goal: '考试复习',
+      learnerLevel: '入门',
+    })
+    expect(book.id).toBe(storedBook.id)
+  })
+
+  it('prefers documentIds when both documentId and documentIds are given', async () => {
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      actualInit = init
+      return jsonResponse({ book: storedBook }, 201)
+    }))
+
+    await createBook({ documentId: 'doc_legacy-9', documentIds: ['doc_a-1'], goal: '考试复习', learnerLevel: '入门' })
+
+    expect(JSON.parse(String(actualInit?.body))).toEqual({
+      documentIds: ['doc_a-1'],
+      goal: '考试复习',
+      learnerLevel: '入门',
+    })
+  })
+
+  it('lets a multi-source book payload with sources and fingerprints through the guard', async () => {
+    const multiSourceBook = {
+      ...storedBook,
+      sources: [
+        storedBook.source,
+        { ...storedBook.source, id: 'doc_b-2', fileName: 'notes.md', format: 'Markdown' },
+      ],
+      sourceFingerprints: { [storedBook.source.id]: 'a'.repeat(64), 'doc_b-2': 'b'.repeat(64) },
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ book: multiSourceBook }, 201)))
+
+    const book = await createBook({ documentIds: [storedBook.source.id, 'doc_b-2'], goal: '考试复习', learnerLevel: '入门' })
+
+    expect(book.sources).toHaveLength(2)
+    expect(book.sources?.[1]).toMatchObject({ id: 'doc_b-2', fileName: 'notes.md' })
+    expect(book.sourceFingerprints?.['doc_b-2']).toBe('b'.repeat(64))
+  })
+
+  it('normalizes create input ids with createBookDocumentIds', () => {
+    expect(createBookDocumentIds({ documentIds: ['doc_a-1', 'doc_b-2'], documentId: 'doc_c-3', goal: '考试复习', learnerLevel: '入门' }))
+      .toEqual(['doc_a-1', 'doc_b-2'])
+    expect(createBookDocumentIds({ documentId: 'doc_c-3', goal: '考试复习', learnerLevel: '入门' }))
+      .toEqual(['doc_c-3'])
   })
 
   it('rejects a create response whose book fails the guard', async () => {

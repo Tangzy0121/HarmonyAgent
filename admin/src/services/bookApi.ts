@@ -54,9 +54,19 @@ export interface StoredDocumentMeta {
 }
 
 export interface CreateBookInput {
-  documentId: string
+  /** 单来源旧字段；与 documentIds 并存时以 documentIds 为准 */
+  documentId?: string
+  /** 多文件合书：1–5 份来源文档 */
+  documentIds?: string[]
   goal: LearningGoal
   learnerLevel: LearnerLevel
+}
+
+/** 建书来源归一：documentIds 优先，缺省回退 documentId 单元素数组 */
+export function createBookDocumentIds(input: CreateBookInput): string[] {
+  return input.documentIds !== undefined && input.documentIds.length > 0
+    ? input.documentIds
+    : [input.documentId ?? ''].filter((id) => id.trim() !== '')
 }
 
 export interface ProposalChapterEdit {
@@ -166,10 +176,15 @@ export async function listBooks(): Promise<StoredBook[]> {
 }
 
 export async function createBook(input: CreateBookInput): Promise<LearningBook> {
+  // 多文件合书：documentIds 优先；单来源沿用 documentId（请求体二选一）
+  const useDocumentIds = input.documentIds !== undefined && input.documentIds.length > 0
+  const body = useDocumentIds
+    ? { documentIds: input.documentIds, goal: input.goal, learnerLevel: input.learnerLevel }
+    : { documentId: input.documentId, goal: input.goal, learnerLevel: input.learnerLevel }
   const response = await fetch('/api/books', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   })
   if (!response.ok) throw await readHttpError(response)
   return parseBookEnvelope(await readJson(response))

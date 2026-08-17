@@ -25,6 +25,8 @@ interface BookProposalPageProps {
 export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConfirming = false, confirmError = null, estimate = null }: BookProposalPageProps) {
   const [notice, setNotice] = useState('你可以调整名称与顺序，确认后再生成正文。')
   const [chapterDrafts, setChapterDrafts] = useState<Record<string, string>>(() => Object.fromEntries(book.chapters.map((chapter) => [chapter.id, chapter.title])))
+  // 多文件合书：章 small 行标注来源文件名；单源书不显示，避免噪音
+  const multiSource = (book.sources?.length ?? 0) > 1
 
   useEffect(() => {
     setChapterDrafts(Object.fromEntries(book.chapters.map((chapter) => [chapter.id, chapter.title])))
@@ -102,7 +104,7 @@ export function BookProposalPage({ book, onBookChange, onConfirm, onBack, isConf
                     />
                   </label>
                   <p>{chapter.objective}</p>
-                  <small>{chapter.estimatedMinutes} 分钟 · 原文第 {chapter.sourceAnchors.map((item) => item.pageRange).join('、')} 页</small>
+                  <small>{chapter.estimatedMinutes} 分钟 · 原文第 {chapter.sourceAnchors.map((item) => item.pageRange).join('、')} 页{multiSource && chapter.sourceAnchors[0] ? ` · 来源：${chapter.sourceAnchors[0].fileName}` : ''}</small>
                   {estimate && (() => {
                     const chapterEstimate = estimate.chapters.find((entry) => entry.chapterId === chapter.id)
                     return chapterEstimate

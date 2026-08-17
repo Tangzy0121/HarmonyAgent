@@ -2,6 +2,7 @@
 // 每章估算 = 章覆盖页数 × 页均 tokens + 章生成输出预算；合计为各章之和。
 // 只读参考值，不参与计费与生成控制。
 
+import { bookSources } from './bookSources.js'
 import type { StoredBook } from './bookTypes.js'
 
 /** 经验常数：一页源文档折算的输入 tokens（与 1500 字符虚拟页同量级） */
@@ -32,7 +33,9 @@ function pageCountOf(pageRange: string): number | null {
 
 export function deriveEstimate(book: StoredBook): BookEstimate {
   const totalChapters = book.chapters.length
-  const fallbackPages = totalChapters > 0 ? book.source.pageCount / totalChapters : 0
+  // 多文件合书：页数按全部来源合计均摊；单源书回退 book.source（行为不变）
+  const totalPages = bookSources(book).reduce((sum, source) => sum + source.pageCount, 0)
+  const fallbackPages = totalChapters > 0 ? totalPages / totalChapters : 0
   const chapters = book.chapters.map((chapter) => {
     const pages = chapter.sourceAnchors
       .map((anchor) => pageCountOf(anchor.pageRange))

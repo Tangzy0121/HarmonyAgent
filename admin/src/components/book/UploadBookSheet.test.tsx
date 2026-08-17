@@ -149,9 +149,13 @@ function click(element: FakeElement): void {
 }
 
 function selectFile(container: FakeElement, file: File): void {
+  selectFiles(container, [file])
+}
+
+function selectFiles(container: FakeElement, files: File[]): void {
   const input = descendants(container).find((element) => element.tagName === 'INPUT') as FakeElement
   expect(input).toBeDefined()
-  input.files = [file]
+  input.files = files
   flushSync(() => Simulate.change(input as unknown as Element, {}))
 }
 
@@ -194,7 +198,42 @@ describe('UploadBookSheet interaction', () => {
     click(submit)
 
     expect(onSubmit).toHaveBeenCalledOnce()
-    expect(onSubmit).toHaveBeenCalledWith({ file, goal: '考试复习', learnerLevel: '入门' })
+    expect(onSubmit).toHaveBeenCalledWith({ files: [file], goal: '考试复习', learnerLevel: '入门' })
+  })
+
+  it('submits every selected file in order for a multi-file pick', () => {
+    const container = mountEnvironment()
+    const onSubmit = vi.fn()
+    flushSync(() => mountedRoot?.render(<UploadBookSheet onSubmit={onSubmit} onClose={() => undefined} />))
+    const first = pdfFile('讲义.pdf', 2048)
+    const second = new File([new Uint8Array(1024)], '笔记.md', { type: 'text/markdown' })
+
+    selectFiles(container, [first, second])
+    expect(container.textContent).toContain('讲义.pdf')
+    expect(container.textContent).toContain('笔记.md')
+    click(findButton(container, '课程学习'))
+    click(findButton(container, '了解'))
+    click(findButton(container, '开始生成学习书'))
+
+    expect(onSubmit).toHaveBeenCalledOnce()
+    expect(onSubmit).toHaveBeenCalledWith({ files: [first, second], goal: '课程学习', learnerLevel: '了解' })
+  })
+
+  it('blocks the submit with a hint when more than five files are picked', () => {
+    const container = mountEnvironment()
+    const onSubmit = vi.fn()
+    flushSync(() => mountedRoot?.render(<UploadBookSheet onSubmit={onSubmit} onClose={() => undefined} />))
+
+    selectFiles(container, [1, 2, 3, 4, 5, 6].map((index) => pdfFile(`第${index}份.pdf`, 1024)))
+    expect(container.textContent).toContain('最多')
+
+    click(findButton(container, '理解概念'))
+    click(findButton(container, '入门'))
+    const submit = findButton(container, '开始生成学习书')
+    expect(submit.getAttribute('disabled')).not.toBeNull()
+    click(submit)
+
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('shows the pdf_too_large copy for files over 20MB and never submits', () => {

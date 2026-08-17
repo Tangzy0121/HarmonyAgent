@@ -35,4 +35,34 @@ describe('BookProposalPage', () => {
     expect(html.match(/aria-label="删除第/g)).toHaveLength(3)
     expect(html.match(/disabled=""/g)).toHaveLength(8)
   })
+
+  it('shows the per-chapter source fileName only for multi-source books', () => {
+    const anchorFileName = learningBookFixture.chapters[0].sourceAnchors[0].fileName
+    const multiSourceBook = {
+      ...learningBookFixture,
+      sources: [
+        learningBookFixture.source,
+        { ...learningBookFixture.source, id: 'doc_b-2', fileName: 'notes.md', format: 'Markdown' as const },
+      ],
+    }
+    const multiHtml = renderToStaticMarkup(
+      <BookProposalPage
+        book={multiSourceBook}
+        onBack={() => undefined}
+        onBookChange={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    )
+    expect(multiHtml).toContain(`来源：${anchorFileName}`)
+
+    const singleHtml = renderToStaticMarkup(
+      <BookProposalPage
+        book={learningBookFixture}
+        onBack={() => undefined}
+        onBookChange={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    )
+    expect(singleHtml).not.toContain('来源：')
+  })
 })

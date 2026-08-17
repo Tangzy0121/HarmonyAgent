@@ -70,6 +70,8 @@ const REAL_BOOK_ERROR_MESSAGES: Record<string, string> = {
   doc_too_long: '这份文档超过 45,000 字上限，请拆分后再上传。',
   docx_unreadable: '这份 DOCX 无法读取，请检查文件是否损坏或加密。',
   epub_unreadable: '这份 EPUB 无法读取，请检查文件是否损坏。',
+  too_many_sources: '一次最多合 5 份资料，请减少文件数量后再试。',
+  sources_too_long: '多份资料合计超过 90,000 字上限，请删减后再试。',
   invalid_proposal_edit: '目录修改未通过校验，请检查后重试。',
 }
 
@@ -616,11 +618,20 @@ function App() {
     setIsUploadSheetOpen(true)
   }
 
-  const submitUploadBook = async ({ file, goal, learnerLevel }: UploadBookSubmission) => {
+  const submitUploadBook = async ({ files, goal, learnerLevel }: UploadBookSubmission) => {
     setUploadError(null)
     try {
-      const documentMeta = await uploadDocument(file)
-      const created = await createBook({ documentId: documentMeta.id, goal, learnerLevel })
+      // 多文件合书：逐份上传（顺序保持稳定，便于错误定位），再一次性建书
+      const documentIds: string[] = []
+      for (const file of files) {
+        const documentMeta = await uploadDocument(file)
+        documentIds.push(documentMeta.id)
+      }
+      const created = await createBook(
+        documentIds.length > 1
+          ? { documentIds, goal, learnerLevel }
+          : { documentId: documentIds[0], goal, learnerLevel },
+      )
       setIsUploadSheetOpen(false)
       void listBooks().then(setRealBooks).catch(() => undefined)
       window.history.pushState({ screen: 'real-book', bookId: created.id }, '', `#proposal/${created.id}`)

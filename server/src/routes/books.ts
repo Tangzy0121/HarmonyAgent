@@ -13,11 +13,13 @@ import {
   type LearnerLevel,
   type LearningGoal,
   type PretestQuestion,
+  type SourceDocument,
   type StoredBook,
   type UserNote,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
 import { renderBookMarkdown } from '../books/bookMarkdown.js'
+import { bookSources, fingerprintOf } from '../books/bookSources.js'
 import { ChapterValidationError, normalizeChapterBlocks } from '../books/chapterValidation.js'
 import { buildDiagnosisMessages, normalizeDiagnosis } from '../books/diagnosisPrompt.js'
 import {
@@ -29,7 +31,7 @@ import {
 } from '../books/feynmanPrompt.js'
 import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
-import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
+import { buildDocumentDigest, buildMultiDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
 import { deriveEstimate } from '../books/estimate.js'
 import { listDueItems } from '../books/schedule.js'
@@ -161,15 +163,33 @@ function formatSizeLabel(sizeBytes: number): string {
   return `${Math.max(1, Math.ceil(sizeBytes / 1024))} KB`
 }
 
+function toSourceDocument(document: StoredDocument): SourceDocument {
+  return {
+    id: document.id,
+    fileName: document.fileName,
+    format: document.format ?? 'PDF',
+    pageCount: document.pageCount,
+    sizeLabel: formatSizeLabel(document.sizeBytes),
+    updatedLabel: document.createdAt.slice(0, 10),
+  }
+}
+
+/** 文档全文（sourceFingerprints 的散列输入）：逐页文本以换行拼接 */
+function documentFullText(document: StoredDocument): string {
+  return document.pages.map((page) => page.text).join('\n')
+}
+
 function buildBook(
-  document: StoredDocument,
+  documents: StoredDocument[],
   proposal: NormalizedProposal,
   goal: LearningGoal,
   learnerLevel: LearnerLevel,
   createBookId: () => string,
 ): StoredBook {
   const now = new Date().toISOString()
+  const multiSource = documents.length > 1
   const chapters = proposal.chapters.map((chapter, index) => {
+    const document = documents[(chapter.sourceDoc ?? 1) - 1] ?? documents[0]
     const pageText = document.pages.find((page) => page.page === chapter.pageStart)?.text ?? ''
     return {
       id: `ch-${index + 1}`,
@@ -179,7 +199,8 @@ function buildBook(
       coreConceptId: `concept-ch-${index + 1}`,
       estimatedMinutes: chapter.estimatedMinutes,
       sourceAnchors: [{
-        sourceId: 'S1',
+        // 多源书锚点指向真实 document id；单源书沿用 'S1'（存量书读取时回退主来源）
+        sourceId: multiSource ? document.id : 'S1',
         fileName: document.fileName,
         pageRange: `${chapter.pageStart}–${chapter.pageEnd}`,
         excerpt: pageText.slice(0, 80),
@@ -191,18 +212,19 @@ function buildBook(
 
   return {
     id: createBookId(),
-    source: {
-      id: document.id,
-      fileName: document.fileName,
-      format: document.format ?? 'PDF',
-      pageCount: document.pageCount,
-      sizeLabel: formatSizeLabel(document.sizeBytes),
-      updatedLabel: document.createdAt.slice(0, 10),
-    },
+    source: toSourceDocument(documents[0]),
+    ...(multiSource
+      ? {
+        sources: documents.map(toSourceDocument),
+        sourceFingerprints: Object.fromEntries(
+          documents.map((document) => [document.id, fingerprintOf(documentFullText(document))]),
+        ),
+      }
+      : {}),
     goal,
     learnerLevel,
     proposal: {
-      title: proposal.title || document.fileName.replace(/\.pdf$/iu, ''),
+      title: proposal.title || documents[0].fileName.replace(/\.pdf$/iu, ''),
       description: proposal.description,
       rationale: proposal.rationale,
       estimatedMinutes: proposal.estimatedMinutes,
@@ -363,9 +385,8 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     const goal = isRecord(body) ? body.goal : undefined
     const learnerLevel = isRecord(body) ? body.learnerLevel : undefined
     const documentId = isRecord(body) ? body.documentId : undefined
+    const documentIdsRaw = isRecord(body) ? body.documentIds : undefined
     if (
-      typeof documentId !== 'string' ||
-      !documentId.trim() ||
       !LEARNING_GOALS.includes(goal as LearningGoal) ||
       !LEARNER_LEVELS.includes(learnerLevel as LearnerLevel)
     ) {
@@ -373,15 +394,52 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
 
-    let document: StoredDocument | null
-    try {
-      document = await documentStore.get(documentId)
-    } catch (error) {
-      res.status(500).json({ error: 'internal_error' })
+    // 多文件合书：documentIds（1–5 份）优先；缺省回退旧字段 documentId（单串等价单元素数组）
+    let documentIds: string[]
+    if (documentIdsRaw !== undefined && documentIdsRaw !== null) {
+      if (
+        !Array.isArray(documentIdsRaw) ||
+        documentIdsRaw.length === 0 ||
+        !documentIdsRaw.every((id) => typeof id === 'string' && id.trim() !== '')
+      ) {
+        res.status(400).json({ error: 'invalid_request' })
+        return
+      }
+      if (documentIdsRaw.length > 5) {
+        res.status(409).json({ error: 'too_many_sources' })
+        return
+      }
+      documentIds = documentIdsRaw
+    } else if (typeof documentId === 'string' && documentId.trim()) {
+      documentIds = [documentId]
+    } else {
+      res.status(400).json({ error: 'invalid_request' })
       return
     }
-    if (document === null) {
-      res.status(404).json({ error: 'document_not_found' })
+
+    const documents: StoredDocument[] = []
+    for (const id of documentIds) {
+      let document: StoredDocument | null
+      try {
+        document = await documentStore.get(id)
+      } catch {
+        res.status(500).json({ error: 'internal_error' })
+        return
+      }
+      if (document === null) {
+        res.status(404).json({ error: 'document_not_found' })
+        return
+      }
+      documents.push(document)
+    }
+
+    // 合计字符数上限（单份 45,000 字在上传期已卡；这里卡跨资料合计，保护提案预算）
+    const totalCharacters = documents.reduce(
+      (sum, document) => sum + document.pages.reduce((pageSum, page) => pageSum + page.text.length, 0),
+      0,
+    )
+    if (totalCharacters > 90_000) {
+      res.status(422).json({ error: 'sources_too_long' })
       return
     }
 
@@ -391,11 +449,21 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
 
+    const multiSource = documents.length > 1
     const messages = buildProposalMessages({
-      digest: buildDocumentDigest(document.pages),
+      digest: multiSource
+        ? buildMultiDocumentDigest(documents.map((document) => ({
+          fileName: document.fileName,
+          pageCount: document.pageCount,
+          pages: document.pages,
+        })))
+        : buildDocumentDigest(documents[0].pages),
       goal: goal as LearningGoal,
       learnerLevel: learnerLevel as LearnerLevel,
-      pageCount: document.pageCount,
+      pageCount: documents[0].pageCount,
+      ...(multiSource
+        ? { documents: documents.map((document) => ({ fileName: document.fileName, pageCount: document.pageCount })) }
+        : {}),
     })
 
     // 失败分类：上游传输/HTTP/流错误直接失败；解析或校验失败带修正指令重试一次
@@ -410,7 +478,13 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
         return
       }
       try {
-        proposal = normalizeProposal(extractJsonObject(text), document.pageCount)
+        proposal = normalizeProposal(
+          extractJsonObject(text),
+          multiSource
+            ? documents.reduce((sum, document) => sum + document.pageCount, 0)
+            : documents[0].pageCount,
+          multiSource ? documents.map((document) => document.pageCount) : undefined,
+        )
         break
       } catch (error) {
         const reason = error instanceof ProposalValidationError ? error.code : 'proposal_invalid'
@@ -428,14 +502,14 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
 
-    const book = buildBook(document, proposal, goal as LearningGoal, learnerLevel as LearnerLevel, createBookId)
+    const book = buildBook(documents, proposal, goal as LearningGoal, learnerLevel as LearnerLevel, createBookId)
     try {
       await bookStore.save(book)
     } catch {
       res.status(500).json({ error: 'internal_error' })
       return
     }
-    emitLog(logger, { category: 'book_created', bookId: book.id, documentId: document.id })
+    emitLog(logger, { category: 'book_created', bookId: book.id, documentId: documents[0].id })
     res.status(201).json({ book })
   })
 
@@ -604,7 +678,13 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     const anchorRange = parseAnchorPageRange(chapter.sourceAnchors[0]?.pageRange)
     let document: StoredDocument | null
     try {
-      document = await documentStore.get(book.source.id)
+      // 多源书：按章首锚点 sourceId 取对应资料；'S1'（存量单源书）或找不到时回退主来源
+      const anchorSourceId = chapter.sourceAnchors[0]?.sourceId
+      const primaryId = anchorSourceId !== undefined && anchorSourceId !== 'S1' ? anchorSourceId : book.source.id
+      document = await documentStore.get(primaryId)
+      if (document === null && primaryId !== book.source.id) {
+        document = await documentStore.get(book.source.id)
+      }
     } catch {
       res.status(500).json({ error: 'internal_error' })
       return
