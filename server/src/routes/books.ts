@@ -193,7 +193,7 @@ function buildBook(
     source: {
       id: document.id,
       fileName: document.fileName,
-      format: 'PDF',
+      format: document.format ?? 'PDF',
       pageCount: document.pageCount,
       sizeLabel: formatSizeLabel(document.sizeBytes),
       updatedLabel: document.createdAt.slice(0, 10),

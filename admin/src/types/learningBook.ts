@@ -15,7 +15,7 @@ export type BookBlockType = 'explanation' | 'example' | 'formula' | 'citation' |
 export interface SourceDocument {
   id: string
   fileName: string
-  format: 'PDF'
+  format: 'PDF' | 'Markdown' | 'DOCX'
   pageCount: number
   sizeLabel: string
   updatedLabel: string

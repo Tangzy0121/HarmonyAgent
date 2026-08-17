@@ -344,6 +344,7 @@ const pretestResultPayload = {
 const documentMeta = {
   id: 'doc-1',
   fileName: '机器学习 · 第三章.pdf',
+  format: 'PDF' as const,
   sizeBytes: 1024,
   pageCount: 24,
   createdAt: '2026-08-10T02:00:00.000Z',
