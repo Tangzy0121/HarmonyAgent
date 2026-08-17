@@ -27,6 +27,7 @@ import { LearningExplanationPage } from './pages/LearningExplanationPage'
 import { LearningVerificationPage } from './pages/LearningVerificationPage'
 import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
+import { LearningDataPage } from './pages/LearningDataPage'
 import { TodayPage } from './pages/TodayPage'
 import type { AgentContextScope, LearningBook, ReviewScheduleEntry } from './types/learningBook'
 import type { LearnerProfile } from './types/learnerProfile'
@@ -39,6 +40,7 @@ const learningVerificationHash = '#learn/supervised-learning/verification'
 const learningCompletionHash = '#learn/supervised-learning/completion'
 const learningMapChangeHash = '#learning/supervised-learning/change'
 const todayOutcomeHash = '#today/learning-result'
+const learningDataHash = '#learning-data'
 
 function bookRouteFromHash(hash: string): { bookId: string; chapterId: string } | null {
   const match = hash.match(/^#book\/([^/]+)\/(ch-[^/]+)$/)
@@ -158,6 +160,7 @@ function App() {
   const [activeLearningStage, setActiveLearningStage] = useState<LearningStage | null>(() => window.location.hash === learningCompletionHash ? 'completion' : window.location.hash === learningVerificationHash ? 'verification' : window.location.hash === learningExplanationHash ? 'explanation' : null)
   const [isMapChangeFocus, setIsMapChangeFocus] = useState(() => window.location.hash === learningMapChangeHash)
   const [isTodayOutcome, setIsTodayOutcome] = useState(() => window.location.hash === todayOutcomeHash)
+  const [isLearningDataOpen, setIsLearningDataOpen] = useState(() => window.location.hash === learningDataHash)
   const [drawerSnap, setDrawerSnap] = useState<DrawerSnap>(() => window.history.state?.overlay === 'agent' ? window.history.state.agentSnap ?? 'default' : 'closed')
   const [agentDraft, setAgentDraft] = useState('')
   const [mapViewport, setMapViewport] = useState<MapViewport>(initialMapViewport)
@@ -279,6 +282,7 @@ function App() {
         setActiveLearningStage(nextLearningStage)
         setIsMapChangeFocus(nextMapChangeFocus)
         setIsTodayOutcome(nextTodayOutcome)
+        setIsLearningDataOpen(window.location.hash === learningDataHash)
         setDrawerSnap(nextDrawerSnap)
         if (!nextInteractiveBook && !nextLearningId && !nextMapChangeFocus) setAgentModeLabel(undefined)
         if (nextDocumentId || nextInteractiveBook || nextLearningId || nextRealBookId) setActiveDestination('library')
@@ -573,6 +577,14 @@ function App() {
       setActiveLearningStage(null)
       setIsMapChangeFocus(false)
       setIsTodayOutcome(false)
+      setIsLearningDataOpen(false)
+    })
+  }
+
+  const openLearningData = () => {
+    window.history.pushState({ screen: 'learning-data' }, '', learningDataHash)
+    updateWithViewTransition(() => {
+      setIsLearningDataOpen(true)
     })
   }
 
@@ -791,6 +803,7 @@ function App() {
       setActiveLearningStage(null)
       setIsMapChangeFocus(false)
       setIsTodayOutcome(false)
+      setIsLearningDataOpen(false)
       setActiveDestination(destination)
     })
   }
@@ -854,15 +867,16 @@ function App() {
       }
     >
         <TodayPage
-          isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'today'}
+          isActive={!isLearningDataOpen && !activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'today'}
           isOutcomeMode={isTodayOutcome}
           onContinue={continueToday}
           learningEvidenceCount={todayBook.evidence.length}
           learningBook={todayBook}
           learnerProfile={learnerProfile}
+          onOpenLearningData={openLearningData}
         />
         <LearningMapPage
-          isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'learning'}
+          isActive={!isLearningDataOpen && !activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'learning'}
           viewport={mapViewport}
           onViewportChange={setMapViewport}
           isChangeFocus={isMapChangeFocus}
@@ -872,12 +886,17 @@ function App() {
           mapRelationships={bookMap.nodes.length > 0 ? bookMap.relationships : undefined}
         />
         <KnowledgeLibraryPage
-          isActive={!activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'library'}
+          isActive={!isLearningDataOpen && !activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'library'}
           onOpenDocument={openDocument}
           bookStatusLabel={bookStatusLabel}
           realBooks={realBooks}
           onUploadBook={openUploadBook}
           onOpenRealBook={openRealBook}
+        />
+        <LearningDataPage
+          isActive={isLearningDataOpen}
+          learnerProfile={learnerProfile}
+          onOpenBook={openRealBook}
         />
         {activeDocumentId === 'ml-chapter-03' && !activeRealBookId && (
           <BookProposalPage

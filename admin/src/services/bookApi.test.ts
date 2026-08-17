@@ -699,6 +699,7 @@ describe('getLearnerProfile', () => {
       periodDistribution: { morning: 0.5, afternoon: 0.5, evening: 0, night: 0 },
       dailyAverageEvents: 0.13,
       studiedToday: true,
+      activeDayKeys: ['2026-08-15', '2026-08-16', '2026-08-17'],
     },
     derivedAt: '2026-08-17T08:00:00.000Z',
   }

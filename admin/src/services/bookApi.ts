@@ -343,6 +343,8 @@ function isRhythmPayload(value: unknown): value is LearningRhythm {
     && isFiniteNumber(value.periodDistribution.night)
     && isFiniteNumber(value.dailyAverageEvents)
     && typeof value.studiedToday === 'boolean'
+    && Array.isArray(value.activeDayKeys)
+    && value.activeDayKeys.every((key: unknown) => typeof key === 'string')
 }
 
 function parseLearnerProfilePayload(value: unknown): LearnerProfile {

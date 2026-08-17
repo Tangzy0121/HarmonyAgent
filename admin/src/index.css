@@ -10113,3 +10113,40 @@ button:disabled {
   font-weight: 640;
   text-align: right;
 }
+
+/* ===== 学习仪表盘（learning-data-page） ===== */
+.learning-data-empty { margin: 24px 20px; padding: 28px 20px; border: 1px dashed rgb(35 31 29 / 0.18); border-radius: 16px; text-align: center; }
+.learning-data-empty p:first-child { color: rgb(35 31 29 / 0.86); font-size: 0.86rem; font-weight: 700; }
+.learning-data-empty p:last-child { margin-top: 8px; color: rgb(35 31 29 / 0.56); font-size: 0.72rem; line-height: 1.7; }
+.learning-data-section { margin: 16px 20px 0; padding: 16px; border: 1px solid rgb(35 31 29 / 0.08); border-radius: 16px; background: #fff; }
+.learning-data-section h2 { color: rgb(35 31 29 / 0.86); font-size: 0.84rem; font-weight: 720; }
+.learning-data-streak { margin-top: 10px; color: rgb(35 31 29 / 0.72); font-size: 0.78rem; }
+.learning-data-streak strong { color: #9c5848; font-size: 1.2rem; font-weight: 760; }
+.learning-data-streak span { margin-left: 6px; color: rgb(35 31 29 / 0.56); font-size: 0.68rem; }
+.learning-data-heatmap { display: grid; grid-template-columns: repeat(15, 1fr); gap: 4px; margin-top: 12px; }
+.learning-data-heatmap i { aspect-ratio: 1; border-radius: 3px; background: rgb(35 31 29 / 0.07); }
+.learning-data-heatmap i.is-active { background: #9c5848; }
+.learning-data-heatmap i.is-today { outline: 1.5px solid #9c5848; outline-offset: 1px; }
+.learning-data-note { margin-top: 10px; color: rgb(35 31 29 / 0.56); font-size: 0.66rem; }
+.learning-data-buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.learning-data-buckets li { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px; border-radius: 10px; background: rgb(35 31 29 / 0.04); }
+.learning-data-buckets strong { color: #9c5848; font-size: 0.98rem; font-weight: 760; }
+.learning-data-buckets span { color: rgb(35 31 29 / 0.56); font-size: 0.62rem; }
+.learning-data-subtitle { margin-top: 14px; color: rgb(35 31 29 / 0.72); font-size: 0.72rem; font-weight: 700; }
+.learning-data-concepts { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.learning-data-concepts li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgb(35 31 29 / 0.04); font-size: 0.72rem; }
+.learning-data-concepts li span { flex: 1; color: rgb(35 31 29 / 0.8); font-weight: 640; }
+.learning-data-concepts li em { color: #b66b58; font-size: 0.68rem; font-style: normal; font-weight: 700; }
+.learning-data-concepts--cliff li { background: rgb(182 107 88 / 0.1); }
+.learning-data-concepts--cliff button { padding: 4px 10px; border: 0; border-radius: 99px; color: #fff; background: #9c5848; font-size: 0.62rem; font-weight: 700; }
+.learning-data-concepts--cliff button:disabled { background: rgb(35 31 29 / 0.2); }
+.learning-data-periods { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.learning-data-periods li { display: grid; grid-template-columns: 34px 1fr 30px; align-items: center; gap: 8px; font-size: 0.68rem; }
+.learning-data-periods li span { color: rgb(35 31 29 / 0.72); font-weight: 640; }
+.learning-data-periods li em { color: rgb(35 31 29 / 0.56); font-style: normal; text-align: right; }
+.learning-data-period-bar { height: 8px; border-radius: 99px; background: rgb(35 31 29 / 0.07); overflow: hidden; }
+.learning-data-period-bar i { display: block; height: 100%; border-radius: 99px; background: #9c5848; }
+/* 今日页学习数据卡片 */
+.today-learning-data-card { display: flex; align-items: center; gap: 10px; margin: 12px 20px 0; padding: 12px 14px; width: calc(100% - 40px); border: 1px solid rgb(156 88 72 / 0.2); border-radius: 14px; background: rgb(156 88 72 / 0.06); text-align: left; }
+.today-learning-data-card strong { color: #9c5848; font-size: 0.78rem; font-weight: 720; }
+.today-learning-data-card span { flex: 1; color: rgb(35 31 29 / 0.56); font-size: 0.66rem; }

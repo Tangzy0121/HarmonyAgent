@@ -28,6 +28,8 @@ export interface LearningRhythm {
   dailyAverageEvents: number
   /** 今天（本地日）是否已有学习事件 */
   studiedToday: boolean
+  /** 近 30 天活跃日（YYYY-MM-DD，本地日，升序），热力条数据源 */
+  activeDayKeys: string[]
 }
 
 export interface LearnerProfile {
@@ -158,7 +160,9 @@ function deriveConcepts(books: StoredBook[], now: Date): ConceptMastery[] {
 }
 
 function localDayKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
 }
 
 function deriveRhythm(books: StoredBook[], now: Date): LearningRhythm {
@@ -175,6 +179,7 @@ function deriveRhythm(books: StoredBook[], now: Date): LearningRhythm {
       periodDistribution: { morning: 0, afternoon: 0, evening: 0, night: 0 },
       dailyAverageEvents: 0,
       studiedToday: false,
+      activeDayKeys: [],
     }
   }
 
@@ -218,6 +223,7 @@ function deriveRhythm(books: StoredBook[], now: Date): LearningRhythm {
     },
     dailyAverageEvents: Math.round((total / 30) * 1e5) / 1e5,
     studiedToday: allDays.has(localDayKey(now)),
+    activeDayKeys: [...activeDays].sort(),
   }
 }
 

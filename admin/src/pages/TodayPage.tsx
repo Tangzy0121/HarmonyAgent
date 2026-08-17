@@ -16,11 +16,12 @@ interface PageProps {
   learningEvidenceCount?: number
   learningBook?: LearningBook
   learnerProfile?: LearnerProfile | null
+  onOpenLearningData?: () => void
 }
 
 type OutcomeOptionId = typeof todayLearningOutcome.options[number]['id']
 
-export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile }: PageProps) {
+export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile, onOpenLearningData }: PageProps) {
   const [outcomeSelection, setOutcomeSelection] = useState<OutcomeOptionId>('tomorrow')
   const [isOutcomeConfirmed, setIsOutcomeConfirmed] = useState(false)
   const projectedFocus = deriveTodayFocus(learningBook, new Date(), learnerProfile) ?? todayPageContent.focus
@@ -48,6 +49,13 @@ export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learnin
         <TodayLearningPanel focus={projectedFocus} onContinue={onContinue} />
 
         {learningEvidenceCount > 0 && <p className="today-learning-evidence" role="status">互动学习书已记录 {learningEvidenceCount} 条可验证学习证据</p>}
+
+        {learnerProfile && onOpenLearningData && (
+          <button type="button" className="today-learning-data-card" onClick={onOpenLearningData}>
+            <strong>学习数据</strong>
+            <span>已连续学习 {learnerProfile.rhythm.streakDays} 天 · 近 30 天活跃 {learnerProfile.rhythm.activeDays30} 天，点击查看</span>
+          </button>
+        )}
 
         <section className="today-secondary-actions" aria-labelledby="today-actions-title">
           <header>

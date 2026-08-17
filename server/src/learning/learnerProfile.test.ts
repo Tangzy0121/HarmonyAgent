@@ -167,6 +167,9 @@ describe('deriveLearnerProfile · rhythm', () => {
     expect(rhythm.streakDays).toBe(3)
     expect(rhythm.dailyAverageEvents).toBeCloseTo(5 / 30, 5) // 5 个事件（含出窗的 38 天前那次）/ 30 天
     expect(rhythm.studiedToday).toBe(true)
+    expect(rhythm.activeDayKeys).toHaveLength(4)
+    expect([...rhythm.activeDayKeys].sort()).toEqual(rhythm.activeDayKeys) // 升序
+    expect(rhythm.activeDayKeys.every((key) => /^\d{4}-\d{2}-\d{2}$/.test(key))).toBe(true)
   })
 
   it('starts the streak from yesterday when today has no events yet', () => {
