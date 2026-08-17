@@ -165,6 +165,31 @@ export interface UserNote {
   createdAt: string
 }
 
+/** 用户问答卡（对话沉淀「存入题库」产物，与 server bookTypes.UserCard 镜像） */
+export interface UserCard {
+  id: string
+  chapterId: string
+  front: string
+  back: string
+  hint?: string
+  createdAt: string
+}
+
+/** 题库条目（与 server books/bank.ts 镜像，派生读模型） */
+export interface BankItem {
+  blockId: string
+  chapterId: string
+  kind: 'quiz' | 'flash_cards'
+  title: string
+  conceptId: string | null
+  conceptLabel: string | null
+  attempts: number
+  lastCorrect: boolean | null
+  mastery: number
+  schedule: { stage: number; dueAt: string } | null
+  wrong: boolean
+}
+
 export interface QuizAttempt {
   id: string
   chapterId: string

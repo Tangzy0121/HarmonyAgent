@@ -25,6 +25,16 @@ interface AgentDrawerProps {
   onNewConversation?: () => void
   onContextEnabledChange?: (enabled: boolean) => void
   onSourceOpen?: (source: BookAgentSource) => void
+  /** 对话沉淀（真实书）：把该条回答存为笔记 / 存入题库问答卡；false 表示失败（组件显示可重试提示） */
+  onCaptureNote?: (input: AgentCaptureInput) => void | Promise<boolean | void>
+  onCaptureCard?: (input: AgentCaptureInput) => void | Promise<boolean | void>
+}
+
+export interface AgentCaptureInput {
+  question: string
+  answer: string
+  /** 首个引用页码（问答卡 hint） */
+  firstSourcePage?: string
 }
 
 interface AgentMessage {
@@ -106,8 +116,12 @@ export function AgentDrawer({
   onNewConversation,
   onContextEnabledChange,
   onSourceOpen,
+  onCaptureNote,
+  onCaptureCard,
 }: AgentDrawerProps) {
   const [hasContext, setHasContext] = useState(true)
+  // 对话沉淀反馈：messageId → 已存类型或 'failed'
+  const [captureFeedback, setCaptureFeedback] = useState<Record<string, 'note' | 'card' | 'failed'>>({})
   const [activeView, setActiveView] = useState<'conversation' | 'history'>('conversation')
   const [messages, setMessages] = useState<AgentMessage[]>(initialMessages)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -297,7 +311,7 @@ export function AgentDrawer({
 
             {isBookMode && isFullScreen && visibleMessageCount ? (
               <section className="agent-transcript agent-transcript--book" aria-label="当前学习书对话">
-                {bookSession.messages.map((message) => {
+                {bookSession.messages.map((message, messageIndex, allMessages) => {
                   const sources = message.role === 'assistant' ? referencedSources(message.content, message.sources) : []
                   return <article className={`agent-message agent-message--${message.role === 'assistant' ? 'agent' : 'user'}`} key={message.id}>
                     <header>
@@ -329,6 +343,34 @@ export function AgentDrawer({
                           <em>查看原文位置 <Icon name="arrow" size={15} /></em>
                         </button></li>)}
                     </ul>}
+                    {message.role === 'assistant' && message.status === 'complete' && (onCaptureNote || onCaptureCard) && (() => {
+                      const question = allMessages.slice(0, messageIndex).reverse().find((entry) => entry.role === 'user')?.content ?? ''
+                      const capture = (action: 'note' | 'card') => {
+                        const handler = action === 'note' ? onCaptureNote : onCaptureCard
+                        if (!handler) return
+                        Promise.resolve(handler({
+                          question,
+                          answer: message.content,
+                          firstSourcePage: message.sources?.[0]?.pageRange,
+                        })).then((ok) => {
+                          setCaptureFeedback((current) => ({ ...current, [message.id]: ok === false ? 'failed' : action }))
+                        }).catch(() => {
+                          setCaptureFeedback((current) => ({ ...current, [message.id]: 'failed' }))
+                        })
+                      }
+                      const feedback = captureFeedback[message.id]
+                      return (
+                        <div className="agent-message__capture">
+                          {onCaptureNote && <button type="button" onClick={() => capture('note')} disabled={feedback === 'note'}>
+                            <Icon name="note" size={14} />{feedback === 'note' ? '已存为笔记' : '存为笔记'}
+                          </button>}
+                          {onCaptureCard && <button type="button" onClick={() => capture('card')} disabled={feedback === 'card'}>
+                            <Icon name="add" size={14} />{feedback === 'card' ? '已存入题库' : '存入题库'}
+                          </button>}
+                          {feedback === 'failed' && <span role="alert">保存失败，请重试。</span>}
+                        </div>
+                      )
+                    })()}
                   </article>
                 })}
                 {(bookSession.status === 'streaming' || bookSession.status === 'error' || bookSession.status === 'cancelled') && <div className="agent-session-actions" role="group" aria-label="本轮回答操作">

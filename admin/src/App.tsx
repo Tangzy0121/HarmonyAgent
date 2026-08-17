@@ -19,7 +19,7 @@ import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
 import { projectBooksToMap } from './domain/bookMapProjection'
 import { pickTodayRealBook } from './domain/todayNextStep'
-import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getLearnerProfile, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, addCard, addNote, confirmBook, createBook, deleteNote, getBank, getBook, getLearnerProfile, getReviewDue, listBooks, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -28,7 +28,7 @@ import { LearningVerificationPage } from './pages/LearningVerificationPage'
 import { LearningCompletionPage } from './pages/LearningCompletionPage'
 import { LearningMapPage } from './pages/LearningMapPage'
 import { TodayPage } from './pages/TodayPage'
-import type { AgentContextScope, LearningBook, ReviewScheduleEntry } from './types/learningBook'
+import type { AgentContextScope, BankItem, LearningBook, ReviewScheduleEntry } from './types/learningBook'
 import type { LearnerProfile } from './types/learnerProfile'
 import type { BookAgentSource } from './types/bookAgent'
 import type { Destination, DrawerSnap, MapViewport } from './types/prototype'
@@ -413,6 +413,17 @@ function App() {
     return () => { cancelled = true }
   }, [realBooks])
 
+  // 题库：看板打开时拉取该书题库（派生读模型）；作答/自评改变书状态后自动刷新
+  const [bankItems, setBankItems] = useState<BankItem[]>([])
+  useEffect(() => {
+    if (!isMasteryBoardOpen || activeRealBookId === null) return
+    let cancelled = false
+    getBank(activeRealBookId)
+      .then((items) => { if (!cancelled) setBankItems(items) })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [isMasteryBoardOpen, activeRealBookId, learningBook])
+
   // mock 书会话内进度快照：真实书占用 learningBook 状态位期间保留，回到 mock 场景时恢复
   useEffect(() => {
     if (learningBook.id === learningBookFixture.id) mockBookSnapshotRef.current = learningBook
@@ -550,6 +561,30 @@ function App() {
     try {
       await deleteNote(bookId, noteId)
       setLearningBook((current) => current.id === bookId ? { ...current, userNotes: current.userNotes.filter((note) => note.id !== noteId) } : current)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // 对话沉淀：Agent 回答 → 存为当前章笔记（挂章首块）/ 存入题库问答卡（规格 D，规则拼装零 LLM）
+  const captureAgentNote = async ({ answer }: { question: string; answer: string }): Promise<boolean> => {
+    const chapter = learningBook.chapters.find((entry) => entry.id === activeBookChapterId)
+    const blockId = chapter?.blocks[0]?.id
+    if (!blockId) return false
+    return addRealBookNote(activeBookChapterId, blockId, answer)
+  }
+
+  const captureAgentCard = async ({ question, answer, firstSourcePage }: { question: string; answer: string; firstSourcePage?: string }): Promise<boolean> => {
+    const bookId = activeRealBookIdRef.current
+    if (!bookId) return false
+    try {
+      await addCard(bookId, {
+        chapterId: activeBookChapterId,
+        front: question.trim() || '未命名问题',
+        back: answer.replace(/\s+/g, ' ').trim().slice(0, 200),
+        hint: firstSourcePage,
+      })
       return true
     } catch {
       return false
@@ -850,6 +885,8 @@ function App() {
           onNewConversation={isInteractiveBook ? bookAgent.newConversation : undefined}
           onContextEnabledChange={isInteractiveBook ? setBookContextEnabled : undefined}
           onSourceOpen={isInteractiveBook ? openBookAgentSource : undefined}
+          onCaptureNote={isRealBookLoaded ? captureAgentNote : undefined}
+          onCaptureCard={isRealBookLoaded ? captureAgentCard : undefined}
         />
       }
     >
@@ -992,6 +1029,10 @@ function App() {
           <MasteryBoardSheet
             key={activeRealBookId}
             rows={buildMasteryBoard(learningBook, new Date())}
+            book={learningBook}
+            bankItems={bankItems}
+            onSubmitQuizAttempt={submitRealQuizAttempt}
+            onFlashGrade={submitFlashReviewGrade}
             onOpenConcept={openMasteryBoardConcept}
             onClose={() => setIsMasteryBoardOpen(false)}
           />

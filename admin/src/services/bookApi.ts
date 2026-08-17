@@ -17,6 +17,8 @@ import type {
   QuizAttempt,
   ReviewKind,
   ReviewScheduleEntry,
+  BankItem,
+  UserCard,
   UserNote,
 } from '../types/learningBook'
 import type { ConceptMastery, LearnerProfile, LearningRhythm } from '../types/learnerProfile'
@@ -361,6 +363,65 @@ export async function getLearnerProfile(): Promise<LearnerProfile> {
   const response = await fetch('/api/learner/profile')
   if (!response.ok) throw await readHttpError(response)
   return parseLearnerProfilePayload(await readJson(response))
+}
+
+function isBankItemPayload(value: unknown): value is BankItem {
+  return isRecord(value)
+    && typeof value.blockId === 'string'
+    && typeof value.chapterId === 'string'
+    && (value.kind === 'quiz' || value.kind === 'flash_cards')
+    && typeof value.title === 'string'
+    && (typeof value.conceptId === 'string' || value.conceptId === null)
+    && (typeof value.conceptLabel === 'string' || value.conceptLabel === null)
+    && isFiniteNumber(value.attempts)
+    && (typeof value.lastCorrect === 'boolean' || value.lastCorrect === null)
+    && isFiniteNumber(value.mastery)
+    && (value.schedule === null || (isRecord(value.schedule) && isFiniteNumber(value.schedule.stage) && typeof value.schedule.dueAt === 'string'))
+    && typeof value.wrong === 'boolean'
+}
+
+function parseBankPayload(value: unknown): BankItem[] {
+  if (isRecord(value) && Array.isArray(value.items) && value.items.every(isBankItemPayload)) {
+    return value.items
+  }
+  throw new BookApiError('invalid_bank_payload', SAFE_HTTP_MESSAGE)
+}
+
+/** 题库（派生读模型：quiz + flash_cards + 用户问答卡） */
+export async function getBank(bookId: string): Promise<BankItem[]> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/bank`)
+  if (!response.ok) throw await readHttpError(response)
+  return parseBankPayload(await readJson(response))
+}
+
+function isUserCardPayload(value: unknown): value is UserCard {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.chapterId === 'string'
+    && typeof value.front === 'string'
+    && typeof value.back === 'string'
+    && (value.hint === undefined || typeof value.hint === 'string')
+    && typeof value.createdAt === 'string'
+}
+
+export interface AddCardInput {
+  chapterId: string
+  front: string
+  back: string
+  hint?: string
+}
+
+/** 用户问答卡（对话沉淀「存入题库」） */
+export async function addCard(bookId: string, input: AddCardInput): Promise<UserCard> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/cards`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) throw await readHttpError(response)
+  const value = await readJson(response)
+  if (isRecord(value) && isUserCardPayload(value.card)) return value.card
+  throw new BookApiError('invalid_note_payload', SAFE_HTTP_MESSAGE)
 }
 
 function parseReviewResultPayload(value: unknown): ReviewScheduleEntry | null {

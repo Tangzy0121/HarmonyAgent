@@ -14,6 +14,7 @@ import {
   type LearningGoal,
   type PretestQuestion,
   type StoredBook,
+  type UserCard,
   type UserNote,
 } from '../books/bookTypes.js'
 import { buildChapterMessages } from '../books/chapterPrompt.js'
@@ -31,7 +32,8 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
-import { listDueItems } from '../books/schedule.js'
+import { listDueItems, applyReviewGrade } from '../books/schedule.js'
+import { buildBankItems } from '../books/bank.js'
 import type { RuntimeActor } from '../agent/runtime/agentRuntimeTypes.js'
 import {
   LearningEvidenceService,
@@ -74,6 +76,7 @@ export interface BooksLogEvent {
     | 'note_recorded'
     | 'note_removed'
     | 'book_exported'
+    | 'card_recorded'
   status?: number
   name?: string
   attempt?: number
@@ -1011,6 +1014,80 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       .send(markdown)
   })
 
+  // 题库：派生读模型（quiz + flash_cards + 用户问答卡），零 LLM
+  router.get('/:id/bank', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    res.status(200).json({ items: buildBankItems(book) })
+  })
+
+  // 用户问答卡（对话沉淀「存入题库」）：用户数据，不在生成白名单内；每书上限 100 张
+  router.post('/:id/cards', async (req, res) => {
+    const body: unknown = req.body
+    const chapterId = isRecord(body) ? body.chapterId : undefined
+    const front = isRecord(body) ? body.front : undefined
+    const back = isRecord(body) ? body.back : undefined
+    const hint = isRecord(body) ? body.hint : undefined
+    if (
+      typeof chapterId !== 'string' || !chapterId.trim() ||
+      typeof front !== 'string' || !front.trim() ||
+      typeof back !== 'string' || !back.trim() ||
+      (hint !== undefined && typeof hint !== 'string')
+    ) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    if (!book.chapters.some((entry) => entry.id === chapterId)) {
+      res.status(409).json({ error: 'chapter_not_found' })
+      return
+    }
+    if ((book.userCards ?? []).length >= 100) {
+      res.status(409).json({ error: 'card_limit_reached' })
+      return
+    }
+
+    const card: UserCard = {
+      id: `card_${randomUUID()}`,
+      chapterId,
+      front: front.trim(),
+      back: back.trim(),
+      ...(typeof hint === 'string' && hint.trim() ? { hint: hint.trim() } : {}),
+      createdAt: new Date().toISOString(),
+    }
+    try {
+      await bookStore.update(book.id, (current) => {
+        current.userCards = [...(current.userCards ?? []), card]
+        current.updatedAt = card.createdAt
+      })
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'card_recorded', bookId: book.id, chapterId })
+    res.status(201).json({ card })
+  })
+
   router.get('/:id/review/due', async (req, res) => {
     let book: StoredBook | null
     try {
@@ -1047,6 +1124,27 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     const chapter = book.chapters.find((entry) => entry.blocks.some((block) => block.id === req.params.blockId))
     const block = chapter?.blocks.find((entry) => entry.id === req.params.blockId)
     if (chapter === undefined || block === undefined || block.type !== 'flash_cards') {
+      // 用户问答卡：走轻量调度路径（applyReviewGrade 直接更新，不经 evidenceService，规格 §4）
+      const card = (book.userCards ?? []).find((entry) => entry.id === req.params.blockId)
+      if (card !== undefined) {
+        try {
+          const { book: updated, result: schedule } = await bookStore.update(book.id, (current) => {
+            const scheduleMap = { ...(current.reviewSchedule ?? {}) }
+            const next = applyReviewGrade(scheduleMap[card.id], 'flash_cards', result === 'remembered', new Date())
+            if (next === null) delete scheduleMap[card.id]
+            else scheduleMap[card.id] = next
+            current.reviewSchedule = scheduleMap
+            current.updatedAt = new Date().toISOString()
+            return next
+          })
+          void updated
+          emitLog(logger, { category: 'attempt_recorded', bookId: book.id, chapterId: card.chapterId })
+          res.status(200).json({ schedule })
+        } catch {
+          res.status(500).json({ error: 'internal_error' })
+        }
+        return
+      }
       res.status(409).json({ error: 'review_target_invalid' })
       return
     }

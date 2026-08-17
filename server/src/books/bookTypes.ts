@@ -188,6 +188,16 @@ export interface UserNote {
   createdAt: string
 }
 
+/** 用户问答卡（对话沉淀「存入题库」产物）：用户数据，不在生成白名单内 */
+export interface UserCard {
+  id: string
+  chapterId: string
+  front: string
+  back: string
+  hint?: string
+  createdAt: string
+}
+
 export interface QuizAttempt {
   id: string
   chapterId: string
@@ -326,6 +336,7 @@ export interface StoredBook {
   chapters: BookChapter[]
   activeChapterId: string
   userNotes: UserNote[]
+  userCards?: UserCard[]
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest

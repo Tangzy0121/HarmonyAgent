@@ -1055,7 +1055,7 @@ describe('App · 真实学习书接线', () => {
 
     const sheet = descendants(container).find((element) => element.className.split(' ').includes('mastery-sheet'))
     expect(sheet, 'mastery board sheet').toBeDefined()
-    expect(sheet!.textContent).toContain('掌握度看板')
+    expect(sheet!.textContent).toContain('题库与掌握度')
     expect(sheet!.textContent).toContain('监督学习')
     expect(sheet!.textContent).toContain('未学')
   })

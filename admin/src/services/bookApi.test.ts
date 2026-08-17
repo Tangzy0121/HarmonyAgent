@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { learningBookFixture } from '../data/learningBook'
 import { BookApiError } from '../domain/learningBookApi'
 import {
+  addCard,
   addNote,
   bookExportUrl,
   confirmBook,
   createBook,
   deleteNote,
+  getBank,
   getBook,
   getLearnerProfile,
   getPretest,
@@ -725,5 +727,77 @@ describe('getLearnerProfile', () => {
 
     await expect(getLearnerProfile())
       .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_learner_profile_payload' })
+  })
+})
+
+describe('bank endpoints', () => {
+  const bankItem = {
+    blockId: 'blk-q1',
+    chapterId: 'ch-1',
+    kind: 'quiz',
+    title: '什么是监督学习？',
+    conceptId: 'c-1',
+    conceptLabel: '监督学习',
+    attempts: 2,
+    lastCorrect: false,
+    mastery: 0.487179,
+    schedule: { stage: 1, dueAt: '2026-08-20T00:00:00.000Z' },
+    wrong: true,
+  }
+  const userCard = {
+    id: 'card_1',
+    chapterId: 'ch-1',
+    front: '什么是监督学习？',
+    back: '带标签的学习',
+    hint: '第 1 页',
+    createdAt: '2026-08-17T02:00:00.000Z',
+  }
+
+  it('getBank reads and parses bank items', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ items: [bankItem] })
+    }))
+
+    const items = await getBank('book_1')
+
+    expect(actualUrl).toBe('/api/books/book_1/bank')
+    expect(items).toEqual([bankItem])
+  })
+
+  it.each([
+    ['items not array', { items: 'nope' }],
+    ['item missing wrong flag', { items: [((({ wrong: _wrong, ...rest }) => rest)(bankItem))] }],
+    ['item with bad schedule', { items: [{ ...bankItem, schedule: { stage: 'x' } }] }],
+  ])('getBank rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getBank('book_1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_bank_payload' })
+  })
+
+  it('addCard posts the card and parses the response', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ card: userCard }, 201)
+    }))
+
+    const card = await addCard('book_1', { chapterId: 'ch-1', front: userCard.front, back: userCard.back, hint: userCard.hint })
+
+    expect(actualUrl).toBe('/api/books/book_1/cards')
+    expect(actualInit?.method).toBe('POST')
+    expect(JSON.parse(String(actualInit?.body))).toEqual({ chapterId: 'ch-1', front: userCard.front, back: userCard.back, hint: userCard.hint })
+    expect(card).toEqual(userCard)
+  })
+
+  it('addCard surfaces server error codes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'card_limit_reached' }, 409)))
+
+    await expect(addCard('book_1', { chapterId: 'ch-1', front: '问', back: '答' }))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'card_limit_reached' })
   })
 })

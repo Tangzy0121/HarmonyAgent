@@ -10113,3 +10113,22 @@ button:disabled {
   font-weight: 640;
   text-align: right;
 }
+
+/* 题库与掌握度（Sprint D）+ 对话沉淀 */
+.bank-sheet { display: grid; gap: 8px; padding: 0 18px 12px; }
+.bank-sheet__items { display: grid; gap: 8px; }
+.bank-sheet__item { border: 1px solid rgb(35 31 29 / 0.1); border-radius: 13px; background: #fff; overflow: hidden; }
+.bank-sheet__item--wrong { border-color: rgb(214 122 95 / 0.45); background: rgb(235 204 194 / 0.18); }
+.bank-sheet__item-head { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; width: 100%; padding: 11px 12px; border: 0; background: transparent; font: inherit; text-align: left; align-items: baseline; }
+.bank-sheet__kind { grid-row: span 2; align-self: center; padding: 3px 8px; border-radius: 999px; color: #ad6655; background: rgb(235 204 194 / 0.35); font-size: 0.58rem; font-weight: 780; white-space: nowrap; }
+.bank-sheet__title { color: rgb(35 31 29 / 0.82); font-size: 0.8rem; line-height: 1.55; }
+.bank-sheet__stats { color: rgb(35 31 29 / 0.45); font-size: 0.66rem; }
+.bank-sheet__wrong { margin-right: 6px; padding: 2px 7px; border-radius: 999px; color: #b65b47; background: rgb(214 122 95 / 0.2); font-size: 0.6rem; font-style: normal; font-weight: 780; }
+.bank-sheet__quiz { display: grid; gap: 10px; padding: 0 12px 12px; }
+.bank-sheet__grade { display: flex; align-items: center; gap: 8px; padding: 0 12px 12px; }
+.bank-sheet__grade span { color: rgb(35 31 29 / 0.5); font-size: 0.66rem; }
+.agent-message__capture { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.agent-message__capture button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px dashed rgb(35 31 29 / 0.2); border-radius: 999px; color: rgb(35 31 29 / 0.55); background: transparent; font: inherit; font-size: 0.68rem; }
+.agent-message__capture button:hover:not(:disabled) { color: #9c5848; border-color: #bd725f; }
+.agent-message__capture button:disabled { color: #35684c; border-style: solid; border-color: rgb(116 170 137 / 0.5); }
+.agent-message__capture span[role='alert'] { color: #b66b58; font-size: 0.66rem; }
