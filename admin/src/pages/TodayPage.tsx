@@ -7,6 +7,7 @@ import { TodayActionList } from '../components/today/TodayActionList'
 import { TodayLearningPanel } from '../components/today/TodayLearningPanel'
 import { deriveTodayFocus } from '../domain/todayNextStep'
 import type { LearningBook } from '../types/learningBook'
+import type { LearnerProfile } from '../types/learnerProfile'
 
 interface PageProps {
   isActive: boolean
@@ -14,14 +15,15 @@ interface PageProps {
   onContinue: () => void
   learningEvidenceCount?: number
   learningBook?: LearningBook
+  learnerProfile?: LearnerProfile | null
 }
 
 type OutcomeOptionId = typeof todayLearningOutcome.options[number]['id']
 
-export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook }: PageProps) {
+export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile }: PageProps) {
   const [outcomeSelection, setOutcomeSelection] = useState<OutcomeOptionId>('tomorrow')
   const [isOutcomeConfirmed, setIsOutcomeConfirmed] = useState(false)
-  const projectedFocus = deriveTodayFocus(learningBook) ?? todayPageContent.focus
+  const projectedFocus = deriveTodayFocus(learningBook, new Date(), learnerProfile) ?? todayPageContent.focus
 
   return (
     <section className={isOutcomeMode ? 'destination-page today-page today-page--outcome' : 'destination-page today-page'} hidden={!isActive} aria-labelledby="today-title">

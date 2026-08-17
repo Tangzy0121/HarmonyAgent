@@ -1,9 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import { deriveTodayFocus, pickTodayRealBook } from './todayNextStep'
 import type { BookChapter, LearningBook, LearningEvidence, ReviewScheduleEntry } from '../types/learningBook'
+import type { LearnerProfile } from '../types/learnerProfile'
 import type { StoredBook } from '../services/bookApi'
 
 const NOW = new Date('2026-08-17T12:00:00.000Z')
+// 晚上 20 点（本地时区构造，节律桶：晚上）
+const EVENING = new Date(2026, 7, 17, 20)
+
+function profileWith(overrides: Partial<LearnerProfile> = {}): LearnerProfile {
+  return {
+    concepts: [],
+    rhythm: {
+      activeDays30: 5,
+      streakDays: 3,
+      periodDistribution: { morning: 0, afternoon: 0, evening: 1, night: 0 },
+      dailyAverageEvents: 0.2,
+      studiedToday: false,
+    },
+    derivedAt: '2026-08-17T08:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function cliffConcept(bookId: string, mastery = 0.6): LearnerProfile['concepts'][number] {
+  return {
+    label: '监督学习',
+    displayLabel: '监督学习',
+    mastery,
+    attempts: 3,
+    lastOutcome: 'mastered',
+    lastAttemptAt: '2026-08-01T10:00:00.000Z',
+    sources: [{ bookId, chapterId: 'ch-1', conceptId: 'c-1' }],
+    forgettingCliff: true,
+  }
+}
 
 function chapter(id: string, order: number, title: string): BookChapter {
   return {
@@ -142,5 +173,57 @@ describe('deriveTodayFocus', () => {
     const focus = deriveTodayFocus(book('b-prop', { status: 'proposal' }), NOW)
 
     expect(focus?.actionLabel).toBe('去确认')
+  })
+})
+
+describe('pickTodayRealBook · 学习者模型候选', () => {
+  it('prefers a forgetting-cliff book over in-progress and evidence books (after due review)', () => {
+    const cliff = book('b-cliff')
+    const inProgress = book('b-gen', { status: 'generating', updatedAt: '2026-08-17T11:00:00.000Z' })
+    const withEvidence = book('b-ev', { evidence: [evidence('ch-1', 'mastered', '2026-08-17T10:00:00.000Z')] })
+    const profile = profileWith({ concepts: [cliffConcept('b-cliff')] })
+
+    expect(pickTodayRealBook([withEvidence, inProgress, cliff], NOW, profile)?.id).toBe('b-cliff')
+  })
+
+  it('ignores cliff concepts whose book is not in the library', () => {
+    const withEvidence = book('b-ev', { evidence: [evidence('ch-1', 'review', '2026-08-17T10:00:00.000Z')] })
+    const profile = profileWith({ concepts: [cliffConcept('book_missing')] })
+
+    expect(pickTodayRealBook([withEvidence], NOW, profile)?.id).toBe('b-ev')
+  })
+
+  it('behaves as before when no profile is provided', () => {
+    const withEvidence = book('b-ev', { evidence: [evidence('ch-1', 'review', '2026-08-17T10:00:00.000Z')] })
+    expect(pickTodayRealBook([withEvidence], NOW)?.id).toBe('b-ev')
+  })
+})
+
+describe('deriveTodayFocus · 学习者模型候选', () => {
+  it('surfaces a forgetting-cliff focus for the cliff book', () => {
+    const theBook = book('b-cliff')
+    const profile = profileWith({ concepts: [cliffConcept('b-cliff', 0.62)] })
+
+    const focus = deriveTodayFocus(theBook, NOW, profile)
+
+    expect(focus?.status).toBe('遗忘悬崖')
+    expect(focus?.title).toContain('监督学习')
+    expect(focus?.actionLabel).toBe('去复习')
+  })
+
+  it('suggests a rhythm-based session when nothing else applies, today is unstudied, and now is the top period', () => {
+    const theBook = book('b-1')
+    const profile = profileWith()
+
+    const focus = deriveTodayFocus(theBook, EVENING, profile)
+
+    expect(focus?.label).toBe('学习节律')
+    expect(focus?.actionLabel).toBe('继续学习')
+  })
+
+  it('does not suggest a rhythm session when today is already studied or now is off-peak', () => {
+    const theBook = book('b-1')
+    expect(deriveTodayFocus(theBook, EVENING, profileWith({ rhythm: { ...profileWith().rhythm, studiedToday: true } }))).toBeNull()
+    expect(deriveTodayFocus(theBook, new Date(2026, 7, 17, 10), profileWith())).toBeNull() // 上午非高峰（top=晚上）
   })
 })
