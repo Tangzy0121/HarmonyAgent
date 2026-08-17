@@ -313,6 +313,18 @@ export async function deleteNote(bookId: string, noteId: string): Promise<void> 
   if (!response.ok) throw await readHttpError(response)
 }
 
+/** 薄弱概念智能出题：服务端落一个 origin=adaptive 的 quiz 块，返回该块；错误码透传（adaptive_limit_reached 等） */
+export async function postAdaptiveQuiz(bookId: string, conceptId: string): Promise<BookBlock> {
+  const response = await fetch(
+    `/api/books/${encodeURIComponent(bookId)}/concepts/${encodeURIComponent(conceptId)}/quiz`,
+    { method: 'POST' },
+  )
+  if (!response.ok) throw await readHttpError(response)
+  const value = await readJson(response)
+  if (isRecord(value) && isBookBlock(value.block)) return value.block
+  throw new BookApiError('invalid_adaptive_quiz_payload', SAFE_HTTP_MESSAGE)
+}
+
 /** 导出 Markdown 的直连地址（<a download> 使用，不经 JS 拼文件） */
 export function bookExportUrl(bookId: string): string {
   return `/api/books/${encodeURIComponent(bookId)}/export`

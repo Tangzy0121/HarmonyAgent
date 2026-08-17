@@ -79,7 +79,7 @@ describe('buildLearningDashboard 薄弱与悬崖', () => {
     concepts.push(concept({ label: 'noRecord', mastery: 0, attempts: 0 }))
     const view = buildLearningDashboard(profile({ concepts }), NOW)
     expect(view.weakConcepts.map((c) => c.label)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4'])
-    expect(view.weakConcepts[0]).toMatchObject({ mastery: 0.1, bookId: 'book_0' })
+    expect(view.weakConcepts[0]).toMatchObject({ mastery: 0.1, bookId: 'book_0', chapterId: 'ch', conceptId: 'c0' })
   })
 
   it('悬崖列表只含 forgettingCliff=true，按 mastery 升序', () => {
@@ -93,11 +93,13 @@ describe('buildLearningDashboard 薄弱与悬崖', () => {
     expect(view.cliffConcepts.map((c) => c.label)).toEqual(['cliff1', 'cliff2'])
   })
 
-  it('无来源的概念 bookId 为 null', () => {
+  it('无来源的概念 bookId/conceptId/chapterId 为 null', () => {
     const view = buildLearningDashboard(profile({
       concepts: [concept({ label: 'orphan', mastery: 0.4, sources: [] })],
     }), NOW)
     expect(view.weakConcepts[0].bookId).toBeNull()
+    expect(view.weakConcepts[0].conceptId).toBeNull()
+    expect(view.weakConcepts[0].chapterId).toBeNull()
   })
 })
 

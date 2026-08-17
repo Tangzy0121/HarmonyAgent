@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { MobileTopBar } from '../components/MobileTopBar'
-import { buildLearningDashboard } from '../domain/learningDashboard'
+import { buildLearningDashboard, type DashboardConcept } from '../domain/learningDashboard'
+import { BookApiError } from '../services/bookApi'
 import type { BookCompletion } from '../types/learningBook'
 import type { LearnerProfile } from '../types/learnerProfile'
 
@@ -17,6 +18,8 @@ interface LearningDataPageProps {
   /** 最近阅读书的完成度（无阅读记录时为 null，不渲染完成度区） */
   recentCompletion?: RecentCompletion | null
   onOpenBook: (bookId: string) => void
+  /** 薄弱概念智能出题：resolve true = 成功（App 内跳书）；失败按 BookApiError.code 行内提示 */
+  onGenerateQuiz?: (bookId: string, conceptId: string) => Promise<boolean>
 }
 
 const periodLabels = [
@@ -33,15 +36,66 @@ const bucketLabels = [
   { key: 'noRecord', label: '暂无记录' },
 ] as const
 
-export function LearningDataPage({ isActive, learnerProfile, recentCompletion, onOpenBook }: LearningDataPageProps) {
+export function LearningDataPage({ isActive, learnerProfile, recentCompletion, onOpenBook, onGenerateQuiz }: LearningDataPageProps) {
   const view = useMemo(
     () => (learnerProfile ? buildLearningDashboard(learnerProfile, new Date()) : null),
     [learnerProfile],
   )
+  // 出题练习的行内状态：pending 防重复点击；error 区分上限/一般失败
+  const [pendingQuizKeys, setPendingQuizKeys] = useState<ReadonlySet<string>>(new Set())
+  const [quizErrors, setQuizErrors] = useState<Record<string, 'fail' | 'limit'>>({})
   const hasData = Boolean((view && (view.activeDays30 > 0 || learnerProfile!.concepts.length > 0)) || recentCompletion)
   const periodTotal = view
     ? periodLabels.reduce((sum, { key }) => sum + view.periodDistribution[key], 0)
     : 0
+
+  const handleGenerateQuiz = async (concept: DashboardConcept) => {
+    if (!onGenerateQuiz || !concept.bookId || !concept.conceptId) return
+    const key = concept.conceptId
+    if (pendingQuizKeys.has(key)) return
+    setPendingQuizKeys((current) => new Set(current).add(key))
+    setQuizErrors((current) => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+    try {
+      await onGenerateQuiz(concept.bookId, concept.conceptId)
+    } catch (error) {
+      setQuizErrors((current) => ({
+        ...current,
+        [key]: error instanceof BookApiError && error.code === 'adaptive_limit_reached' ? 'limit' : 'fail',
+      }))
+    } finally {
+      setPendingQuizKeys((current) => {
+        const next = new Set(current)
+        next.delete(key)
+        return next
+      })
+    }
+  }
+
+  const renderQuizButton = (concept: DashboardConcept) => {
+    if (!onGenerateQuiz || !concept.bookId || !concept.conceptId) return null
+    const key = concept.conceptId
+    const pending = pendingQuizKeys.has(key)
+    const error = quizErrors[key]
+    return (
+      <>
+        <button
+          type="button"
+          className="learning-data-quiz-btn"
+          disabled={pending}
+          onClick={() => void handleGenerateQuiz(concept)}
+        >{pending ? '出题中…' : '出题练习'}</button>
+        {error && (
+          <small className="learning-data-quiz-error">
+            {error === 'limit' ? '已达 3 道上限' : '出题失败，请稍后重试'}
+          </small>
+        )}
+      </>
+    )
+  }
 
   return (
     <section className="destination-page learning-data-page" hidden={!isActive} aria-labelledby="learning-data-title">
@@ -109,6 +163,7 @@ export function LearningDataPage({ isActive, learnerProfile, recentCompletion, o
                 <li key={concept.label}>
                   <span>{concept.label}</span>
                   <em>{Math.round(concept.mastery * 100)}%</em>
+                  {renderQuizButton(concept)}
                 </li>
               ))}
             </ul>
@@ -125,6 +180,7 @@ export function LearningDataPage({ isActive, learnerProfile, recentCompletion, o
                     disabled={!concept.bookId}
                     onClick={() => concept.bookId && onOpenBook(concept.bookId)}
                   >去复习</button>
+                  {renderQuizButton(concept)}
                 </li>
               ))}
             </ul>

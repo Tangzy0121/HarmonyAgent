@@ -19,7 +19,7 @@ import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
 import { projectBooksToMap } from './domain/bookMapProjection'
 import { pickTodayRealBook } from './domain/todayNextStep'
-import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getCompletion, getLearnerProfile, getReviewDue, listBooks, postReadingProgress, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, addNote, confirmBook, createBook, deleteNote, getBook, getCompletion, getLearnerProfile, getReviewDue, listBooks, postAdaptiveQuiz, postReadingProgress, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -652,6 +652,14 @@ function App() {
     })
   }
 
+  // 薄弱概念智能出题：成功即跳入来源书（新题落在概念所在章末）；
+  // 失败原样抛出 BookApiError，由 LearningDataPage 按 code 行内提示
+  const generateAdaptiveQuiz = async (bookId: string, conceptId: string): Promise<boolean> => {
+    await postAdaptiveQuiz(bookId, conceptId)
+    openRealBook(bookId)
+    return true
+  }
+
   const closeRealBook = () => {
     window.history.replaceState({ destination: 'library' }, '', '#library')
     updateWithViewTransition(() => {
@@ -963,6 +971,7 @@ function App() {
           learnerProfile={learnerProfile}
           recentCompletion={recentCompletion}
           onOpenBook={openRealBook}
+          onGenerateQuiz={generateAdaptiveQuiz}
         />
         {activeDocumentId === 'ml-chapter-03' && !activeRealBookId && (
           <BookProposalPage

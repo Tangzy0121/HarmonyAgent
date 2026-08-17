@@ -10140,6 +10140,9 @@ button:disabled {
 .learning-data-concepts--cliff li { background: rgb(182 107 88 / 0.1); }
 .learning-data-concepts--cliff button { padding: 4px 10px; border: 0; border-radius: 99px; color: #fff; background: #9c5848; font-size: 0.62rem; font-weight: 700; }
 .learning-data-concepts--cliff button:disabled { background: rgb(35 31 29 / 0.2); }
+.learning-data-concepts .learning-data-quiz-btn { padding: 4px 10px; border: 0; border-radius: 99px; color: #fff; background: #9c5848; font-size: 0.62rem; font-weight: 700; }
+.learning-data-concepts .learning-data-quiz-btn:disabled { background: rgb(35 31 29 / 0.2); }
+.learning-data-quiz-error { color: #9c5848; font-size: 0.62rem; }
 .learning-data-periods { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .learning-data-periods li { display: grid; grid-template-columns: 34px 1fr 30px; align-items: center; gap: 8px; font-size: 0.68rem; }
 .learning-data-periods li span { color: rgb(35 31 29 / 0.72); font-weight: 640; }

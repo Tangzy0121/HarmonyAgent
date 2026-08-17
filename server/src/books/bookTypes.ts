@@ -115,6 +115,8 @@ export interface QuizBlock extends BaseBookBlock {
   options: QuizOption[]
   correctAnswerId: string
   feedback: string
+  /** 缺省 = 成书生成；'adaptive' = 薄弱概念智能出题现场生成 */
+  origin?: 'adaptive'
 }
 
 // 错题四类诊断：类型定义放本文件（diagnosisPrompt.ts 从这里 import），

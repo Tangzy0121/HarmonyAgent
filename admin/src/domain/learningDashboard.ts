@@ -16,6 +16,10 @@ export interface DashboardConcept {
   mastery: number
   /** 来源书（取首个来源，无来源为 null），供「去复习」跳转 */
   bookId: string | null
+  /** 来源概念（取首个来源，无来源为 null），供「出题练习」调用 */
+  conceptId: string | null
+  /** 来源章（取首个来源，无来源为 null） */
+  chapterId: string | null
 }
 
 export interface HeatmapCell {
@@ -51,6 +55,8 @@ function toDashboardConcept(concept: ConceptMastery): DashboardConcept {
     label: concept.displayLabel,
     mastery: concept.mastery,
     bookId: concept.sources[0]?.bookId ?? null,
+    conceptId: concept.sources[0]?.conceptId ?? null,
+    chapterId: concept.sources[0]?.chapterId ?? null,
   }
 }
 

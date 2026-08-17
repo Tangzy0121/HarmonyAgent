@@ -14,6 +14,7 @@ import {
   getPretest,
   getReviewDue,
   listBooks,
+  postAdaptiveQuiz,
   postReadingProgress,
   streamChapterGeneration,
   submitAttempt,
@@ -680,6 +681,65 @@ describe('note endpoints', () => {
 describe('bookExportUrl', () => {
   it('builds an encoded export URL', () => {
     expect(bookExportUrl('book_a/b')).toBe('/api/books/book_a%2Fb/export')
+  })
+})
+
+describe('postAdaptiveQuiz', () => {
+  const adaptiveBlock = {
+    id: 'blk-adaptive-1',
+    type: 'quiz',
+    status: 'ready',
+    title: '加试：监督学习',
+    revision: 1,
+    sourceAnchors: [{ sourceId: 'S1', fileName: 'a.pdf', pageRange: '1–2', excerpt: '' }],
+    conceptId: 'cpt-1',
+    question: '监督学习的训练数据必须具备什么？',
+    options: [
+      { id: 'o1', marker: 'A', text: '目标标签' },
+      { id: 'o2', marker: 'B', text: '奖励函数' },
+      { id: 'o3', marker: 'C', text: '环境状态' },
+      { id: 'o4', marker: 'D', text: '先验分布' },
+    ],
+    correctAnswerId: 'o1',
+    feedback: '监督学习依赖带标签数据。',
+    origin: 'adaptive',
+  }
+
+  it('posts to the concept quiz endpoint and parses the 201 block', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      actualUrl = url
+      actualInit = init
+      return jsonResponse({ block: adaptiveBlock }, 201)
+    }))
+
+    const block = await postAdaptiveQuiz('book_1', 'cpt-1')
+
+    expect(actualUrl).toBe('/api/books/book_1/concepts/cpt-1/quiz')
+    expect(actualInit?.method).toBe('POST')
+    expect(block).toEqual(adaptiveBlock)
+  })
+
+  it.each([
+    ['409 adaptive_limit_reached', { error: 'adaptive_limit_reached' }, 409],
+    ['502 adaptive_quiz_failed', { error: 'adaptive_quiz_failed' }, 502],
+  ])('surfaces server error codes (%s)', async (_label, payload, status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, status)))
+
+    await expect(postAdaptiveQuiz('book_1', 'cpt-1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: (payload as { error: string }).error })
+  })
+
+  it.each([
+    ['block not an object', { block: null }],
+    ['missing block key', {}],
+    ['illegal origin', { block: { ...adaptiveBlock, origin: 'manual' } }],
+  ])('rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload, 201)))
+
+    await expect(postAdaptiveQuiz('book_1', 'cpt-1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_adaptive_quiz_payload' })
   })
 })
 
