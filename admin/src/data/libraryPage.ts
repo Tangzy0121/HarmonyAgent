@@ -1,3 +1,5 @@
+import type { StoredBook } from '../services/bookApi'
+
 export const libraryPageContent = {
   title: '知识库',
   subtitle: '机器学习基础',
@@ -41,3 +43,38 @@ export const libraryPageContent = {
     },
   ],
 } as const
+
+/** 真实学习书在知识库列表中的视图模型。 */
+export interface RealBookListItem {
+  id: string
+  name: string
+  detail: string
+  status: string
+}
+
+/** 状态列映射：proposal→目录待确认、generating→生成中 n/N、partial→部分可读、ready→可阅读、error→生成失败。 */
+export function realBookStatusLabel(book: StoredBook): string {
+  switch (book.status) {
+    case 'proposal':
+      return '目录待确认'
+    case 'generating': {
+      const ready = book.chapters.filter((chapter) => chapter.status === 'ready').length
+      return `生成中 ${ready}/${book.chapters.length}`
+    }
+    case 'partial':
+      return '部分可读'
+    case 'ready':
+      return '可阅读'
+    case 'error':
+      return '生成失败'
+  }
+}
+
+export function toRealBookListItem(book: StoredBook): RealBookListItem {
+  return {
+    id: book.id,
+    name: book.proposal.title || book.source.fileName,
+    detail: `${book.source.pageCount} 页 · ${book.source.updatedLabel}`,
+    status: realBookStatusLabel(book),
+  }
+}
