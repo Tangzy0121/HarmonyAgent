@@ -19,7 +19,7 @@ import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
 import { projectBooksToMap } from './domain/bookMapProjection'
 import { pickTodayRealBook } from './domain/todayNextStep'
-import { BookApiError, addCard, addNote, confirmBook, createBook, deleteNote, getBank, getBook, getCompletion, getLearnerProfile, getReviewDue, listBooks, postAdaptiveQuiz, postReadingProgress, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type DueItem, type ProposalEdits, type StoredBook } from './services/bookApi'
+import { BookApiError, addCard, addNote, confirmBook, createBook, deleteNote, getBank, getBook, getCompletion, getEstimate, getLearnerProfile, getReviewDue, getSuggestions, listBooks, postAdaptiveQuiz, postReadingProgress, submitAttempt, submitFlashReview, updateProposal, uploadDocument, type BookEstimate, type DueItem, type LearnerSuggestion, type ProposalEdits, type StoredBook } from './services/bookApi'
 import { KnowledgeLibraryPage } from './pages/KnowledgeLibraryPage'
 import { BookProposalPage } from './pages/BookProposalPage'
 import { InteractiveBookPage } from './pages/InteractiveBookPage'
@@ -71,6 +71,9 @@ const REAL_BOOK_ERROR_MESSAGES: Record<string, string> = {
   doc_no_text: '这份文档没有可提取的文字内容，暂不支持。',
   doc_too_long: '这份文档超过 45,000 字上限，请拆分后再上传。',
   docx_unreadable: '这份 DOCX 无法读取，请检查文件是否损坏或加密。',
+  epub_unreadable: '这份 EPUB 无法读取，请检查文件是否损坏。',
+  too_many_sources: '一次最多合 5 份资料，请减少文件数量后再试。',
+  sources_too_long: '多份资料合计超过 90,000 字上限，请删减后再试。',
   invalid_proposal_edit: '目录修改未通过校验，请检查后重试。',
 }
 
@@ -492,6 +495,30 @@ function App() {
     return () => { cancelled = true }
   }, [isMasteryBoardOpen, activeRealBookId, learningBook])
 
+  // starter 建议：随学习者画像同源刷新；失败静默保持旧值
+  const [suggestions, setSuggestions] = useState<LearnerSuggestion[]>([])
+  useEffect(() => {
+    let cancelled = false
+    getSuggestions()
+      .then((items) => { if (!cancelled) setSuggestions(items) })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [realBooks])
+
+  // 真实书提案成本估算：进入提案且书已载入时拉取；失败静默为 null（不展示）
+  const [proposalEstimate, setProposalEstimate] = useState<BookEstimate | null>(null)
+  useEffect(() => {
+    if (!isRealProposal || !isRealBookLoaded || activeRealBookId === null) {
+      setProposalEstimate(null)
+      return
+    }
+    let cancelled = false
+    getEstimate(activeRealBookId)
+      .then((estimate) => { if (!cancelled) setProposalEstimate(estimate) })
+      .catch(() => { if (!cancelled) setProposalEstimate(null) })
+    return () => { cancelled = true }
+  }, [activeRealBookId, isRealBookLoaded, isRealProposal])
+
   // mock 书会话内进度快照：真实书占用 learningBook 状态位期间保留，回到 mock 场景时恢复
   useEffect(() => {
     if (learningBook.id === learningBookFixture.id) mockBookSnapshotRef.current = learningBook
@@ -710,11 +737,20 @@ function App() {
     setIsUploadSheetOpen(true)
   }
 
-  const submitUploadBook = async ({ file, goal, learnerLevel }: UploadBookSubmission) => {
+  const submitUploadBook = async ({ files, goal, learnerLevel }: UploadBookSubmission) => {
     setUploadError(null)
     try {
-      const documentMeta = await uploadDocument(file)
-      const created = await createBook({ documentId: documentMeta.id, goal, learnerLevel })
+      // 多文件合书：逐份上传（顺序保持稳定，便于错误定位），再一次性建书
+      const documentIds: string[] = []
+      for (const file of files) {
+        const documentMeta = await uploadDocument(file)
+        documentIds.push(documentMeta.id)
+      }
+      const created = await createBook(
+        documentIds.length > 1
+          ? { documentIds, goal, learnerLevel }
+          : { documentId: documentIds[0], goal, learnerLevel },
+      )
       setIsUploadSheetOpen(false)
       void listBooks().then(setRealBooks).catch(() => undefined)
       window.history.pushState({ screen: 'real-book', bookId: created.id }, '', `#proposal/${created.id}`)
@@ -984,6 +1020,8 @@ function App() {
           learnerProfile={learnerProfile}
           continueReadingLabel={recentCompletion ? `继续读《${recentCompletion.bookTitle}》${recentCompletion.chapterTitle}` : undefined}
           onOpenLearningData={openLearningData}
+          suggestions={suggestions}
+          onOpenBook={openRealBook}
         />
         <LearningMapPage
           isActive={!isLearningDataOpen && !activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'learning'}
@@ -1075,6 +1113,7 @@ function App() {
               onBack={closeRealBook}
               isConfirming={isConfirmingRealBook}
               confirmError={realBookConfirmError}
+              estimate={proposalEstimate}
             />
           ) : (
             <RealBookStatusPanel error={realBookLoadError} onBack={closeRealBook} />

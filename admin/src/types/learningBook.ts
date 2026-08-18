@@ -15,7 +15,7 @@ export type BookBlockType = 'explanation' | 'example' | 'formula' | 'citation' |
 export interface SourceDocument {
   id: string
   fileName: string
-  format: 'PDF' | 'Markdown' | 'DOCX'
+  format: 'PDF' | 'Markdown' | 'DOCX' | 'EPUB'
   pageCount: number
   sizeLabel: string
   updatedLabel: string
@@ -267,6 +267,10 @@ export interface ReviewScheduleEntry {
 export interface LearningBook {
   id: string
   source: SourceDocument
+  /** 多文件合书的全部来源（= sources[0] 恒等于 source）；单源书缺省，读取回退 [source] */
+  sources?: SourceDocument[]
+  /** 多源书落盘的 docId → 全文 sha256；单源书缺省 */
+  sourceFingerprints?: Record<string, string>
   goal: LearningGoal
   learnerLevel: LearnerLevel
   proposal: BookProposal

@@ -8,6 +8,7 @@ import { TodayLearningPanel } from '../components/today/TodayLearningPanel'
 import { deriveTodayFocus } from '../domain/todayNextStep'
 import type { LearningBook } from '../types/learningBook'
 import type { LearnerProfile } from '../types/learnerProfile'
+import type { LearnerSuggestion } from '../services/bookApi'
 
 interface PageProps {
   isActive: boolean
@@ -19,11 +20,14 @@ interface PageProps {
   /** 有最近阅读书时学习数据卡片前缀（如「继续读《xxx》第二章」） */
   continueReadingLabel?: string
   onOpenLearningData?: () => void
+  /** starter 建议（模板化 ≤3 条；空数组/缺省不渲染） */
+  suggestions?: LearnerSuggestion[]
+  onOpenBook?: (bookId: string) => void
 }
 
 type OutcomeOptionId = typeof todayLearningOutcome.options[number]['id']
 
-export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile, continueReadingLabel, onOpenLearningData }: PageProps) {
+export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learningEvidenceCount = 0, learningBook, learnerProfile, continueReadingLabel, onOpenLearningData, suggestions = [], onOpenBook }: PageProps) {
   const [outcomeSelection, setOutcomeSelection] = useState<OutcomeOptionId>('tomorrow')
   const [isOutcomeConfirmed, setIsOutcomeConfirmed] = useState(false)
   const projectedFocus = deriveTodayFocus(learningBook, new Date(), learnerProfile) ?? todayPageContent.focus
@@ -57,6 +61,23 @@ export function TodayPage({ isActive, isOutcomeMode = false, onContinue, learnin
             <strong>学习数据</strong>
             <span>{continueReadingLabel ? `${continueReadingLabel} · ` : ''}已连续学习 {learnerProfile.rhythm.streakDays} 天 · 近 30 天活跃 {learnerProfile.rhythm.activeDays30} 天，点击查看</span>
           </button>
+        )}
+
+        {suggestions.length > 0 && (
+          <section className="today-suggestions" aria-labelledby="today-suggestions-title">
+            <h2 id="today-suggestions-title">学习建议</h2>
+            <ul>
+              {suggestions.map((suggestion, index) => (
+                <li key={`${suggestion.kind}-${index}`}>
+                  {suggestion.bookId && onOpenBook ? (
+                    <button type="button" onClick={() => onOpenBook(suggestion.bookId!)}>{suggestion.text}</button>
+                  ) : (
+                    <span>{suggestion.text}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         <section className="today-secondary-actions" aria-labelledby="today-actions-title">

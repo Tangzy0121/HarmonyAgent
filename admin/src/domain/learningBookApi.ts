@@ -75,6 +75,17 @@ function isSourceAnchor(value: unknown): value is SourceAnchor {
     && isString(value.excerpt)
 }
 
+/** 多文件合书：sources 条目的可选守卫（与 parseLearningBook 的 source 校验同形） */
+function isSourceDocumentPayload(value: unknown): boolean {
+  return isRecord(value)
+    && isString(value.id)
+    && isString(value.fileName)
+    && (value.format === 'PDF' || value.format === 'Markdown' || value.format === 'DOCX' || value.format === 'EPUB')
+    && isNumber(value.pageCount)
+    && isString(value.sizeLabel)
+    && isString(value.updatedLabel)
+}
+
 function isSourceAnchors(value: unknown): value is SourceAnchor[] {
   return Array.isArray(value) && value.every(isSourceAnchor)
 }
@@ -198,10 +209,15 @@ export function parseLearningBook(value: unknown): LearningBook {
     && isRecord(value.source)
     && isString(value.source.id)
     && isString(value.source.fileName)
-    && (value.source.format === 'PDF' || value.source.format === 'Markdown' || value.source.format === 'DOCX')
+    && (value.source.format === 'PDF' || value.source.format === 'Markdown' || value.source.format === 'DOCX' || value.source.format === 'EPUB')
     && isNumber(value.source.pageCount)
     && isString(value.source.sizeLabel)
     && isString(value.source.updatedLabel)
+    && (value.sources === undefined || (Array.isArray(value.sources) && value.sources.every(isSourceDocumentPayload)))
+    && (value.sourceFingerprints === undefined || (
+      isRecord(value.sourceFingerprints)
+      && Object.values(value.sourceFingerprints).every(isString)
+    ))
     && isOneOf(value.goal, LEARNING_GOALS)
     && isOneOf(value.learnerLevel, LEARNER_LEVELS)
     && isRecord(value.proposal)

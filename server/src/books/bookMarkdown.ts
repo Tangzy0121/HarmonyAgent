@@ -1,3 +1,4 @@
+import { bookSources } from './bookSources.js'
 import type { BookBlock, BookChapter, StoredBook } from './bookTypes.js'
 
 /** 块类型 → 中文小节标签（与 admin blockTypeLabel 对齐） */
@@ -83,10 +84,14 @@ function renderBlock(block: BookBlock): string[] {
  * 纯确定性投影：无 LLM、无副作用；AI 生成内容与用户笔记分别标注（规格 §6.2 延伸）。
  */
 export function renderBookMarkdown(book: StoredBook, exportedAt: string = new Date().toISOString()): string {
+  // 多文件合书：书头列出全部来源；单源书输出与旧格式逐字一致
+  const sourceLabel = bookSources(book)
+    .map((source) => `${source.fileName}（${source.pageCount} 页）`)
+    .join('、')
   const lines: string[] = [
     `# 《${book.proposal.title}》`,
     '',
-    `> 来源：${book.source.fileName}（${book.source.pageCount} 页） · 学习目标：${book.goal} · 当前基础：${book.learnerLevel}`,
+    `> 来源：${sourceLabel} · 学习目标：${book.goal} · 当前基础：${book.learnerLevel}`,
     `> 导出于 ${exportedAt} · 由 HarmonyAgent 生成，AI 生成内容请以原文为准`,
   ]
 

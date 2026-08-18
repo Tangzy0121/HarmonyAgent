@@ -418,9 +418,13 @@ function reviewEntryElements(): FakeElement[] {
 }
 
 function selectFile(file: File): void {
+  selectFiles([file])
+}
+
+function selectFiles(files: File[]): void {
   const input = descendants(container).find((element) => element.tagName === 'INPUT' && element.getAttribute('type') === 'file')
   expect(input, 'file input').toBeDefined()
-  ;(input as FakeElement).files = [file]
+  ;(input as FakeElement).files = files
   flushSync(() => Simulate.change(input as unknown as Element, {}))
 }
 
@@ -857,6 +861,32 @@ describe('App · 真实学习书接线', () => {
 
     await flushEffects()
     // 书籍加载经「getBook 解析 → setState → 渲染」链，异步周期多时需再 flush 一轮（防时序抖动）
+    await flushEffects()
+    expect(getBook).toHaveBeenCalledWith('book_new')
+    expect(container.textContent).toContain('确认目录并生成')
+  })
+
+  it('多文件合书：逐份上传后用 documentIds 创建学习书', async () => {
+    vi.mocked(uploadDocument)
+      .mockResolvedValueOnce(documentMeta)
+      .mockResolvedValueOnce({ ...documentMeta, id: 'doc-2', fileName: 'notes.md', format: 'Markdown' })
+    mountApp('#library')
+    await flushEffects()
+
+    click('上传学习资料')
+    selectFiles([
+      new File([new Uint8Array([1, 2, 3])], '机器学习 · 第三章.pdf', { type: 'application/pdf' }),
+      new File([new Uint8Array([4, 5, 6])], 'notes.md', { type: 'text/markdown' }),
+    ])
+    click('考试复习')
+    click('入门')
+    click('开始生成学习书')
+    await flushEffects()
+
+    expect(uploadDocument).toHaveBeenCalledTimes(2)
+    expect(createBook).toHaveBeenCalledWith({ documentIds: ['doc-1', 'doc-2'], goal: '考试复习', learnerLevel: '入门' })
+    expect(windowStub.location.hash).toBe('#proposal/book_new')
+
     await flushEffects()
     expect(getBook).toHaveBeenCalledWith('book_new')
     expect(container.textContent).toContain('确认目录并生成')

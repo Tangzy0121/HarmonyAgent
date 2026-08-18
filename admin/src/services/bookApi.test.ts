@@ -8,13 +8,16 @@ import {
   bookExportUrl,
   confirmBook,
   createBook,
+  createBookDocumentIds,
   deleteNote,
   getBank,
   getBook,
   getCompletion,
+  getEstimate,
   getLearnerProfile,
   getPretest,
   getReviewDue,
+  getSuggestions,
   listBooks,
   postAdaptiveQuiz,
   postReadingProgress,
@@ -131,6 +134,64 @@ describe('book collection endpoints', () => {
       learnerLevel: '入门',
     })
     expect(book.id).toBe(storedBook.id)
+  })
+
+  it('sends documentIds instead of documentId for a multi-source create', async () => {
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      actualInit = init
+      return jsonResponse({ book: storedBook }, 201)
+    }))
+
+    const book = await createBook({ documentIds: ['doc_a-1', 'doc_b-2'], goal: '考试复习', learnerLevel: '入门' })
+
+    expect(JSON.parse(String(actualInit?.body))).toEqual({
+      documentIds: ['doc_a-1', 'doc_b-2'],
+      goal: '考试复习',
+      learnerLevel: '入门',
+    })
+    expect(book.id).toBe(storedBook.id)
+  })
+
+  it('prefers documentIds when both documentId and documentIds are given', async () => {
+    let actualInit: RequestInit | undefined
+    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      actualInit = init
+      return jsonResponse({ book: storedBook }, 201)
+    }))
+
+    await createBook({ documentId: 'doc_legacy-9', documentIds: ['doc_a-1'], goal: '考试复习', learnerLevel: '入门' })
+
+    expect(JSON.parse(String(actualInit?.body))).toEqual({
+      documentIds: ['doc_a-1'],
+      goal: '考试复习',
+      learnerLevel: '入门',
+    })
+  })
+
+  it('lets a multi-source book payload with sources and fingerprints through the guard', async () => {
+    const multiSourceBook = {
+      ...storedBook,
+      sources: [
+        storedBook.source,
+        { ...storedBook.source, id: 'doc_b-2', fileName: 'notes.md', format: 'Markdown' },
+      ],
+      sourceFingerprints: { [storedBook.source.id]: 'a'.repeat(64), 'doc_b-2': 'b'.repeat(64) },
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ book: multiSourceBook }, 201)))
+
+    const book = await createBook({ documentIds: [storedBook.source.id, 'doc_b-2'], goal: '考试复习', learnerLevel: '入门' })
+
+    expect(book.sources).toHaveLength(2)
+    expect(book.sources?.[1]).toMatchObject({ id: 'doc_b-2', fileName: 'notes.md' })
+    expect(book.sourceFingerprints?.['doc_b-2']).toBe('b'.repeat(64))
+  })
+
+  it('normalizes create input ids with createBookDocumentIds', () => {
+    expect(createBookDocumentIds({ documentIds: ['doc_a-1', 'doc_b-2'], documentId: 'doc_c-3', goal: '考试复习', learnerLevel: '入门' }))
+      .toEqual(['doc_a-1', 'doc_b-2'])
+    expect(createBookDocumentIds({ documentId: 'doc_c-3', goal: '考试复习', learnerLevel: '入门' }))
+      .toEqual(['doc_c-3'])
   })
 
   it('rejects a create response whose book fails the guard', async () => {
@@ -812,6 +873,67 @@ describe('reading progress endpoints', () => {
 
     await expect(getCompletion('book_1'))
       .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_completion_payload' })
+  })
+})
+
+describe('getEstimate', () => {
+  const estimate = {
+    chapters: [{ chapterId: 'ch-1', title: '第一章', estimatedTokens: 9200 }],
+    totalTokens: 9200,
+  }
+
+  it('fetches and parses the estimate envelope', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ estimate })
+    }))
+
+    const result = await getEstimate('book_1')
+
+    expect(actualUrl).toBe('/api/books/book_1/estimate')
+    expect(result).toEqual(estimate)
+  })
+
+  it.each([
+    ['tokens not numeric', { estimate: { chapters: [{ chapterId: 'ch-1', title: 'x', estimatedTokens: '9200' }], totalTokens: 9200 } }],
+    ['missing estimate key', {}],
+  ])('rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getEstimate('book_1'))
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_estimate_payload' })
+  })
+})
+
+describe('getSuggestions', () => {
+  const suggestions = [
+    { kind: 'cliff', text: '复习《机器学习》·「梯度下降」，已经 10 天没碰了', bookId: 'book_1', conceptLabel: '梯度下降' },
+    { kind: 'continue', text: '继续读《机器学习》，接着上次的进度', bookId: 'book_1', conceptLabel: null },
+  ]
+
+  it('fetches and parses the suggestions envelope', async () => {
+    let actualUrl: RequestInfo | URL | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      actualUrl = url
+      return jsonResponse({ suggestions })
+    }))
+
+    const result = await getSuggestions()
+
+    expect(actualUrl).toBe('/api/learner/suggestions')
+    expect(result).toEqual(suggestions)
+  })
+
+  it.each([
+    ['unknown kind', { suggestions: [{ kind: 'random', text: 'x', bookId: null, conceptLabel: null }] }],
+    ['bookId wrong type', { suggestions: [{ kind: 'weak', text: 'x', bookId: 1, conceptLabel: null }] }],
+    ['missing suggestions key', {}],
+  ])('rejects a malformed payload (%s)', async (_label, payload) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+
+    await expect(getSuggestions())
+      .rejects.toMatchObject({ name: 'BookApiError', code: 'invalid_suggestions_payload' })
   })
 })
 
