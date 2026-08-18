@@ -125,6 +125,7 @@ export function isBookBlock(value: unknown): value is BookBlock {
         ))
         && isString(value.correctAnswerId)
         && isString(value.feedback)
+        && (value.origin === undefined || value.origin === 'adaptive')
     case 'user_note':
       return isString(value.noteId)
     case 'callout':

@@ -17,6 +17,7 @@ function profileWith(overrides: Partial<LearnerProfile> = {}): LearnerProfile {
       periodDistribution: { morning: 0, afternoon: 0, evening: 1, night: 0 },
       dailyAverageEvents: 0.2,
       studiedToday: false,
+      activeDayKeys: [],
     },
     derivedAt: '2026-08-17T08:00:00.000Z',
     ...overrides,

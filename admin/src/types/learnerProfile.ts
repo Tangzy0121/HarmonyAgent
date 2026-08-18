@@ -23,6 +23,7 @@ export interface LearningRhythm {
   periodDistribution: { morning: number; afternoon: number; evening: number; night: number }
   dailyAverageEvents: number
   studiedToday: boolean
+  activeDayKeys: string[]
 }
 
 export interface LearnerProfile {

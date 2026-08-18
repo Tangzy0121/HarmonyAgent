@@ -5,6 +5,7 @@ import { json, Router, type ErrorRequestHandler, type Response } from 'express'
 import type { BookAgentPromptMessage } from '../agent/bookAgentPrompt.js'
 import { OpenAIStreamParseError, parseOpenAIStream } from '../agent/openAIStream.js'
 import type { BookStore } from '../books/bookStore.js'
+import { AdaptiveQuizValidationError, buildAdaptiveQuizMessages, normalizeAdaptiveQuiz, type NormalizedAdaptiveQuiz } from '../books/adaptiveQuizPrompt.js'
 import {
   LEARNING_GOALS,
   LEARNER_LEVELS,
@@ -13,6 +14,7 @@ import {
   type LearnerLevel,
   type LearningGoal,
   type PretestQuestion,
+  type QuizBlock,
   type StoredBook,
   type UserCard,
   type UserNote,
@@ -32,6 +34,7 @@ import { buildPretestMessages } from '../books/pretestPrompt.js'
 import { normalizePretestQuestions, PretestValidationError } from '../books/pretestValidation.js'
 import { buildDocumentDigest, buildProposalMessages } from '../books/proposalPrompt.js'
 import { applyProposalEdits, ProposalEditError, type ProposalEdits } from '../books/proposalEdits.js'
+import { applyProgressEvent, deriveCompletion, type ProgressAction } from '../books/readingProgress.js'
 import { listDueItems, applyReviewGrade } from '../books/schedule.js'
 import { buildBankItems } from '../books/bank.js'
 import type { RuntimeActor } from '../agent/runtime/agentRuntimeTypes.js'
@@ -68,6 +71,9 @@ export interface BooksLogEvent {
     | 'attempt_recorded'
     | 'attempt_diagnosed'
     | 'attempt_diagnosis_failed'
+    | 'reading_progress'
+    | 'adaptive_quiz_generated'
+    | 'adaptive_quiz_validation_failed'
     | 'pretest_generated'
     | 'pretest_validation_failed'
     | 'pretest_result_submitted'
@@ -83,6 +89,8 @@ export interface BooksLogEvent {
   bookId?: string
   chapterId?: string
   documentId?: string
+  /** reading_progress 事件携带的进度动作（visit/bookmark/unbookmark） */
+  action?: string
   /** 校验失败的内部原因（固定中文短语，不含原文/密钥） */
   reason?: string
 }
@@ -906,6 +914,163 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     res.status(201).json(recorded)
   })
 
+  // 薄弱概念智能出题：LLM 现场生成一道四选一，citation 子串硬校验后落为章末 origin=adaptive 的 quiz 块，
+  // 答题/诊断/复习调度全部走既有 POST /:id/attempts 链路
+  router.post('/:id/concepts/:cid/quiz', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+
+    const conceptId = req.params.cid
+    const chapter = book.chapters.find((entry) =>
+      entry.blocks.some((block) => block.type === 'concept' && block.concepts.some((concept) => concept.id === conceptId)))
+    const conceptBlock = chapter?.blocks.find(
+      (block) => block.type === 'concept' && block.concepts.some((concept) => concept.id === conceptId),
+    )
+    const concept = conceptBlock?.type === 'concept'
+      ? conceptBlock.concepts.find((entry) => entry.id === conceptId)
+      : undefined
+    if (chapter === undefined || concept === undefined) {
+      res.status(409).json({ error: 'concept_not_found' })
+      return
+    }
+
+    const adaptiveCount = chapter.blocks.filter(
+      (block) => block.type === 'quiz' && block.origin === 'adaptive' && block.conceptId === conceptId,
+    ).length
+    if (adaptiveCount >= 3) {
+      res.status(409).json({ error: 'adaptive_limit_reached' })
+      return
+    }
+
+    const apiKey = env.LLM_API_KEY?.trim() ?? ''
+    if (!apiKey) {
+      res.status(503).json({ error: 'adaptive_quiz_not_configured' })
+      return
+    }
+
+    // 所在章各 ready 块正文拼接，既是出题材料也是 excerpt 子串硬校验的比对基准
+    const sourceText = chapter.blocks
+      .filter((block) => block.status === 'ready')
+      .map((block) => {
+        switch (block.type) {
+          case 'explanation': return block.body
+          case 'example': return `${block.scenario}\n${block.takeaway}`
+          case 'formula': return `${block.formula}\n${block.explanation}`
+          case 'concept': return block.concepts.map((entry) => `${entry.label}：${entry.description}`).join('\n')
+          default: return ''
+        }
+      })
+      .filter((text) => text.length > 0)
+      .join('\n')
+
+    // 该概念历史答错记录（question+feedback，最新在前，最多 3 条）
+    const quizByBlockId = new Map(
+      book.chapters
+        .flatMap((entry) => entry.blocks)
+        .filter((block) => block.type === 'quiz')
+        .map((block) => [block.id, block]),
+    )
+    const mistakes = [...book.quizAttempts]
+      .reverse()
+      .filter((attempt) => !attempt.isCorrect)
+      .map((attempt) => quizByBlockId.get(attempt.blockId))
+      .filter((block): block is QuizBlock => block !== undefined && block.conceptId === conceptId)
+      .slice(0, 3)
+      .map((block) => ({ question: block.question, feedback: block.feedback }))
+
+    const baseMessages = buildAdaptiveQuizMessages({
+      conceptLabel: concept.label,
+      conceptDescription: concept.description,
+      chapterTitle: chapter.title,
+      sourceText,
+      mistakes,
+    })
+
+    // 失败分类（照抄 pretest 路由）：上游传输类失败直接 502；解析/校验失败带修正指令重试一次
+    let quiz: NormalizedAdaptiveQuiz | null = null
+    let attemptMessages = baseMessages
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      let text: string
+      try {
+        text = await callUpstream(attemptMessages, apiKey)
+      } catch {
+        res.status(502).json({ error: 'adaptive_quiz_failed' })
+        return
+      }
+      try {
+        quiz = normalizeAdaptiveQuiz(extractJsonObject(text), sourceText)
+        break
+      } catch (error) {
+        if (
+          !(error instanceof ProposalValidationError) &&
+          !(error instanceof AdaptiveQuizValidationError)
+        ) {
+          throw error
+        }
+        const reason = error instanceof AdaptiveQuizValidationError ? error.reason : undefined
+        emitLog(logger, {
+          category: 'adaptive_quiz_validation_failed',
+          attempt,
+          bookId: book.id,
+          chapterId: chapter.id,
+          ...(reason ? { reason } : {}),
+        })
+        attemptMessages = [
+          ...baseMessages,
+          { role: 'assistant', content: text },
+          {
+            role: 'user',
+            content: reason === undefined
+              ? '上次输出未通过校验：adaptive_quiz_invalid，请只输出合法 JSON。'
+              : `上次输出未通过校验：adaptive_quiz_invalid（${reason}），请修正后只输出合法 JSON。`,
+          },
+        ]
+      }
+    }
+
+    if (quiz === null) {
+      res.status(502).json({ error: 'adaptive_quiz_failed' })
+      return
+    }
+
+    const block: QuizBlock = {
+      id: `blk-adaptive-${randomUUID()}`,
+      type: 'quiz',
+      status: 'ready',
+      title: `加试：${concept.label}`,
+      revision: 1,
+      sourceAnchors: structuredClone(chapter.sourceAnchors),
+      conceptId,
+      origin: 'adaptive',
+      question: quiz.question,
+      options: quiz.options,
+      correctAnswerId: quiz.correctAnswerId,
+      feedback: quiz.feedback,
+    }
+    try {
+      await bookStore.update(book.id, (current) => {
+        const currentChapter = current.chapters.find((entry) => entry.id === chapter.id)
+        if (currentChapter === undefined) throw new Error('chapter_not_found')
+        currentChapter.blocks.push(block)
+        current.updatedAt = new Date().toISOString()
+      })
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    emitLog(logger, { category: 'adaptive_quiz_generated', bookId: book.id, chapterId: chapter.id })
+    res.status(201).json({ block })
+  })
+
   // 用户笔记：用户数据写书级 userNotes，不在生成白名单内，重新生成章节不得覆盖（规格 §6.2）
   router.post('/:id/notes', async (req, res) => {
     const body: unknown = req.body
@@ -988,6 +1153,67 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     }
     emitLog(logger, { category: 'note_removed', bookId: book.id })
     res.status(204).end()
+  })
+
+  // 阅读进度：幂等三动作（visit/bookmark/unbookmark），返回更新后进度与派生完成度
+  router.post('/:id/progress', async (req, res) => {
+    const body: unknown = req.body
+    const chapterId = isRecord(body) ? body.chapterId : undefined
+    const action = isRecord(body) ? body.action : undefined
+    const ACTIONS: readonly ProgressAction[] = ['visit', 'bookmark', 'unbookmark']
+    if (
+      typeof chapterId !== 'string' || !chapterId.trim() ||
+      typeof action !== 'string' || !ACTIONS.includes(action as ProgressAction)
+    ) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    if (!book.chapters.some((chapter) => chapter.id === chapterId)) {
+      res.status(409).json({ error: 'chapter_not_found' })
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    try {
+      await bookStore.update(book.id, (current) => {
+        applyProgressEvent(current, { chapterId, action: action as ProgressAction }, nowIso)
+        current.updatedAt = nowIso
+      })
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    const updated = await bookStore.get(book.id)
+    emitLog(logger, { category: 'reading_progress', bookId: book.id, chapterId, action })
+    res.status(200).json({ progress: updated?.readingProgress, completion: deriveCompletion(updated ?? book) })
+  })
+
+  // 完成度派生：只读，无写入
+  router.get('/:id/completion', async (req, res) => {
+    let book: StoredBook | null
+    try {
+      book = await bookStore.get(req.params.id)
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+      return
+    }
+    if (book === null) {
+      res.status(404).json({ error: 'book_not_found' })
+      return
+    }
+    res.status(200).json({ completion: deriveCompletion(book) })
   })
 
   // 导出 Markdown：只读投影，无 LLM、无写入；笔记/引用/证据摘要全部随书导出

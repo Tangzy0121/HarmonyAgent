@@ -115,6 +115,8 @@ export interface QuizBlock extends BaseBookBlock {
   options: QuizOption[]
   correctAnswerId: string
   feedback: string
+  /** 缺省 = 成书生成；'adaptive' = 薄弱概念智能出题现场生成 */
+  origin?: 'adaptive'
 }
 
 // 错题四类诊断：类型定义放本文件（diagnosisPrompt.ts 从这里 import），
@@ -295,6 +297,13 @@ export interface GenerationJob {
   updatedAt: string
 }
 
+/** 章节阅读进度：已读（首读顺序）、书签、逐章最近阅读时间（ISO） */
+export interface ReadingProgress {
+  visitedChapterIds: string[]
+  bookmarkedChapterIds: string[]
+  lastReadAt: Record<string, string>
+}
+
 export interface PretestQuestion {
   id: string
   chapterId: string
@@ -340,6 +349,7 @@ export interface StoredBook {
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest
+  readingProgress?: ReadingProgress
   reviewSchedule?: Record<string, ReviewScheduleEntry>
   projectionOutbox?: Record<string, ProjectionOutboxEntry>
   masteryProjectionReadModel?: Record<string, MasteryProjectionReadModelEntry>
