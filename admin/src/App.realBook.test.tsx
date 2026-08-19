@@ -1188,6 +1188,69 @@ describe('App · 真实学习书接线', () => {
     expect(container.textContent).not.toContain('今天的复习都完成了')
   })
 
+  it('打开已有生成痕迹的 partial 书：自动从首个 pending 章恢复生成队列，且只触发一次', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'partial',
+      chapters: learningBookFixture.chapters.map((chapter, index) => index === 0
+        ? { ...chapter, status: 'ready' as const }
+        : { ...chapter, status: 'pending' as const, blocks: [] }),
+    }))
+    mountApp('#book/book_x/ch-3')
+    // 第二拍：getBook 落库后的 passive effect（自动恢复）经 Scheduler 宏任务才执行
+    await flushEffects()
+    await flushEffects()
+
+    // 自动恢复：从首个 pending 章（ch-2）起流式续跑；已有生成痕迹，不出现摸底入口
+    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-2'])
+    expect(container.textContent).not.toContain('先摸底（5 题）')
+
+    // 队列按序推进到底，且不随章节状态回落重复触发
+    for (const index of [0, 1, 2]) {
+      emitStream(streams[index], [
+        { type: 'chapter_start', chapterId: streams[index].chapterId },
+        { type: 'chapter_done', blockCount: 0, warnings: [] },
+      ])
+      streams[index].resolve()
+      await flushEffects()
+    }
+    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-2', 'ch-3', 'ch-4'])
+    expect(streamChapterGeneration).toHaveBeenCalledTimes(3)
+  })
+
+  it('打开全 pending 的书：不自动开始生成，仍由摸底入口接管', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({ status: 'generating' }))
+    mountApp('#book/book_x/ch-1')
+    await flushEffects()
+    await flushEffects()
+
+    expect(streamChapterGeneration).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('先摸底（5 题）')
+  })
+
+  it('生成中断后 pending 章视图可手动「继续生成」恢复队列', async () => {
+    vi.mocked(getBook).mockResolvedValue(realBookFixture({
+      status: 'partial',
+      chapters: learningBookFixture.chapters.map((chapter, index) => index === 0
+        ? { ...chapter, status: 'ready' as const }
+        : { ...chapter, status: 'pending' as const, blocks: [] }),
+    }))
+    mountApp('#book/book_x/ch-3')
+    await flushEffects()
+    await flushEffects()
+    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-2'])
+
+    // 断流（abort）：章状态保持 pending，队列停下，不自动重触发
+    streams[0].reject(new DOMException('stopped', 'AbortError'))
+    await flushEffects()
+    expect(container.textContent).toContain('这一章正在排队')
+    expect(streams).toHaveLength(1)
+
+    click('继续生成')
+    await flushEffects()
+    expect(streams).toHaveLength(2)
+    expect(streams[1].chapterId).toBe('ch-2')
+  })
+
   it('mock 原型页不渲染掌握度入口', async () => {
     mountApp('#library/ml-chapter-03')
     await flushEffects()

@@ -25,6 +25,8 @@ interface InteractiveBookPageProps {
   chapterProgress?: { blocksReceived: number } | null
   /** 真实书失败章重试：重新发起该章的流式生成 */
   onRetryChapter?: (chapterId: string) => void
+  /** 真实书 pending 章手动恢复：重新启动剩余 pending 章的生成队列（与打开书时的自动恢复同路径） */
+  onResumeGeneration?: () => void
   /** 真实书：答题提交走服务端持久化（异步，false 表示失败）；缺省时走本地 mock 逻辑 */
   onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<boolean>
   /** 真实书今日复习：全书/本章到期复习项数（>0 且提供 onOpenReview 时渲染对应入口） */
@@ -43,7 +45,7 @@ interface InteractiveBookPageProps {
 }
 
 export function InteractiveBookPage(props: InteractiveBookPageProps) {
-  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade, onAddNote, onDeleteNote, onToggleBookmark } = props
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onResumeGeneration, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade, onAddNote, onDeleteNote, onToggleBookmark } = props
   const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
   const isChapterBookmarked = book.readingProgress?.bookmarkedChapterIds.includes(activeChapter.id) ?? false
   const nextChapter = book.chapters[activeChapter.order + 1]
@@ -183,6 +185,9 @@ export function InteractiveBookPage(props: InteractiveBookPageProps) {
         ) : (
           <section className="book-pending-state">
             <Icon name="clock" size={28} /><h1 id="interactive-book-title">这一章正在排队</h1><p>先完成前面的章节，系统会按目录顺序继续生成。</p>
+            {isRealBook && onResumeGeneration && (
+              <button type="button" className="book-block__primary" onClick={onResumeGeneration}>继续生成</button>
+            )}
           </section>
         )}
       </main>

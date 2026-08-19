@@ -466,6 +466,23 @@ function App() {
     return () => { cancelled = true }
   }, [activeRealBookId, refreshReviewDue])
 
+  // 生成中断恢复：打开已有生成痕迹（至少一章非 pending，即 partial/generating）且仍有 pending 章的
+  // 真实书阅读页时，自动恢复生成队列——每次进入一本书至多触发一次（ref 按书 id 记忆，退出书页后重置）；
+  // 全新书（全 pending）由摸底入口闸门接管，不在此自动生成
+  const resumedGenerationForRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!isInteractiveBook || activeRealBookId === null || !isRealBookLoaded) {
+      resumedGenerationForRef.current = null
+      return
+    }
+    if (resumedGenerationForRef.current === activeRealBookId) return
+    const hasPending = learningBook.chapters.some((chapter) => chapter.status === 'pending')
+    const hasGenerationTrace = learningBook.chapters.some((chapter) => chapter.status !== 'pending')
+    if (!hasPending || !hasGenerationTrace) return
+    resumedGenerationForRef.current = activeRealBookId
+    realBookGeneration.start()
+  }, [isInteractiveBook, activeRealBookId, isRealBookLoaded, learningBook.chapters, realBookGeneration.start])
+
   // 知识库真实书列表：挂载时拉取一次，失败静默为空列表
   useEffect(() => {
     let cancelled = false
@@ -1073,6 +1090,7 @@ function App() {
               isRealBook={activeRealBookId !== null}
               chapterProgress={realBookGeneration.progress && realBookGeneration.progress.chapterId === activeBookChapterId ? { blocksReceived: realBookGeneration.progress.blocksReceived } : null}
               onRetryChapter={realBookGeneration.retryChapter}
+              onResumeGeneration={realBookGeneration.start}
               onSubmitQuizAttempt={submitRealQuizAttempt}
               reviewCount={reviewDue.length}
               chapterReviewCount={reviewDue.filter((item) => item.chapterId === activeBookChapterId).length}

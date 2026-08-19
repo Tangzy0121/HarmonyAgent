@@ -112,4 +112,32 @@ describe('InteractiveBookPage', () => {
     expect(html).toContain('本章完成后即可开始阅读')
     expect(html).not.toContain('第一章完成后')
   })
+
+  it('真实书 pending 章渲染「继续生成」按钮并回调；mock 书保持纯排队提示', () => {
+    const pendingBook = {
+      ...learningBookFixture,
+      chapters: learningBookFixture.chapters.map((chapter, index) => index === 0
+        ? { ...chapter, status: 'pending' as const, blocks: [] }
+        : chapter),
+    }
+    const baseProps = {
+      book: pendingBook,
+      activeChapterId: 'ch-1',
+      contextScope: 'chapter' as const,
+      onAskAgent: () => undefined,
+      onBack: () => undefined,
+      onBookChange: () => undefined,
+      onChapterChange: () => undefined,
+      onContextScopeChange: () => undefined,
+      onStartDeepLearning: () => undefined,
+    }
+
+    const html = renderToStaticMarkup(<InteractiveBookPage {...baseProps} isRealBook onResumeGeneration={() => undefined} />)
+    expect(html).toContain('这一章正在排队')
+    expect(html).toContain('继续生成</button>')
+
+    const mockHtml = renderToStaticMarkup(<InteractiveBookPage {...baseProps} />)
+    expect(mockHtml).toContain('这一章正在排队')
+    expect(mockHtml).not.toContain('继续生成</button>')
+  })
 })
