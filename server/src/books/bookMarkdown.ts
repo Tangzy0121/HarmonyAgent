@@ -97,7 +97,8 @@ export function renderBookMarkdown(book: StoredBook, exportedAt: string = new Da
 
   const chapters = [...book.chapters].sort((a, b) => a.order - b.order)
   for (const chapter of chapters) {
-    lines.push('', `## 第 ${chapter.order + 1} 章 ${chapter.title}`, '', chapter.objective)
+    // 落盘章节 order 为 1..N（buildBook/proposalEdits 归一化），直接打印，不再 +1
+    lines.push('', `## 第 ${chapter.order} 章 ${chapter.title}`, '', chapter.objective)
     if (chapter.status !== 'ready') {
       lines.push('', `> ⚠️ 本章${CHAPTER_STATUS_LABEL[chapter.status]}，内容可能不完整`)
     }

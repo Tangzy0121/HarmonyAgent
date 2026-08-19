@@ -43,6 +43,22 @@ describe('parseLearningBook', () => {
     expect(parsed.chapters.map((chapter) => chapter.id)).toEqual(storedPayload.chapters.map((chapter) => chapter.id))
   })
 
+  it('keeps the chapters[order + 1] next-chapter lookup contiguous after normalization (no chapter skip)', () => {
+    // 回归：App/todayNextStep/InteractiveBookPage 用 chapters[order + 1] 取下一章，
+    // 归一化后相邻章的 order 必须连续，否则会跳章
+    const oneBased = {
+      ...storedPayload,
+      chapters: storedPayload.chapters.map((chapter, index) => ({ ...chapter, order: index + 1 })),
+    }
+
+    const parsed = parseLearningBook(oneBased)
+
+    for (const [index, chapter] of parsed.chapters.entries()) {
+      expect(chapter.order).toBe(index)
+      expect(parsed.chapters[chapter.order + 1]?.id).toBe(parsed.chapters[index + 1]?.id)
+    }
+  })
+
   it('rejects a payload without chapters or with non-array chapters', () => {
     const withoutChapters = { ...storedPayload } as Record<string, unknown>
     delete withoutChapters.chapters
