@@ -1031,7 +1031,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       return
     }
     const updated = await bookStore.get(book.id)
-    emitLog(logger, { category: 'reading_progress', bookId: book.id, chapterId, action })
+    emitLog(logger, { category: 'reading_progress', bookId: book.id, chapterId, action: action as ProgressAction })
     res.status(200).json({ progress: updated?.readingProgress, completion: deriveCompletion(updated ?? book) })
   })
 
