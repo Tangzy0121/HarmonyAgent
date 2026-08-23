@@ -74,6 +74,7 @@ export interface BooksLogEvent {
     | 'feynman_validation_failed'
     | 'note_recorded'
     | 'note_removed'
+    | 'reading_progress'
     | 'book_exported'
   status?: number
   name?: string
