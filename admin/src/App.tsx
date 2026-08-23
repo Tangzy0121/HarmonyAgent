@@ -927,6 +927,7 @@ function App() {
           onNewConversation={isInteractiveBook ? bookAgent.newConversation : undefined}
           onContextEnabledChange={isInteractiveBook ? setBookContextEnabled : undefined}
           onSourceOpen={isInteractiveBook ? openBookAgentSource : undefined}
+          allowFixtureConversation={false}
         />
       }
     >
@@ -947,8 +948,8 @@ function App() {
           isChangeFocus={isMapChangeFocus}
           onScheduleNext={openTodayOutcome}
           learningEvidence={learningBook.evidence}
-          mapNodes={bookMap.nodes.length > 0 ? bookMap.nodes : undefined}
-          mapRelationships={bookMap.nodes.length > 0 ? bookMap.relationships : undefined}
+          mapNodes={bookMap.nodes}
+          mapRelationships={bookMap.relationships}
         />
         <KnowledgeLibraryPage
           isActive={!isLearningDataOpen && !activeDocumentId && !isInteractiveBook && !activeRealBookId && !activeLearningId && activeDestination === 'library'}
@@ -957,6 +958,7 @@ function App() {
           realBooks={realBooks}
           onUploadBook={openUploadBook}
           onOpenRealBook={openRealBook}
+          showFixtures={false}
         />
         <LearningDataPage
           isActive={isLearningDataOpen}

@@ -11,15 +11,17 @@ interface PageProps {
   realBooks?: StoredBook[]
   onUploadBook?: () => void
   onOpenRealBook?: (bookId: string) => void
+  /** 仅视觉原型使用；MVP 真实流程必须关闭，避免把演示资料当成用户数据。 */
+  showFixtures?: boolean
 }
 
-export function KnowledgeLibraryPage({ isActive, onOpenDocument, bookStatusLabel, realBooks, onUploadBook, onOpenRealBook }: PageProps) {
+export function KnowledgeLibraryPage({ isActive, onOpenDocument, bookStatusLabel, realBooks, onUploadBook, onOpenRealBook, showFixtures = true }: PageProps) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'全部' | '资料' | '笔记'>('全部')
   const trimmedQuery = query.trim()
-  const visibleItems = useMemo(() => libraryPageContent.items.filter((item) => (
+  const visibleItems = useMemo(() => (showFixtures ? libraryPageContent.items : []).filter((item) => (
     (kind === '全部' || item.kind === kind) && item.name.includes(trimmedQuery)
-  )), [kind, trimmedQuery])
+  )), [kind, showFixtures, trimmedQuery])
   const visibleRealBooks = useMemo(() => (realBooks ?? [])
     .map(toRealBookListItem)
     .filter((item) => kind !== '笔记' && item.name.includes(trimmedQuery)), [realBooks, kind, trimmedQuery])
@@ -36,12 +38,12 @@ export function KnowledgeLibraryPage({ isActive, onOpenDocument, bookStatusLabel
                 上传学习资料
               </button>
             )}
-            <button className="library-create" type="button" aria-label="新建资料">
+            {showFixtures && <button className="library-create" type="button" aria-label="新建资料">
               <Icon name="add" size={20} />
-            </button>
+            </button>}
           </div>
         </div>
-        <p>{libraryPageContent.subtitle} · {libraryPageContent.items.length} 项资料</p>
+        <p>{showFixtures ? libraryPageContent.subtitle : '我的学习资料'} · {visibleRealBooks.length + visibleItems.length} 项资料</p>
       </header>
 
       <LibraryControlPanel
