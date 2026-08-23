@@ -160,8 +160,10 @@ function renderCard(props: Partial<Parameters<typeof FeynmanCard>[0]> = {}): Ren
 }
 
 async function flushEffects(): Promise<void> {
-  await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  flushSync(() => undefined)
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    flushSync(() => undefined)
+  }
 }
 
 function findButton(container: FakeElement, text: string): FakeElement {

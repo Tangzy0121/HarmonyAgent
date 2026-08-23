@@ -32,7 +32,8 @@ export function KatexView({ tex, displayMode = false }: KatexViewProps) {
 
   useEffect(() => {
     let observer: ResizeObserver | undefined
-    if (displayMode && hostRef.current) {
+    const timer = window.setTimeout(() => {
+      if (!displayMode || !hostRef.current) return
       fitDisplayToWidth(hostRef.current)
       if (typeof ResizeObserver !== 'undefined') {
         observer = new ResizeObserver(() => {
@@ -40,8 +41,11 @@ export function KatexView({ tex, displayMode = false }: KatexViewProps) {
         })
         observer.observe(hostRef.current)
       }
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      observer?.disconnect()
     }
-    return () => observer?.disconnect()
   }, [displayMode, html])
 
   return (

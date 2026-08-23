@@ -82,6 +82,7 @@ export interface BooksLogEvent {
   bookId?: string
   chapterId?: string
   documentId?: string
+  action?: ProgressAction
   /** 校验失败的内部原因（固定中文短语，不含原文/密钥） */
   reason?: string
 }
