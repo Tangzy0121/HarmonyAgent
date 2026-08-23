@@ -357,8 +357,10 @@ let streams: PendingStream[]
 
 async function flushEffects(): Promise<void> {
   // React 18 在事件外触发的更新经 Scheduler 宏任务（MessageChannel）调度，微任务等不到
-  await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  flushSync(() => undefined)
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    flushSync(() => undefined)
+  }
 }
 
 function mountApp(initialHash: string): void {

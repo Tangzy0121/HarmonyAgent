@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 interface KatexViewProps {
   tex: string
@@ -18,46 +20,35 @@ function fitDisplayToWidth(host: HTMLSpanElement): void {
   }
 }
 
-/** 懒加载 KaTeX 渲染 LaTeX；加载或解析失败时回退为原始文本，不影响页面其余部分。 */
+/** 同步渲染 KaTeX，避免多个公式各自懒加载时产生竞态；解析失败时回退原始文本。 */
 export function KatexView({ tex, displayMode = false }: KatexViewProps) {
   const hostRef = useRef<HTMLSpanElement>(null)
-  const [failed, setFailed] = useState(false)
+  let html: string
+  try {
+    html = katex.renderToString(tex, { displayMode, throwOnError: false })
+  } catch {
+    return <span className="katex-host katex-host--fallback">{tex}</span>
+  }
 
   useEffect(() => {
-    let cancelled = false
     let observer: ResizeObserver | undefined
-    setFailed(false)
-    ;(async () => {
-      try {
-        const katex = (await import('katex')).default
-        await import('katex/dist/katex.min.css')
-        const html = katex.renderToString(tex, { displayMode, throwOnError: false })
-        if (!cancelled && hostRef.current) {
-          hostRef.current.innerHTML = html
-          if (displayMode) {
-            fitDisplayToWidth(hostRef.current)
-            if (typeof ResizeObserver !== 'undefined') {
-              observer = new ResizeObserver(() => {
-                if (hostRef.current) fitDisplayToWidth(hostRef.current)
-              })
-              observer.observe(hostRef.current)
-            }
-          }
-        }
-      } catch {
-        if (!cancelled) setFailed(true)
+    if (displayMode && hostRef.current) {
+      fitDisplayToWidth(hostRef.current)
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(() => {
+          if (hostRef.current) fitDisplayToWidth(hostRef.current)
+        })
+        observer.observe(hostRef.current)
       }
-    })()
-    return () => {
-      cancelled = true
-      observer?.disconnect()
     }
-  }, [tex, displayMode])
+    return () => observer?.disconnect()
+  }, [displayMode, html])
 
-  if (failed) return <span className="katex-host katex-host--fallback">{tex}</span>
   return (
-    <span ref={hostRef} className={displayMode ? 'katex-host katex-host--display' : 'katex-host'}>
-      {tex}
-    </span>
+    <span
+      ref={hostRef}
+      className={displayMode ? 'katex-host katex-host--display' : 'katex-host'}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   )
 }
