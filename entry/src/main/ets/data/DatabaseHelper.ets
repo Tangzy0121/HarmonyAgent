@@ -1,6 +1,6 @@
 // DatabaseHelper —— SQLite 数据库初始化与管理
 // 实现技术实施计划 §2 数据层的 10 张表 DDL
-// 使用 @ohos.data.relationalStore (RdbStore)
+// 使用 ArkData relationalStore (RdbStore)
 //
 // 表清单：
 //   note          —— 笔记/文件元数据
@@ -14,7 +14,7 @@
 //   behavior_log  —— 用户行为日志
 //   push_record   —— 推送记录（防骚扰）
 
-import { relationalStore } from '@kit.data.relationalStore';
+import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 
@@ -158,8 +158,9 @@ export async function initDatabase(context: common.Context): Promise<void> {
       }
     }
   } catch (err) {
-    console.error(TAG + ' Get RdbStore failed: ' + (err as BusinessError).message);
-    throw err;
+    const message: string = (err as BusinessError).message;
+    console.error(TAG + ' Get RdbStore failed: ' + message);
+    throw new Error(message);
   }
 }
 
