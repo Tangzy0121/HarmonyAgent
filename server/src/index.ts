@@ -6,6 +6,22 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { llmRouter } from './routes/llm.js';
+import { createBookAgentRouter } from './routes/bookAgent.js';
+import { createDocumentsRouter } from './routes/documents.js';
+import { createBooksRouter } from './routes/books.js';
+import { createDocumentStore } from './documents/documentStore.js';
+import { createBookStore } from './books/bookStore.js';
+import { AgentRuntime } from './agent/runtime/agentRuntime.js';
+import { createBookAgentRunner } from './agent/runtime/bookAgentRunner.js';
+import { createSingleUserBookAccess, LearningContextBuilder } from './agent/runtime/learningContext.js';
+import { createTurnStore } from './agent/runtime/turnStore.js';
+import { createAgentTurnsRouter } from './routes/agentTurns.js';
+import { createLearnerRouter } from './routes/learner.js';
+import { LearningEvidenceService } from './learning/learningEvidenceService.js';
+import { loadOrCreateEvidenceSecurityKeys } from './learning/evidenceSecurityKeys.js';
+import { createProviderFeynmanEvaluator } from './learning/feynmanEvaluator.js';
+import { ProjectionRecoveryWorker } from './learning/projectionRecoveryWorker.js';
+import path from 'node:path';
 
 dotenv.config();
 
@@ -14,6 +30,59 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 
 // Middleware
 app.use(cors());
+app.use('/api/agent', createBookAgentRouter());
+const dataRoot = process.env.DATA_DIR ?? path.join(process.cwd(), 'data');
+const documentStore = createDocumentStore(dataRoot);
+const bookStore = createBookStore(path.join(dataRoot, 'books'));
+const turnStore = createTurnStore(path.join(dataRoot, 'agent-turns'));
+const runtimeActor = {
+  userId: process.env.RUNTIME_USER_ID?.trim() || 'local-user',
+  workspaceId: process.env.RUNTIME_WORKSPACE_ID?.trim() || 'local-workspace',
+};
+const evidenceSecurityKeys = await loadOrCreateEvidenceSecurityKeys(dataRoot, process.env);
+const learningEvidenceService = new LearningEvidenceService({
+  bookStore,
+  owner: runtimeActor,
+  ...evidenceSecurityKeys,
+});
+const projectionRecoveryWorker = new ProjectionRecoveryWorker({
+  drain: () => learningEvidenceService.drainProjectionOutbox(runtimeActor),
+  logger: (event) => console.warn(`[projection-recovery] ${JSON.stringify(event)}`),
+});
+await projectionRecoveryWorker.start();
+const runtime = new AgentRuntime({
+  turnStore,
+  contextBuilder: new LearningContextBuilder({
+    bookAccess: createSingleUserBookAccess(bookStore, runtimeActor),
+  }),
+  runner: createBookAgentRunner(),
+  learningEvidenceService,
+  feynmanEvaluator: createProviderFeynmanEvaluator(),
+});
+app.use(
+  '/api/agent',
+  createAgentTurnsRouter({
+    runtime,
+    turnStore,
+    actorProvider: () => runtimeActor,
+  }),
+);
+app.use(
+  '/api/documents',
+  createDocumentsRouter({
+    store: documentStore,
+  }),
+);
+app.use(
+  '/api/books',
+  createBooksRouter({
+    documentStore,
+    bookStore,
+    learningEvidenceService,
+    runtimeActor,
+  }),
+);
+app.use('/api/learner', createLearnerRouter({ bookStore }));
 app.use(express.json({ limit: '10mb' }));
 
 // Health check
@@ -25,8 +94,19 @@ app.get('/health', (_req, res) => {
 app.use('/v1', llmRouter);
 app.use('/api', llmRouter);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[HarmonyAgent Server] running on http://localhost:${PORT}`);
   console.log(`[HarmonyAgent Server] provider: ${process.env.LLM_PROVIDER || 'not configured'}`);
   console.log(`[HarmonyAgent Server] audit log: ${process.env.AUDIT_LOG_ENABLED === 'true' ? 'enabled (no content)' : 'disabled'}`);
 });
+
+server.on('close', () => projectionRecoveryWorker.stop());
+let shuttingDown = false;
+const shutdown = (): void => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  projectionRecoveryWorker.stop();
+  server.close();
+};
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);

@@ -1,0 +1,191 @@
+import { Icon } from '../components/Icon'
+import { BookBlockRenderer } from '../components/book/BookBlockRenderer'
+import { BlockNotesSection } from '../components/book/BlockNotesSection'
+import { BookContextBar } from '../components/book/BookContextBar'
+import { BookGenerationRail } from '../components/book/BookGenerationRail'
+import { FeynmanCard } from '../components/book/FeynmanCard'
+import { advanceGeneration, regenerateBlock, retryChapterGeneration, submitQuizAttempt, updateUserNote } from '../domain/learningBook'
+import { chapterMastery, deriveConceptLearningState, latestAttemptForBlock, latestEvidenceForBlock } from '../domain/learningProjection'
+import { bookExportUrl } from '../services/bookApi'
+import type { AgentContextScope, LearningBook } from '../types/learningBook'
+
+interface InteractiveBookPageProps {
+  book: LearningBook
+  activeChapterId: string
+  contextScope: AgentContextScope
+  onBookChange: (book: LearningBook) => void
+  onChapterChange: (chapterId: string) => void
+  onContextScopeChange: (scope: AgentContextScope) => void
+  onAskAgent: (focusBlockId?: string, draft?: string) => void
+  onBack: () => void
+  onStartDeepLearning: (blockId: string) => void
+  /** 真实书：生成中视图显示流式进度、隐藏 mock 的“完成本章生成”，块级重生成不渲染 */
+  isRealBook?: boolean
+  /** 当前章的流式进度（仅真实书生成中传入） */
+  chapterProgress?: { blocksReceived: number } | null
+  /** 真实书失败章重试：重新发起该章的流式生成 */
+  onRetryChapter?: (chapterId: string) => void
+  /** 真实书：答题提交走服务端持久化（异步，false 表示失败）；缺省时走本地 mock 逻辑 */
+  onSubmitQuizAttempt?: (blockId: string, answerId: string) => Promise<boolean>
+  /** 真实书今日复习：全书/本章到期复习项数（>0 且提供 onOpenReview 时渲染对应入口） */
+  reviewCount?: number
+  chapterReviewCount?: number
+  onOpenReview?: () => void
+  /** 真实书掌握度看板入口（仅真实书透传给章节轨） */
+  onOpenMasteryBoard?: () => void
+  /** 真实书闪卡自评（与复习 Sheet 同一条链路；仅真实书传入，mock 不渲染自评区） */
+  onFlashGrade?: (blockId: string, result: 'remembered' | 'forgotten') => Promise<boolean | void>
+  /** 真实书用户笔记：走服务端持久化（异步，false 表示失败）；仅真实书传入 */
+  onAddNote?: (chapterId: string, blockId: string, body: string) => Promise<boolean | void>
+  onDeleteNote?: (noteId: string) => Promise<boolean | void>
+  /** 真实书章节书签切换（仅真实书传入，按钮在导航头部） */
+  onToggleBookmark?: (chapterId: string) => void
+}
+
+export function InteractiveBookPage(props: InteractiveBookPageProps) {
+  const { book, activeChapterId, contextScope, onBookChange, onChapterChange, onContextScopeChange, onAskAgent, onBack, onStartDeepLearning, isRealBook = false, chapterProgress = null, onRetryChapter, onSubmitQuizAttempt, reviewCount = 0, chapterReviewCount = 0, onOpenReview, onOpenMasteryBoard, onFlashGrade, onAddNote, onDeleteNote, onToggleBookmark } = props
+  const activeChapter = book.chapters.find((chapter) => chapter.id === activeChapterId) ?? book.chapters[0]
+  const isChapterBookmarked = book.readingProgress?.bookmarkedChapterIds.includes(activeChapter.id) ?? false
+  const nextChapter = book.chapters[activeChapter.order + 1]
+  const chapterOrdinal = ['一', '二', '三', '四', '五', '六'][activeChapter.order] ?? String(activeChapter.order + 1)
+  // 掌握度与概念学习状态仅对真实书从 attempts 派生（mock 原型页行为不变）
+  const activeChapterMastery = isRealBook ? chapterMastery(book, activeChapter.id) : null
+  const masteryByChapterId = isRealBook
+    ? Object.fromEntries(
+        book.chapters
+          .map((chapter) => [chapter.id, chapterMastery(book, chapter.id)] as const)
+          .filter((entry): entry is readonly [string, number] => entry[1] !== null),
+      )
+    : undefined
+
+  return (
+    <section className="interactive-book-page" aria-labelledby="interactive-book-title">
+      <header className="interactive-book-navigation">
+        <button type="button" onClick={onBack} aria-label="返回知识库"><Icon name="back" size={21} />知识库</button>
+        <div><span>互动学习书</span><strong>{book.proposal.title}</strong></div>
+        <span className="interactive-book-navigation__source"><Icon name="document" size={16} />{book.source.fileName}</span>
+        {isRealBook && onToggleBookmark && (
+          <button
+            type="button"
+            className={isChapterBookmarked ? 'interactive-book-navigation__bookmark is-bookmarked' : 'interactive-book-navigation__bookmark'}
+            aria-pressed={isChapterBookmarked}
+            aria-label={isChapterBookmarked ? '取消本章书签' : '收藏本章书签'}
+            onClick={() => onToggleBookmark(activeChapter.id)}
+          >
+            <Icon name="bookmark" size={16} />
+          </button>
+        )}
+        {isRealBook && (
+          <a className="interactive-book-navigation__export" href={bookExportUrl(book.id)} download>
+            <Icon name="document" size={16} />导出 Markdown
+          </a>
+        )}
+      </header>
+
+      <BookGenerationRail chapters={book.chapters} activeChapterId={activeChapter.id} onChapterChange={onChapterChange} masteryByChapterId={masteryByChapterId} pretestResult={isRealBook ? book.pretest?.result ?? null : null} reviewCount={isRealBook ? reviewCount : 0} onOpenReview={isRealBook ? onOpenReview : undefined} onOpenMasteryBoard={isRealBook ? onOpenMasteryBoard : undefined} />
+
+      <main className="interactive-book-reader">
+        <BookContextBar contextScope={contextScope} onContextScopeChange={onContextScopeChange} onAskAgent={onAskAgent} />
+
+        {activeChapter.status === 'generating' ? (
+          <section className="book-generating-state" aria-live="polite">
+            <span className="book-generating-state__orb"><Icon name="spark" size={34} /></span>
+            <p>第 {activeChapter.order + 1} 章 · 正在理解原文</p>
+            <h1 id="interactive-book-title">正在生成第{chapterOrdinal}章</h1>
+            <span>Agent 正在依据第 {activeChapter.sourceAnchors.map((anchor) => anchor.pageRange).join('、')} 页组织讲解、例子和验证题。本章完成后即可开始阅读，后续章节会继续生成。</span>
+            <div className="book-generating-state__steps"><i className="is-done" /><i className="is-active" /><i /><i /></div>
+            {isRealBook && <span>已生成 {chapterProgress?.blocksReceived ?? 0} 块</span>}
+            {!isRealBook && <button type="button" onClick={() => onBookChange(advanceGeneration(book))}>完成本章生成 <Icon name="arrow" size={17} /></button>}
+          </section>
+        ) : activeChapter.status === 'error' ? (
+          <section className="book-pending-state" role="alert">
+            <Icon name="refresh" size={28} />
+            <h1 id="interactive-book-title">这一章生成失败了</h1>
+            <p>已有章节和学习记录不会受到影响，可以单独重试当前章节。</p>
+            <button type="button" className="book-block__primary" onClick={() => {
+              if (isRealBook) onRetryChapter?.(activeChapter.id)
+              else onBookChange(retryChapterGeneration(book, activeChapter.id))
+            }}>重新生成本章</button>
+          </section>
+        ) : activeChapter.status === 'ready' || activeChapter.status === 'partial' ? (
+          <article className="interactive-book-chapter">
+            <header className="interactive-book-chapter__hero">
+              <p>
+                第 {activeChapter.order + 1} 章 · {activeChapter.estimatedMinutes} 分钟
+                {activeChapterMastery !== null && ` · 掌握度 ${Math.round(activeChapterMastery * 100)}%`}
+              </p>
+              <h1 id="interactive-book-title">{book.proposal.title}</h1>
+              <h2>{activeChapter.title}</h2>
+              <span>{activeChapter.objective}</span>
+              <small>依据原文第 {activeChapter.sourceAnchors.map((anchor) => anchor.pageRange).join('、')} 页生成</small>
+            </header>
+            <div className="interactive-book-blocks">
+              {activeChapter.blocks.map((block) => {
+                // 概念学习状态由客户端从 attempts 派生（真实书），不改服务端块数据
+                const displayBlock = isRealBook && block.type === 'concept'
+                  ? { ...block, concepts: block.concepts.map((concept) => ({ ...concept, learningState: deriveConceptLearningState(book, concept.id) })) }
+                  : block
+                return (
+                  <div key={block.id} className="interactive-book-block-group">
+                    <BookBlockRenderer
+                      block={displayBlock}
+                      note={block.type === 'user_note' ? book.userNotes.find((note) => note.id === block.noteId) : undefined}
+                      attempt={latestAttemptForBlock(book.quizAttempts, block.id)}
+                      evidence={block.type === 'quiz' ? latestEvidenceForBlock(book.evidence, block.id) : undefined}
+                      allowBlockRegenerate={!isRealBook}
+                      allowQuizRetry={isRealBook}
+                      onRegenerate={(blockId) => onBookChange(regenerateBlock(book, blockId))}
+                      onSubmitQuiz={isRealBook && onSubmitQuizAttempt
+                        ? (blockId, answerId) => onSubmitQuizAttempt(blockId, answerId)
+                        : (blockId, answerId) => onBookChange(submitQuizAttempt(book, blockId, answerId))}
+                      onUpdateNote={(noteId, body) => onBookChange(updateUserNote(book, noteId, body))}
+                      onStartDeepLearning={onStartDeepLearning}
+                      onAskAgent={onAskAgent}
+                      onFlashGrade={isRealBook ? onFlashGrade : undefined}
+                    />
+                    {isRealBook && onAddNote && onDeleteNote && block.type !== 'user_note' && (
+                      <BlockNotesSection
+                        notes={book.userNotes.filter((note) => note.blockId === block.id)}
+                        onAdd={(body) => onAddNote(activeChapter.id, block.id, body)}
+                        onDelete={(noteId) => onDeleteNote(noteId)}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {isRealBook && activeChapter.status === 'ready' && (
+              <FeynmanCard
+                bookId={book.id}
+                chapterId={activeChapter.id}
+                onReviewBlocks={() => {
+                  // 本组件在部分测试中以普通函数调用，不能用 ref；直接按类名找回块列表
+                  const blocks = document.querySelector('.interactive-book-blocks')
+                  if (blocks && typeof blocks.scrollIntoView === 'function') {
+                    blocks.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                }}
+              />
+            )}
+            {isRealBook && chapterReviewCount > 0 && onOpenReview && (
+              <footer className="interactive-book-chapter__review">
+                <div><span>今日复习</span><strong>本章还有 {chapterReviewCount} 项到期复习</strong></div>
+                <button type="button" onClick={onOpenReview}>复习本章到期内容 <Icon name="arrow" size={17} /></button>
+              </footer>
+            )}
+            {nextChapter && (
+              <footer className="interactive-book-chapter__next">
+                <div><span>接下来</span><strong>{nextChapter.title}</strong></div>
+                <button type="button" onClick={() => onChapterChange(nextChapter.id)}>继续生成下一章 <Icon name="arrow" size={17} /></button>
+              </footer>
+            )}
+          </article>
+        ) : (
+          <section className="book-pending-state">
+            <Icon name="clock" size={28} /><h1 id="interactive-book-title">这一章正在排队</h1><p>先完成前面的章节，系统会按目录顺序继续生成。</p>
+          </section>
+        )}
+      </main>
+    </section>
+  )
+}

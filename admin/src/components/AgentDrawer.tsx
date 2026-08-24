@@ -1,18 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, FocusEvent, FormEvent } from 'react'
+import type { CSSProperties, FocusEvent, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { agentConversation, agentPrompts, pageContext } from '../data/prototype'
+import type { BookAgentSessionState } from '../hooks/bookAgentSessionReducer'
 import { useDrawerGesture } from '../hooks/useDrawerGesture'
+import type { BookAgentSource } from '../types/bookAgent'
 import { GlassSurface } from './GlassSurface'
 import { Icon } from './Icon'
+import { MathText } from './book/MathText'
 import type { Destination, DrawerSnap } from '../types/prototype'
 
 interface AgentDrawerProps {
   snap: DrawerSnap
   activeDestination: Destination
   contextLabel?: string
+  modeLabel?: string
+  contextEnabled?: boolean
   draft: string
+  bookSession?: BookAgentSessionState
   onDraftChange: (draft: string) => void
   onSnapChange: (snap: DrawerSnap) => void
+  onSubmitQuestion?: (question: string) => void | Promise<void>
+  onStop?: () => void
+  onRetry?: () => void | Promise<void>
+  onNewConversation?: () => void
+  onContextEnabledChange?: (enabled: boolean) => void
+  onSourceOpen?: (source: BookAgentSource) => void
+  /** 仅高保真原型使用；MVP 关闭后，无当前学习书时不生成固定演示回答。 */
+  allowFixtureConversation?: boolean
 }
 
 interface AgentMessage {
@@ -33,13 +47,68 @@ const initialMessages: AgentMessage[] = agentConversation.messages.map((message)
   role: message.role,
 }))
 
+function referencedSources(content: string, sources: BookAgentSource[] | undefined): BookAgentSource[] {
+  if (!sources?.length) return []
+  const sourceById = new Map(sources.map((source) => [source.id, source]))
+  const seen = new Set<string>()
+  const referenced: BookAgentSource[] = []
+  for (const match of content.matchAll(/\[(S[1-9]\d*)\]/gu)) {
+    const id = match[1] as BookAgentSource['id']
+    if (seen.has(id)) continue
+    seen.add(id)
+    const source = sourceById.get(id)
+    if (source) referenced.push(source)
+  }
+  return referenced
+}
+
+/** 助手回答富文本：$...$ 公式、**加粗** 走 MathText；已知的 [S#] 渲染为可点击证据签条，未知编号保持原文。 */
+function AssistantContent({ content, sources, onSourceOpen }: {
+  content: string
+  sources: BookAgentSource[] | undefined
+  onSourceOpen?: (source: BookAgentSource) => void
+}) {
+  const parts: ReactNode[] = []
+  const sourceById = new Map((sources ?? []).map((source) => [source.id, source]))
+  let last = 0
+  for (const match of content.matchAll(/\[(S[1-9]\d*)\]/gu)) {
+    const source = sourceById.get(match[1] as BookAgentSource['id'])
+    if (!source) continue
+    if (match.index > last) parts.push(<MathText key={`text-${match.index}`} text={content.slice(last, match.index)} />)
+    parts.push(<button
+      key={`source-${match.index}`}
+      type="button"
+      className="agent-inline-source"
+      aria-label={`查看证据 ${source.id}：${source.fileName} ${source.pageRange}`}
+      onClick={() => onSourceOpen?.(source)}
+    >{source.id}</button>)
+    last = match.index + match[0].length
+  }
+  if (last < content.length) parts.push(<MathText key={`text-${last}`} text={content.slice(last)} />)
+  return <>{parts}</>
+}
+
+function preferredScrollBehavior(): ScrollBehavior {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
+}
+
 export function AgentDrawer({
   snap,
   activeDestination,
   contextLabel,
+  modeLabel,
+  contextEnabled = true,
   draft,
+  bookSession,
   onDraftChange,
   onSnapChange,
+  onSubmitQuestion,
+  onStop,
+  onRetry,
+  onNewConversation,
+  onContextEnabledChange,
+  onSourceOpen,
+  allowFixtureConversation = true,
 }: AgentDrawerProps) {
   const [hasContext, setHasContext] = useState(true)
   const [activeView, setActiveView] = useState<'conversation' | 'history'>('conversation')
@@ -54,13 +123,18 @@ export function AgentDrawer({
   })
 
   const isFullScreen = snap === 'full'
+  const isBookMode = bookSession !== undefined
+  const fixtureConversationEnabled = !isBookMode && allowFixtureConversation
+  const effectiveActiveView = isBookMode || !fixtureConversationEnabled ? 'conversation' : activeView
+  const visibleMessageCount = isBookMode ? bookSession.messages.length : fixtureConversationEnabled ? messages.length : 0
+  const isStreaming = isBookMode && bookSession.status === 'streaming'
 
   useEffect(() => {
     const previousCount = previousMessageCountRef.current
-    previousMessageCountRef.current = messages.length
-    if (!isFullScreen || activeView !== 'conversation' || messages.length <= previousCount) return
-    conversationEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
-  }, [activeView, isFullScreen, messages.length])
+    previousMessageCountRef.current = visibleMessageCount
+    if (!isFullScreen || effectiveActiveView !== 'conversation' || visibleMessageCount <= previousCount) return
+    conversationEndRef.current?.scrollIntoView({ block: 'end', behavior: preferredScrollBehavior() })
+  }, [effectiveActiveView, isFullScreen, visibleMessageCount])
 
   if (snap === 'closed') {
     return null
@@ -78,9 +152,10 @@ export function AgentDrawer({
   } as CSSProperties
 
   const startNewConversation = () => {
-    setMessages([])
+    if (isBookMode) onNewConversation?.()
+    else setMessages([])
     setActiveView('conversation')
-    setHasContext(true)
+    if (!isBookMode) setHasContext(true)
     onDraftChange('')
     if (!isFullScreen) {
       onSnapChange('full')
@@ -96,7 +171,16 @@ export function AgentDrawer({
   const submitDraft = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const question = draft.trim()
-    if (!question) return
+    if (!question || isStreaming) return
+
+    if (isBookMode) {
+      void onSubmitQuestion?.(question)
+      onDraftChange('')
+      if (!isFullScreen) onSnapChange('full')
+      return
+    }
+
+    if (!fixtureConversationEnabled) return
 
     const timestamp = Date.now()
     setMessages((current) => [
@@ -140,6 +224,10 @@ export function AgentDrawer({
     }, 120)
   }
 
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault()
+  }
+
   return (
     <>
       <button className="agent-scrim" type="button" aria-label="点击遮罩关闭 Agent" onClick={() => onSnapChange('closed')} />
@@ -148,7 +236,7 @@ export function AgentDrawer({
         density="thick"
         role="dialog"
         aria-modal="true"
-        aria-label="自由 Agent"
+        aria-label={isBookMode ? '学习书 Agent' : '自由 Agent'}
         style={drawerStyle}
       >
         <div className="drawer-grab-area" {...grabAreaProps}>
@@ -168,20 +256,20 @@ export function AgentDrawer({
           </button>
         </div>
 
-        <nav className="agent-conversation-toolbar" aria-label="对话操作">
-          <button
+        {(isBookMode ? visibleMessageCount > 0 : fixtureConversationEnabled) && <nav className="agent-conversation-toolbar" aria-label="对话操作">
+          {fixtureConversationEnabled && <button
             type="button"
             aria-pressed={activeView === 'history'}
             onClick={() => setActiveView((current) => current === 'history' ? 'conversation' : 'history')}
           >
             <Icon name="history" size={18} />历史
-          </button>
-          <button type="button" onClick={startNewConversation}>
+          </button>}
+          {(!isBookMode || !isStreaming) && <button type="button" onClick={startNewConversation}>
             <Icon name="compose" size={18} />新建对话
-          </button>
-        </nav>
+          </button>}
+        </nav>}
 
-        {activeView === 'history' ? (
+        {effectiveActiveView === 'history' ? (
           <section className="agent-history" aria-labelledby="agent-history-title">
             <header>
               <div className="agent-identity"><Icon name="blossom" size={18} /><span>Knowledge Agent</span></div>
@@ -203,16 +291,59 @@ export function AgentDrawer({
           <>
             <header className="drawer-header">
               <div className="agent-identity"><Icon name="blossom" size={18} /><span>Knowledge Agent</span></div>
-              <h2>{isFullScreen && messages.length ? agentConversation.title : '从当前内容开始'}</h2>
-              <p>{isFullScreen && messages.length ? '围绕当前知识点继续追问，引用会保留来源位置。' : '我会结合页面上下文，帮你整理概念和下一步。'}</p>
+              {modeLabel && <span className="agent-workflow-label">{modeLabel}</span>}
+              <h2>{isBookMode ? (visibleMessageCount ? '沿着原文继续追问' : '从当前章节开始') : fixtureConversationEnabled ? (isFullScreen && messages.length ? agentConversation.title : '从当前内容开始') : '请先打开一本学习书'}</h2>
+              <p>{isBookMode ? '回答只依据你附加的学习书内容；引用可以带你回到原文位置。' : fixtureConversationEnabled ? (isFullScreen && messages.length ? '围绕当前知识点继续追问，引用会保留来源位置。' : '我会结合页面上下文，帮你整理概念和下一步。') : '首版 Agent 只在当前学习书或章节范围内回答，避免没有资料依据时生成占位内容。'}</p>
             </header>
 
-            {hasContext ? <div className="context-row">
+            {(isBookMode || fixtureConversationEnabled) && ((isBookMode ? contextEnabled : hasContext) ? <div className="context-row">
               <span>参考：{contextLabel ?? pageContext[activeDestination]}</span>
-              <button type="button" aria-label="移除当前上下文" onClick={() => setHasContext(false)}>移除</button>
-            </div> : <button className="context-add" type="button" onClick={() => setHasContext(true)}><Icon name="add" size={16} />添加当前页面为参考</button>}
+              <button type="button" aria-label="移除当前上下文" onClick={() => isBookMode ? onContextEnabledChange?.(false) : setHasContext(false)}>移除</button>
+            </div> : <button className="context-add" type="button" onClick={() => isBookMode ? onContextEnabledChange?.(true) : setHasContext(true)}><Icon name="add" size={16} />{isBookMode ? '重新附加学习书依据' : '添加当前页面为参考'}</button>)}
 
-            {isFullScreen && messages.length ? (
+            {isBookMode && isFullScreen && visibleMessageCount ? (
+              <section className="agent-transcript agent-transcript--book" aria-label="当前学习书对话">
+                {bookSession.messages.map((message) => {
+                  const sources = message.role === 'assistant' ? referencedSources(message.content, message.sources) : []
+                  return <article className={`agent-message agent-message--${message.role === 'assistant' ? 'agent' : 'user'}`} key={message.id}>
+                    <header>
+                      {message.role === 'assistant' && <Icon name="blossom" size={16} />}
+                      <span>{message.role === 'assistant' ? 'Knowledge Agent' : '你'}</span>
+                    </header>
+                    <p aria-live={message.status === 'streaming' ? 'polite' : undefined} aria-atomic={message.status === 'streaming' ? 'false' : undefined}>
+                      {message.role === 'assistant'
+                        ? <AssistantContent
+                            content={message.content || (message.status === 'streaming' ? '正在查找依据…' : '')}
+                            sources={message.sources}
+                            onSourceOpen={onSourceOpen}
+                          />
+                        : (message.content || (message.status === 'streaming' ? '正在查找依据…' : ''))}
+                    </p>
+                    {message.status === 'cancelled' && <span className="agent-message__status">已停止</span>}
+                    {message.status === 'error' && <span className="agent-message__status agent-message__status--error">{bookSession.errorMessage ?? '本次回答生成失败。'}</span>}
+                    {sources.length > 0 && <ul className="agent-source-list" role="list" aria-label="回答引用的原文依据">
+                      {sources.map((source) => <li key={source.id}><button
+                          className="agent-source-card"
+                          type="button"
+                          aria-label={`查看证据 ${source.id}：${source.fileName} ${source.pageRange}`}
+                          onClick={() => onSourceOpen?.(source)}
+                        >
+                          <span className="agent-source-card__index">证据 {source.id}</span>
+                          <strong>{source.fileName}</strong>
+                          <span>{source.pageRange}</span>
+                          <small>{source.excerpt}</small>
+                          <em>查看原文位置 <Icon name="arrow" size={15} /></em>
+                        </button></li>)}
+                    </ul>}
+                  </article>
+                })}
+                {(bookSession.status === 'streaming' || bookSession.status === 'error' || bookSession.status === 'cancelled') && <div className="agent-session-actions" role="group" aria-label="本轮回答操作">
+                  {bookSession.status === 'streaming' && <button type="button" onClick={onStop}>停止生成</button>}
+                  {(bookSession.status === 'error' || bookSession.status === 'cancelled') && <button type="button" onClick={() => void onRetry?.()}>重新尝试</button>}
+                </div>}
+                <div ref={conversationEndRef} />
+              </section>
+            ) : fixtureConversationEnabled && isFullScreen && messages.length ? (
               <section className="agent-transcript" aria-label="当前对话">
                 {messages.map((message) => (
                   <article className={`agent-message agent-message--${message.role}`} key={message.id}>
@@ -228,7 +359,7 @@ export function AgentDrawer({
                     </button>}
                   </article>
                 ))}
-                <div className="agent-followups" aria-label="继续追问">
+                <div className="agent-followups" role="group" aria-label="继续追问">
                   <p>继续追问</p>
                   {agentConversation.followUps.map((prompt) => (
                     <button type="button" key={prompt} onClick={() => onDraftChange(prompt)}>
@@ -238,8 +369,12 @@ export function AgentDrawer({
                 </div>
                 <div ref={conversationEndRef} />
               </section>
-            ) : (
-              <div className="prompt-list" aria-label="建议问题">
+            ) : isBookMode ? (
+              <div className="prompt-list prompt-list--book" role="group" aria-label="学习书提问提示">
+                <p>{contextEnabled ? '可以问概念、例子，或让 Agent 对照原文解释。' : '当前未附加学习书依据，回答不会生成原文引用。'}</p>
+              </div>
+            ) : fixtureConversationEnabled ? (
+              <div className="prompt-list" role="group" aria-label="建议问题">
                 <p>{messages.length ? '可以这样问' : '新对话可以从这里开始'}</p>
                 {agentPrompts.map((prompt) => (
                   <button key={prompt} type="button" onClick={() => onDraftChange(prompt)}>
@@ -247,12 +382,16 @@ export function AgentDrawer({
                   </button>
                 ))}
               </div>
+            ) : (
+              <div className="prompt-list" role="status">
+                <p>从知识库打开一本真实学习书后，再向 Agent 提问。</p>
+              </div>
             )}
           </>
         )}
 
       </GlassSurface>
-      {activeView === 'conversation' && <form
+      {effectiveActiveView === 'conversation' && <form
         className={`agent-input${isFullScreen ? ' agent-input--full' : ''}`}
         style={inputStyle}
         onSubmit={submitDraft}
@@ -263,12 +402,14 @@ export function AgentDrawer({
             id="agent-question"
             ref={inputRef}
             value={draft}
-            placeholder="继续问当前知识点"
+            placeholder={isBookMode || fixtureConversationEnabled ? '继续问当前知识点' : '请先打开一本学习书'}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
+            onKeyDown={handleInputKeyDown}
             onChange={(event) => onDraftChange(event.target.value)}
+            disabled={isStreaming || !isBookMode && !fixtureConversationEnabled}
           />
-          <button type="submit" disabled={!draft.trim()}>
+          <button type="submit" aria-label="发送问题" disabled={!draft.trim() || isStreaming || !isBookMode && !fixtureConversationEnabled}>
             <span className="agent-send-label">发送</span><Icon name="arrow" size={18} />
           </button>
         </form>}
