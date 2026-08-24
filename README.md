@@ -8,13 +8,13 @@
 
 | 目录 | 定位 |
 | --- | --- |
-| `admin/` | React、TypeScript、Vite 高保真 Web 原型 |
-| `entry/` | ArkTS、ArkUI HarmonyOS 客户端工程 |
-| `server/` | Web 原型与 HarmonyOS 客户端共用的唯一业务后端 |
+| `admin/` | React、TypeScript、Vite 可运行产品原型；不是正式客户端 |
+| `entry/` | 唯一正式产品客户端，使用 ArkTS、ArkUI 实现 |
+| `server/` | 正式产品的唯一业务后端和事实来源 |
 | `docs/product/` | 唯一现行文档目录，定义产品流程、页面、领域和验收要求 |
 | `archive/documentation-2026-08-24/docs/` | 2026-08-24 封存的其余旧文档，仅供追溯 |
 
-`admin/` 和 `entry/` 不各自维护独立业务后端。需要跨客户端一致的项目、文档、学习书、Agent 或学习状态时，应通过 `server/` 提供和持久化。
+`admin/` 用于确认流程、页面和交互，可以使用明确标注的模拟数据，也可以在需要时连接 `server/` 联调。正式 API 以 `entry + server` 的实现与验收为准，不能由 Web 原型反向定义。
 
 ## 启动开发环境
 
@@ -29,7 +29,7 @@ npm run dev
 
 后端默认监听 `http://localhost:3456`，健康检查地址为 `http://localhost:3456/health`。
 
-再启动 Web 原型：
+需要查看或评审可运行原型时，再启动 `admin/`：
 
 ```bash
 cd admin
