@@ -1,11 +1,16 @@
 # HarmonyAgent 学习原型基线与验收范围
 
-> 状态：Draft / Prototype Baseline  
-> 适用分支：`integration/minimal-learning-mvp`  
-> 对应 PR：[PR #7](https://github.com/Tangzy0121/HarmonyAgent/pull/7)
+> 状态：Draft / Prototype Baseline
+>
+> 适用基线：`master` @ `c734b30`
+>
+> 来源 PR：[PR #7](https://github.com/Tangzy0121/HarmonyAgent/pull/7)，已合并
 
 > [!IMPORTANT]
 > 本文描述的是当前原型的开发边界和验证状态，不代表 Book 或学习 Agent 已达到完成版 MVP。PR #7 的目标是整理已有概念稿、实验性后端和分散提交，形成可构建、可测试、可继续开发的原型基线。
+
+> [!NOTE]
+> 本文只说明“代码当前做到哪里”。现行产品结构、用户流程和后续验收目标以 [`docs/product/`](product/README.md) 和 [ADR-002](architecture/ADR-002-统一产品口径与单一学习项目闭环.md) 为准；旧的独立学习页、全局地图和文件库口径不再从本文推导。
 
 ## 1. 状态定义
 

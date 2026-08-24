@@ -1,11 +1,11 @@
 # Learning Map Design QA
 
-> **状态：历史记录，已被 2026-07-31 第三批雾银烟灰视觉基线取代。** 本文只用于追溯 2026-07-24 地图清理过程，不再定义当前颜色、材质或组件样式。当前视觉事实源为根目录 `DESIGN.md` 与 `docs/design-system/视觉设计规范.md`。
+> **状态：历史记录，不再使用。** 本文只用于追溯 2026-07-24 地图清理过程，不定义当前颜色、材质或组件样式。原设计文档已于 2026-08-24 归档，当前没有现行设计文档。
 
 ## Comparison Target
 
 - Source visual truth: `C:\Users\LENOVO\AppData\Local\Temp\codex-clipboard-ffdfe830-334c-4ca8-814f-71b38e01afdb.png`
-- Rendered implementation: `D:\Codex-workplace\HUAWEI-knowledge-management\docs\worklog\prototype-building\results\2026-07-24-learning-map-clean-final.png`
+- Rendered implementation: `D:\Codex-workplace\HUAWEI-knowledge-management\archive\documentation-2026-08-24\docs\worklog\prototype-building\results\2026-07-24-learning-map-clean-final.png`
 - State: learning page, all filters selected, no node modal open, map reset to its initial viewport.
 
 ## Viewport And Normalization
