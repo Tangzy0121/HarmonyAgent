@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-24T00:00:00.000Z",
+  "title": "Design System: loci Mobile Prototype",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "neutral", "displayName": "Study Ink", "canonical": "oklch(25% 0.01 55)", "tonalRamp": ["#242220", "#3B3835", "#55504C", "#716B66", "#918A84", "#B3ACA6", "#D6D1CC", "#F5F2EF"] },
+      "peach": { "role": "primary", "displayName": "Study Peach", "canonical": "oklch(63% 0.09 35)", "tonalRamp": ["#442019", "#67362B", "#8B4D3F", "#BD725F", "#D79583", "#E8B8AA", "#F1D3CA", "#FAEEE9"] },
+      "studyBlue": { "role": "primary", "displayName": "Study Blue", "canonical": "#93A9BE", "tonalRamp": ["#26313C", "#3B4C5B", "#566D82", "#718CA5", "#93A9BE", "#B2C3D3", "#D3DDE6", "#EEF2F5"] },
+      "studyMist": { "role": "primary", "displayName": "Study Mist", "canonical": "#A9B3BB", "tonalRamp": ["#2C3135", "#464D52", "#626B72", "#818C94", "#A9B3BB", "#C1C9CF", "#DCE1E4", "#F1F3F4"] },
+      "studyStone": { "role": "primary", "displayName": "Study Stone", "canonical": "#B8B0A4", "tonalRamp": ["#342F29", "#504A42", "#6E675D", "#91887B", "#B8B0A4", "#CEC8BE", "#E3DFD8", "#F4F2EE"] },
+      "agent": { "role": "secondary", "displayName": "Agent Violet", "canonical": "oklch(55% 0.11 295)", "tonalRamp": ["#2D2445", "#453766", "#5D4E87", "#7665A8", "#9689BF", "#B7AED4", "#D8D3E8", "#F2F0F8"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page question and chapter title only." },
+      "body": { "displayName": "Reading Body", "purpose": "Long-form explanations capped at 72ch." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "All state reveals and panel transitions." },
+      { "name": "duration-state", "value": "180ms", "purpose": "Hover, selection and focus feedback." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "370px" },
+      { "name": "mobile-canvas-max", "value": "480px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single highest-priority action on a page.",
+      "html": "<button class=\"ds-primary\">继续学习</button>",
+      "css": ".ds-primary{min-height:44px;padding:13px 18px;border:0;border-radius:12px;background:#242220;color:#FBFAF8;font:680 14px system-ui;transition:transform 180ms cubic-bezier(.16,1,.3,1),background 180ms}.ds-primary:hover{background:#3B3835;transform:translateY(-1px)}.ds-primary:focus-visible{outline:2px solid #242220;outline-offset:3px}.ds-primary:active{transform:translateY(0)}"
+    },
+    {
+      "name": "Project Row",
+      "kind": "card",
+      "refersTo": "project-row",
+      "description": "A project summary with one state and one matching action.",
+      "html": "<article class=\"ds-project\"><small>进行中</small><h3>从训练信号理解机器学习</h3><p>理解监督信号如何推动模型更新</p><button>继续学习</button></article>",
+      "css": ".ds-project{padding:20px;border:1px solid #DEDAD6;border-radius:20px;background:#FBFAF8;color:#242220;font-family:system-ui}.ds-project h3{margin:8px 0 6px;font-size:18px}.ds-project p{margin:0;color:#68635F}.ds-project button{margin-top:18px;min-height:44px;border:0;border-radius:12px;background:#F1D3CA;padding:0 16px;font-weight:680}.ds-project:focus-within{outline:2px solid #242220;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Editorial Study Index",
+    "overview": "A mobile-only editorial learning interface on a pure-black screen. Large light-weight type, semantic line breaks, hairlines and deliberate whitespace replace decorative cards and simulated depth. The surrounding desktop canvas remains silver.",
+    "keyCharacteristics": ["Mobile-only 480px black screen", "Silver outside canvas", "Large light-weight type", "Semantic title breaks", "Hairlines and 48–72px section rhythm", "Top-left two-line menu trigger", "Full-screen typographic navigation", "Single-screen native horizontal Today carousel", "Integrated week calendar and date pager", "Short reference-proportioned goal cards", "Closely related blue, mist and stone card tones", "Concise editorial card copy", "Compact library rows without repeated goals or filenames", "Geometrically centered library add control", "Concise source, settings and confirmation flow", "No persistent bottom navigation, profile control or floating Agent launcher", "Top-right loci identity", "No gradients, shadows or blur", "Contextual Agent actions only"],
+    "rules": [
+      { "name": "The Contained Palette Rule", "body": "Closely related blue, mist and stone tones are confined to independent Today goal cards; navigation and overlays remain neutral.", "section": "colors" },
+      { "name": "The Reading First Rule", "body": "Reading content never collapses below a comfortable measure to preserve side panels.", "section": "typography" },
+      { "name": "The Semantic Break Rule", "body": "Large titles break only at complete semantic units and use weight 350 or above for Chinese text.", "section": "typography" },
+      { "name": "The Always Flat Rule", "body": "All content uses tonal layering and hairlines; no state uses gradients, shadows, highlights or blur.", "section": "elevation" }
+    ],
+    "dos": ["Do expose one primary action and its reason.", "Do preserve source and evidence context."],
+    "donts": ["Don't build a file manager, dashboard, global graph or standalone chat shell.", "Don't use nested cards or decorative glass by default."]
+  }
+}
