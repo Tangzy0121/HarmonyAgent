@@ -13,7 +13,6 @@ import { scrollToElementWhenReady } from './domain/scrollToElement'
 import { useBookAgentSessions } from './hooks/useBookAgentSessions'
 import { useBookGeneration, type BookGenerationEvent } from './hooks/useBookGeneration'
 import { UploadBookSheet, type UploadBookSubmission } from './components/book/UploadBookSheet'
-import { PretestSheet } from './components/book/PretestSheet'
 import { ReviewQueueSheet } from './components/book/ReviewQueueSheet'
 import { MasteryBoardSheet } from './components/book/MasteryBoardSheet'
 import { buildMasteryBoard } from './domain/masteryBoard'
@@ -145,11 +144,8 @@ function App() {
   const [learnerProfile, setLearnerProfile] = useState<LearnerProfile | null>(null)
   const [isUploadSheetOpen, setIsUploadSheetOpen] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [isPretestSheetOpen, setIsPretestSheetOpen] = useState(false)
   const [isReviewSheetOpen, setIsReviewSheetOpen] = useState(false)
   const [isMasteryBoardOpen, setIsMasteryBoardOpen] = useState(false)
-  // 摸底入口按书记忆“已选择”：直接开始生成/从建议章节开始后不再出现，换书重置
-  const [pretestEntryDismissedFor, setPretestEntryDismissedFor] = useState<string | null>(null)
   const [isConfirmingRealBook, setIsConfirmingRealBook] = useState(false)
   const [realBookConfirmError, setRealBookConfirmError] = useState<string | null>(null)
   const [bookContextScope, setBookContextScope] = useState<AgentContextScope>('chapter')
@@ -317,15 +313,6 @@ function App() {
     return { ...current, reviewSchedule }
   }
   const isRealProposal = activeRealBookId !== null && !isInteractiveBook
-  // 摸底入口：真实书全部章节待生成且尚未开始生成时出现；换书/已选择后不再出现
-  const showPretestEntry = isInteractiveBook
-    && activeRealBookId !== null
-    && isRealBookLoaded
-    && pretestEntryDismissedFor !== activeRealBookId
-    && realBookGeneration.progress === null
-    && learningBook.chapters.length > 0
-    && learningBook.chapters.every((chapter) => chapter.status === 'pending')
-
   useEffect(() => {
     const syncHistoryState = () => {
       updateWithViewTransition(() => {
@@ -552,7 +539,8 @@ function App() {
           setActiveDestination('library')
           setAgentModeLabel(undefined)
         })
-        // 不自动开始生成：确认后先给“先摸底（5 题）/直接开始生成”可选入口
+        // MVP 只保留一条主流程：确认目录后直接按章生成，不再插入前测分支。
+        realBookGeneration.start()
       } catch (error) {
         setRealBookConfirmError(realBookActionErrorMessage(error))
       } finally {
@@ -690,14 +678,6 @@ function App() {
   const changeBookChapter = (chapterId: string) => {
     window.history.replaceState({ ...window.history.state, screen: 'interactive-book', bookId: learningBook.id, chapterId }, '', `#book/${activeRealBookId ?? 'ml-chapter-03'}/${chapterId}`)
     setActiveBookChapterId(chapterId)
-  }
-
-  // 摸底入口收口：直接开始生成，或提交摸底后从建议章节开始；两种情况都开始逐章生成
-  const dismissPretestEntryAndStart = (chapterId?: string) => {
-    setPretestEntryDismissedFor(activeRealBookId)
-    setIsPretestSheetOpen(false)
-    if (chapterId) changeBookChapter(chapterId)
-    realBookGeneration.start()
   }
 
   const askBookAgent = (focusBlockId?: string, draft?: string) => {
@@ -1041,29 +1021,6 @@ function App() {
             errorMessage={uploadError}
             onSubmit={submitUploadBook}
             onClose={() => setIsUploadSheetOpen(false)}
-          />
-        )}
-        {showPretestEntry && (
-          <section className="pretest-entry" aria-label="摸底诊断入口">
-            <div className="pretest-entry__copy">
-              <strong>先摸底，再开始</strong>
-              <span>5 道小题判断你的起点，已掌握的章节可以跳过；也可以直接开始生成。</span>
-            </div>
-            <div className="pretest-entry__actions">
-              <button type="button" className="pretest-entry__primary" onClick={() => setIsPretestSheetOpen(true)}>先摸底（5 题）</button>
-              <button type="button" className="pretest-entry__ghost" onClick={() => dismissPretestEntryAndStart()}>直接开始生成</button>
-            </div>
-          </section>
-        )}
-        {isPretestSheetOpen && isInteractiveBook && activeRealBookId !== null && isRealBookLoaded && (
-          <PretestSheet
-            key={activeRealBookId}
-            bookId={activeRealBookId}
-            chapters={learningBook.chapters}
-            pretest={learningBook.pretest}
-            onResolved={(book) => setLearningBook(book)}
-            onStartFromChapter={(chapterId) => dismissPretestEntryAndStart(chapterId)}
-            onClose={() => setIsPretestSheetOpen(false)}
           />
         )}
         {isReviewSheetOpen && isInteractiveBook && activeRealBookId !== null && isRealBookLoaded && (

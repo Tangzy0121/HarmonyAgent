@@ -16,7 +16,6 @@ import {
   streamChapterGeneration,
   submitAttempt,
   submitFlashReview,
-  submitPretest,
   updateProposal,
   uploadDocument,
   type DueItem,
@@ -37,7 +36,6 @@ vi.mock('./services/bookApi', async (importOriginal) => {
     streamChapterGeneration: vi.fn(),
     submitAttempt: vi.fn(),
     getPretest: vi.fn(),
-    submitPretest: vi.fn(),
     getReviewDue: vi.fn(),
     submitFlashReview: vi.fn(),
   }
@@ -448,10 +446,6 @@ beforeEach(() => {
     options.signal?.addEventListener('abort', () => reject(new DOMException('stopped', 'AbortError')), { once: true })
   }))
   vi.mocked(getPretest).mockResolvedValue({ questions: pretestQuestions, result: null })
-  vi.mocked(submitPretest).mockImplementation(async () => realBookFixture({
-    status: 'generating',
-    pretest: { questions: pretestQuestions, result: pretestResultPayload },
-  }))
   vi.mocked(getReviewDue).mockResolvedValue([])
   vi.mocked(submitFlashReview).mockResolvedValue(null)
 })
@@ -489,12 +483,7 @@ describe('App · 真实学习书接线', () => {
     }))
     expect(confirmBook).toHaveBeenCalledWith('book_x')
     expect(windowStub.location.hash).toBe('#book/book_x/ch-1')
-    // 确认后先出现摸底入口，不自动开始生成；跳过摸底不阻塞直接生成
-    expect(streamChapterGeneration).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('先摸底（5 题）')
-
-    click('直接开始生成')
-    await flushEffects()
+    // MVP 主流程不再插入摸底分支，确认目录后直接开始逐章生成。
     expect(getPretest).not.toHaveBeenCalled()
     expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-1'])
 
@@ -553,70 +542,6 @@ describe('App · 真实学习书接线', () => {
     streams[4].resolve()
     await flushEffects()
     expect(container.textContent).not.toContain('这一章生成失败了')
-  })
-
-  it('先摸底：5 题提交后结论展示建议起点，章节轨标注可跳过/建议从这里开始', async () => {
-    mountApp('#proposal/book_x')
-    await flushEffects()
-
-    click('确认目录并生成')
-    await flushEffects()
-    expect(streamChapterGeneration).not.toHaveBeenCalled()
-
-    click('先摸底（5 题）')
-    await flushEffects()
-    expect(getPretest).toHaveBeenCalledWith('book_x')
-    expect(container.textContent).toContain('监督学习需要什么信号？')
-
-    // 选项文案可能与底层页面按钮撞文本，点击范围限定在摸底弹层内
-    const sheet = () => {
-      const element = descendants(container).find((candidate) => candidate.className.split(' ').includes('pretest-sheet'))
-      expect(element, 'pretest sheet').toBeDefined()
-      return element as FakeElement
-    }
-    for (const text of ['目标标签', '衡量预测误差', '无监督学习', '评估泛化能力', '是，有标签分类']) {
-      clickWithin(sheet(), text)
-    }
-    clickWithin(sheet(), '提交摸底答案')
-    await flushEffects()
-
-    expect(submitPretest).toHaveBeenCalledWith('book_x', pretestResultPayload.answers)
-    expect(container.textContent).toContain('摸底完成')
-    expect(container.textContent).toContain('建议从第 2 章「从误差到参数更新」开始')
-
-    const rail = descendants(container).find((element) => element.className.split(' ').includes('book-generation-rail'))
-    expect(rail, 'chapter rail').toBeDefined()
-    expect(rail!.textContent).toContain('可跳过')
-    expect(rail!.textContent).toContain('建议从这里开始')
-
-    clickWithin(sheet(), '从建议章节开始')
-    await flushEffects()
-
-    expect(windowStub.location.hash).toBe('#book/book_x/ch-2')
-    expect(container.textContent).not.toContain('先摸底（5 题）')
-    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-1'])
-  })
-
-  it('摸底弹层关闭后回到入口，直接开始生成不受影响', async () => {
-    mountApp('#proposal/book_x')
-    await flushEffects()
-
-    click('确认目录并生成')
-    await flushEffects()
-    click('先摸底（5 题）')
-    await flushEffects()
-    expect(container.textContent).toContain('监督学习需要什么信号？')
-
-    clickAriaLabel('关闭摸底面板')
-    await flushEffects()
-    expect(container.textContent).not.toContain('监督学习需要什么信号？')
-    expect(container.textContent).toContain('先摸底（5 题）')
-    expect(streamChapterGeneration).not.toHaveBeenCalled()
-
-    click('直接开始生成')
-    await flushEffects()
-    expect(submitPretest).not.toHaveBeenCalled()
-    expect(streams.map((stream) => stream.chapterId)).toEqual(['ch-1'])
   })
 
   it('打开已有摸底结论的书：章节轨直接展示标注，不重复请求摸底', async () => {
