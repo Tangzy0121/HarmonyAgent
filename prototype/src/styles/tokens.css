@@ -1,0 +1,45 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", sans-serif;
+  font-synthesis: none;
+
+  --outside: #e9e9ee;
+  --screen: #000;
+  --ink: #f3f2ee;
+  --ink-soft: rgb(243 242 238 / 0.66);
+  --ink-muted: rgb(243 242 238 / 0.4);
+  --line: rgb(243 242 238 / 0.2);
+  --line-strong: rgb(243 242 238 / 0.38);
+  --surface: #161616;
+  --surface-raised: #202020;
+  --accent: #dd9a89;
+  --accent-ink: #18100e;
+  --card-blue: #93a9be;
+  --card-mist: #a9b3bb;
+  --card-stone: #b8b0a4;
+  --agent: #bca9e9;
+  --success: #8fc7a5;
+  --warning: #d6b179;
+  --danger: #df938b;
+
+  --font-display: clamp(3rem, 12vw, 3.55rem);
+  --font-page: clamp(2.55rem, 10vw, 3.1rem);
+  --font-section: 1.75rem;
+  --font-title: 1.25rem;
+  --font-body: 0.96rem;
+  --font-label: 0.72rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+  --page-x: 24px;
+  --control-height: 46px;
+  --radius-control: 999px;
+  --radius-block: 8px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}

@@ -1,0 +1,61 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { min-height: 100%; background: var(--outside); }
+body { margin: 0; color: var(--ink); }
+button, input, textarea { color: inherit; font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.38; }
+button, input, textarea, fieldset { margin: 0; }
+h1, h2, h3, p, figure, blockquote, dl, dd, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+svg { display: block; flex: 0 0 auto; }
+
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 4px; }
+::selection { color: var(--accent-ink); background: var(--accent); }
+
+.prototype-shell {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 480px);
+  height: 100dvh;
+  margin: 0 auto;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--screen);
+}
+
+.app-content { width: 100%; height: 100%; min-width: 0; overflow: hidden; }
+.page, .immersive-page { scrollbar-width: none; }
+.page::-webkit-scrollbar, .immersive-page::-webkit-scrollbar { display: none; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.prototype-shell,
+.prototype-shell *,
+.prototype-shell *::before,
+.prototype-shell *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+@media (min-width: 600px) {
+  .prototype-shell { height: calc(100dvh - 36px); margin-block: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
