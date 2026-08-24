@@ -1,5 +1,8 @@
 # Product
 
+> [!NOTE]
+> 本文描述产品身份、长期目标和设计原则，不是当前功能完成清单。PR #7 仍是学习原型开发基线；具体实现状态、能力边界与验收结果以 [`docs/MVP_SCOPE.md`](docs/MVP_SCOPE.md) 为准。
+
 ## Register
 
 product
