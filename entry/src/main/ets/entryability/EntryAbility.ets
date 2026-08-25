@@ -75,6 +75,20 @@ export default class EntryAbility extends UIAbility {
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
     hilog.info(0x0000, TAG, 'onWindowStageCreate');
+    // loci 纯黑 editorial:窗口背景与系统栏统一为黑色,内容沉浸式铺满
+    try {
+      const mainWindow = windowStage.getMainWindowSync();
+      mainWindow.setWindowBackgroundColor('#000000');
+      mainWindow.setWindowLayoutFullScreen(true);
+      mainWindow.setWindowSystemBarProperties({
+        statusBarColor: '#000000',
+        navigationBarColor: '#000000',
+        statusBarContentColor: '#FFFFFF',
+        navigationBarContentColor: '#FFFFFF'
+      });
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'Failed to apply loci window style: ' + (err as BusinessError).message);
+    }
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         hilog.error(0x0000, TAG, 'Failed to load content: ' + JSON.stringify(err));
