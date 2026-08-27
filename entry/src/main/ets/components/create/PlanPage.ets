@@ -1,9 +1,12 @@
 /**
- * 方案确认(M2,创建流第 3 步)
+ * 方案确认(M2,创建流第 3 步;M5b 接真实 server)
  * 真源:prototype/src/pages/PlanPage.tsx;docs/product/03 §5.3。
- * 显示目标/水平/深度/总时长 + 章节列表(标题可改、可删章、可上移/下移);
- * 主动作「确认并生成第一章」→ mock 生成进度(约 2.5s)→ toast「生成完成」→ 返回学习库。
- * 确认产物由 flow.buildConfirmedProject() 生成,经 onConfirmed 交给 AppRoot 合并进 LociAppState。
+ * 显示目标/水平/深度/总时长 + 章节列表(标题可改、可删章、可上移/下移,均为本地 draft)。
+ * 主动作「确认并生成第一章」:
+ * - server 提案(flow.createdBookId 非空)→ PUT /api/books/:id/proposal + POST /:id/confirm,
+ *   成功后经 onConfirmed 交 AppRoot upsert 并直接进项目(生成进度由 M5c SSE 接管,
+ *   本切片 confirm 后章节生成状态靠概览/工作区现有呈现);
+ * - FIXTURE 本地方案 → buildConfirmedProject 合成,回学习库(原 M2 行为,假进度已删)。
  */
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../../theme/LociTokens'
@@ -12,46 +15,42 @@ import { CreateFlowViewModel, LociPlanChapter } from '../../models/CreateFlowVie
 import { CreateProgress } from './CreateProgress'
 import { LociImmersiveHeader } from './LociImmersiveHeader'
 
-const GENERATE_TICK_MS: number = 100
-const GENERATE_TICK_STEP: number = 4
-
 @ComponentV2
 export struct PlanPage {
   @Param flow: CreateFlowViewModel = new CreateFlowViewModel()
   @Event onBack: () => void = (): void => {}
-  @Event onConfirmed: (project: LociProjectSummary) => void =
-    (project: LociProjectSummary): void => {}
-  @Local private generating: boolean = false
-  @Local private progress: number = 0
-  private generateTimer: number = -1
-
-  aboutToDisappear(): void {
-    this.stopTimer()
-  }
-
-  private stopTimer(): void {
-    if (this.generateTimer >= 0) {
-      clearInterval(this.generateTimer)
-      this.generateTimer = -1
-    }
-  }
+  /** enterProject=true(server 确认成功)时 AppRoot 直接进项目;false(FIXTURE)回学习库。 */
+  @Event onConfirmed: (project: LociProjectSummary, enterProject: boolean) => void =
+    (project: LociProjectSummary, enterProject: boolean): void => {}
+  /** 提交中(PUT proposal + POST confirm),防重复点击并禁用章节编辑。 */
+  @Local private submitting: boolean = false
 
   private confirmPlan(): void {
-    if (this.generating || this.flow.planChapters.length === 0) {
+    if (this.submitting || this.flow.planChapters.length === 0) {
       return
     }
-    this.generating = true
-    this.progress = 0
-    this.generateTimer = setInterval((): void => {
-      this.progress = Math.min(100, this.progress + GENERATE_TICK_STEP)
-      if (this.progress >= 100) {
-        this.stopTimer()
-        this.generating = false
-        const project: LociProjectSummary = this.flow.buildConfirmedProject()
-        promptAction.showToast({ message: '生成完成', duration: 2000 })
-        this.onConfirmed(project)
-      }
-    }, GENERATE_TICK_MS)
+    if (this.flow.createdBookId.length === 0) {
+      // FIXTURE 本地路径:无 server 可确认,直接合成项目
+      const project: LociProjectSummary = this.flow.buildConfirmedProject()
+      promptAction.showToast({ message: '生成完成', duration: 2000 })
+      this.onConfirmed(project, false)
+      return
+    }
+    this.submitting = true
+    this.flow.confirmPlanOnServer()
+      .then((project: LociProjectSummary): void => {
+        promptAction.showToast({ message: '方案已确认,开始生成', duration: 2000 })
+        this.onConfirmed(project, true)
+      })
+      .catch((error: Object): void => {
+        promptAction.showToast({
+          message: error instanceof Error ? error.message : '确认失败,请重试',
+          duration: 2500
+        })
+      })
+      .finally((): void => {
+        this.submitting = false
+      })
   }
 
   @Builder
@@ -87,38 +86,38 @@ export struct PlanPage {
       Row() {
         Text('↑')
           .fontSize(15)
-          .fontColor(index === 0 || this.generating ? LociTokens.INK_MUTED : LociTokens.INK)
-          .opacity(index === 0 || this.generating ? 0.4 : 1)
+          .fontColor(index === 0 || this.submitting ? LociTokens.INK_MUTED : LociTokens.INK)
+          .opacity(index === 0 || this.submitting ? 0.4 : 1)
           .width(38)
           .height(LociTokens.CONTROL_MIN)
           .textAlign(TextAlign.Center)
           .accessibilityText('上移')
           .accessibilityRole(AccessibilityRoleType.BUTTON)
-          .enabled(index > 0 && !this.generating)
+          .enabled(index > 0 && !this.submitting)
           .onClick((): void => this.flow.moveChapter(index, -1))
         Text('↓')
           .fontSize(15)
-          .fontColor(index === this.flow.planChapters.length - 1 || this.generating ?
+          .fontColor(index === this.flow.planChapters.length - 1 || this.submitting ?
             LociTokens.INK_MUTED : LociTokens.INK)
-          .opacity(index === this.flow.planChapters.length - 1 || this.generating ? 0.4 : 1)
+          .opacity(index === this.flow.planChapters.length - 1 || this.submitting ? 0.4 : 1)
           .width(38)
           .height(LociTokens.CONTROL_MIN)
           .textAlign(TextAlign.Center)
           .accessibilityText('下移')
           .accessibilityRole(AccessibilityRoleType.BUTTON)
-          .enabled(index < this.flow.planChapters.length - 1 && !this.generating)
+          .enabled(index < this.flow.planChapters.length - 1 && !this.submitting)
           .onClick((): void => this.flow.moveChapter(index, 1))
         Text('×')
           .fontSize(15)
-          .fontColor(this.flow.planChapters.length <= 2 || this.generating ?
+          .fontColor(this.flow.planChapters.length <= this.flow.minChapters() || this.submitting ?
             LociTokens.INK_MUTED : LociTokens.INK)
-          .opacity(this.flow.planChapters.length <= 2 || this.generating ? 0.4 : 1)
+          .opacity(this.flow.planChapters.length <= this.flow.minChapters() || this.submitting ? 0.4 : 1)
           .width(38)
           .height(LociTokens.CONTROL_MIN)
           .textAlign(TextAlign.Center)
           .accessibilityText('删除章节')
           .accessibilityRole(AccessibilityRoleType.BUTTON)
-          .enabled(this.flow.planChapters.length > 2 && !this.generating)
+          .enabled(this.flow.planChapters.length > this.flow.minChapters() && !this.submitting)
           .onClick((): void => this.flow.removeChapter(chapter.id))
       }
     }
@@ -257,23 +256,15 @@ export struct PlanPage {
       .margin({ top: 30 })
 
       Column({ space: LociTokens.SPACE_3 }) {
-        if (this.generating) {
-          Stack({ alignContent: Alignment.Start }) {
-            Rect().width('100%').height(2).fill(LociTokens.LINE)
-            Rect().width(`${this.progress}%`).height(2).fill(LociTokens.ACCENT)
-          }
-          .width('100%')
-          .height(2)
-        }
-        Button(this.generating ? `正在生成第一章… ${this.progress}%` : '确认并生成第一章')
+        Button(this.submitting ? '正在确认方案…' : '确认并生成第一章')
           .width('100%')
           .height(LociTokens.CONTROL_HEIGHT)
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.generating ? LociTokens.INK_MUTED : LociTokens.ACCENT_INK)
-          .backgroundColor(this.generating ? LociTokens.SURFACE_RAISED : LociTokens.ACCENT)
+          .fontColor(this.submitting ? LociTokens.INK_MUTED : LociTokens.ACCENT_INK)
+          .backgroundColor(this.submitting ? LociTokens.SURFACE_RAISED : LociTokens.ACCENT)
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .enabled(!this.generating)
+          .enabled(!this.submitting)
           .onClick((): void => this.confirmPlan())
       }
       .width('100%')

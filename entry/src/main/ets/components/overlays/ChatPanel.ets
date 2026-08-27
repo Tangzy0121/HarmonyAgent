@@ -1,13 +1,16 @@
 /**
- * Chat 覆盖层 ChatPanel(M3,全屏层)
+ * Chat 覆盖层 ChatPanel(M3,全屏层;M5e 接真实 agentTurns)
  * 真源:prototype/src/components/overlays/ChatPanel.tsx;docs/product/03 §9;
  * 视觉基准:HelpCC/harmony-migration/baseline/08-chat.png。
- * 结构:顶部(✦ loci Chat + 作用域标题 + 关闭)→ 当前作用域条 → 消息列表
- * (loci/你;assistant 关键判断带可点击「来源 N」;补充说明标记)→ 建议动作确认卡片
- * (docs/03 §9.4:写操作必须确认)→ 建议追问 chips → 输入框 + 发送。
- * 回复为 Mock(逐字搬原型固定回复,代码内标注);消息由 WorkspacePage 持有,关闭不丢会话。
+ * 结构:顶部(✦ loci Chat + 作用域标题 + 关闭)→ 当前作用域条(点击切换章节⇄项目)
+ * → 消息列表(loci/你;assistant 关键判断带可点击「来源 N」;补充说明标记)
+ * → user_question 确认卡片(docs/03 §9.4:写操作必须确认;选项 chips + 自由文本)
+ * → 错误条(turn_failed/断线,可重试)→ 建议追问 chips → 输入框 + 发送。
+ * M5e:回复由 WorkspacePage 经 LociAgentTurnSession 驱动(content_delta 逐字 append);
+ * fixture 模式不再伪装回复,发送后提示「演示模式未连接服务」。
  */
 import { LociTokens } from '../../theme/LociTokens'
+import { AgentTurnQuestion } from '../../loci/agent/LociAgentTurnClient'
 
 /** Chat 消息(UI 态),真源:product.ts ChatMessage。 */
 export interface LociChatMessage {
@@ -18,13 +21,13 @@ export interface LociChatMessage {
   supplement?: boolean
 }
 
-/** Mock 欢迎语,真源:PrototypeContext.tsx initialMessages(逐字一致)。 */
+/** 欢迎语,真源:PrototypeContext.tsx initialMessages(逐字一致)。 */
 export const LOCI_CHAT_WELCOME: string =
   '我会基于当前作用域回答，并把关键判断连接回资料。你也可以让我比较概念、解释选中文字或提出一个需要确认的学习动作。'
 
-/** Mock 固定回复,真源:PrototypeContext.tsx send_chat(逐字一致)。 */
-export const LOCI_CHAT_MOCK_REPLY: string =
-  '这里要先区分“训练中的反馈”和“训练后的评估”。损失函数负责告诉模型当前预测偏差有多大；独立评估则检查这种规律能否迁移到未见数据。两者相互关联，但不能互相替代。'
+/** fixture 模式发送时的明确提示(M5e:不再有伪装回复)。 */
+export const LOCI_CHAT_FIXTURE_HINT: string =
+  '演示模式未连接服务。连接 server 后，这里会基于当前学习书真实回答。'
 
 @ComponentV2
 export struct ChatPanel {
@@ -34,22 +37,39 @@ export struct ChatPanel {
   @Param scopeText: string = ''
   @Param projectTitle: string = ''
   @Param messages: LociChatMessage[] = []
+  /** M5e:轮次相位(idle/connecting/streaming/waitingUser/completed/error/cancelled)。 */
+  @Param phase: string = 'idle'
+  /** M5e:agent 提问(user_question settling 帧);非空时渲染确认卡片。 */
+  @Param pendingQuestion: AgentTurnQuestion | null = null
+  /** M5e:错误文案(turn_failed payload.message / 断线提示)。 */
+  @Param errorText: string = ''
   @Event onSend: (body: string) => void = (body: string): void => {}
   @Event onOpenSource: (anchorId: string) => void = (anchorId: string): void => {}
   @Event onClose: () => void = (): void => {}
-  /** M4:建议动作「确认创建」落地回调(创建复习任务,Mock 由宿主页处理)。 */
-  @Event onConfirmAction: () => void = (): void => {}
+  /** M5e:回答 agent 提问(POST answers 并恢复 SSE)。 */
+  @Event onAnswer: (answer: string) => void = (answer: string): void => {}
+  /** M5e:error 相位重发上一条消息。 */
+  @Event onRetry: () => void = (): void => {}
+  /** M5e:作用域切换(chapter⇄project,由宿主页改 refs 重开轮)。 */
+  @Event onSwitchScope: () => void = (): void => {}
 
   @Local private draft: string = ''
-  @Local private showAction: boolean = false
-  @Local private actionConfirmed: boolean = false
+
+  private streaming(): boolean {
+    return this.phase === 'connecting' || this.phase === 'streaming'
+  }
 
   private submit(): void {
     const body: string = this.draft.trim()
-    if (body.length === 0) {
+    if (body.length === 0 || this.streaming()) {
       return
     }
-    this.onSend(body)
+    // 有待回答的 agent 提问时,输入框作为自由文本回答通道
+    if (this.pendingQuestion !== null) {
+      this.onAnswer(body)
+    } else {
+      this.onSend(body)
+    }
     this.draft = ''
   }
 
@@ -91,10 +111,10 @@ export struct ChatPanel {
       .padding({ left: LociTokens.PAGE_X, right: LociTokens.PAGE_X, top: 56, bottom: LociTokens.SPACE_4 })
       .border({ width: { bottom: 1 }, color: LociTokens.LINE })
 
-      // ---- 当前作用域 ----
+      // ---- 当前作用域(M5e:点击在 当前章节⇄当前项目 间切换,改 refs 重开轮) ----
       Row({ space: 6 }) {
         Column({ space: 4 }) {
-          Text('当前作用域')
+          Text('当前作用域 · 点击切换')
             .fontSize(11)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
@@ -119,10 +139,8 @@ export struct ChatPanel {
       .padding({ left: LociTokens.PAGE_X, right: LociTokens.PAGE_X, top: 14, bottom: 14 })
       .border({ width: { bottom: 1 }, color: LociTokens.LINE })
       .accessibilityRole(AccessibilityRoleType.BUTTON)
-      .accessibilityDescription(`当前作用域:${this.scopeText}`)
-      .onClick((): void => {
-        // 作用域切换入口保持可见(docs/03 §9.2);范围切换本身后续切片接入
-      })
+      .accessibilityDescription(`当前作用域:${this.scopeText},点击切换`)
+      .onClick((): void => this.onSwitchScope())
 
       // ---- 消息列表 ----
       List() {
@@ -164,62 +182,36 @@ export struct ChatPanel {
           }
         }, (message: LociChatMessage): string => message.id)
 
-        // ---- 建议动作确认卡片(docs/03 §9.4) ----
-        if (this.showAction) {
+        // ---- agent 提问确认卡片(user_question,docs/03 §9.4:写操作必须确认) ----
+        if (this.pendingQuestion !== null) {
           ListItem() {
             Column({ space: 8 }) {
-              Text('建议动作 · 需要确认')
+              Text('loci 提问 · 需要确认')
                 .fontSize(11)
                 .fontColor(LociTokens.INK_MUTED)
                 .width('100%')
-              Text('把“损失与泛化”加入下一次复习')
+              Text(this.pendingQuestion?.prompt ?? '')
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(LociTokens.INK)
+                .lineHeight(21)
                 .width('100%')
-              Text('这会创建一个复习任务，但不会直接修改概念状态。')
-                .fontSize(12)
-                .fontColor(LociTokens.INK_SOFT)
-                .lineHeight(19)
-                .width('100%')
-              if (this.actionConfirmed) {
-                Row({ space: 5 }) {
-                  Text('✓')
-                    .fontSize(13)
-                    .fontColor(LociTokens.SUCCESS)
-                  Text('已创建，稍后可以在今日处理')
-                    .fontSize(12)
-                    .fontColor(LociTokens.SUCCESS)
-                }
-                .width('100%')
-              } else {
-                Row({ space: LociTokens.SPACE_3 }) {
-                  Text('确认创建')
-                    .fontSize(13)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(LociTokens.ACCENT_INK)
-                    .textAlign(TextAlign.Center)
-                    .height(LociTokens.CONTROL_MIN)
-                    .padding({ left: 20, right: 20 })
-                    .borderRadius(LociTokens.RADIUS_CONTROL)
-                    .backgroundColor(LociTokens.ACCENT)
-                    .accessibilityRole(AccessibilityRoleType.BUTTON)
-                    .onClick((): void => {
-                      this.actionConfirmed = true
-                      this.onConfirmAction()
-                    })
-                  Text('取消')
-                    .fontSize(13)
-                    .fontColor(LociTokens.INK_SOFT)
-                    .textAlign(TextAlign.Center)
-                    .height(LociTokens.CONTROL_MIN)
-                    .padding({ left: 20, right: 20 })
-                    .accessibilityRole(AccessibilityRoleType.BUTTON)
-                    .onClick((): void => {
-                      this.showAction = false
-                    })
-                }
-                .width('100%')
+              ForEach(this.pendingQuestion?.options ?? [], (option: string) => {
+                Text(option)
+                  .fontSize(13)
+                  .fontColor(LociTokens.INK)
+                  .width('100%')
+                  .constraintSize({ minHeight: LociTokens.CONTROL_MIN })
+                  .padding({ top: 6, bottom: 6 })
+                  .border({ width: { bottom: 1 }, color: LociTokens.LINE })
+                  .accessibilityRole(AccessibilityRoleType.BUTTON)
+                  .onClick((): void => this.onAnswer(option))
+              }, (option: string): string => option)
+              if (this.pendingQuestion?.allowFreeText === true) {
+                Text('也可以在下方输入自己的回答后发送')
+                  .fontSize(11)
+                  .fontColor(LociTokens.INK_MUTED)
+                  .width('100%')
               }
             }
             .width('100%')
@@ -228,6 +220,33 @@ export struct ChatPanel {
             .borderRadius(LociTokens.RADIUS_BLOCK)
             .border({ width: 1, color: LociTokens.LINE_STRONG })
             .margin({ top: LociTokens.SPACE_2, bottom: LociTokens.SPACE_4 })
+          }
+        }
+
+        // ---- 错误条(turn_failed / 断线重连失败;可重发) ----
+        if (this.phase === 'error') {
+          ListItem() {
+            Column({ space: 8 }) {
+              Text(this.errorText.length > 0 ? this.errorText : '学习助手生成失败,请重试。')
+                .fontSize(12)
+                .fontColor(LociTokens.DANGER)
+                .lineHeight(19)
+                .width('100%')
+              Text('重试')
+                .fontSize(13)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(LociTokens.INK)
+                .textAlign(TextAlign.Center)
+                .height(LociTokens.CONTROL_MIN)
+                .padding({ left: 20, right: 20 })
+                .borderRadius(LociTokens.RADIUS_CONTROL)
+                .border({ width: 1, color: LociTokens.LINE_STRONG })
+                .accessibilityRole(AccessibilityRoleType.BUTTON)
+                .onClick((): void => this.onRetry())
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Start)
+            .padding({ top: LociTokens.SPACE_2, bottom: LociTokens.SPACE_4 })
           }
         }
       }
@@ -252,8 +271,8 @@ export struct ChatPanel {
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {
-            this.showAction = true
-            this.actionConfirmed = false
+            // M5e:turns 协议没有「直接创建复习」action,改为发普通消息由 agent 走 user_question 流程
+            this.draft = '帮我把这一章需要巩固的重点安排进复习'
           })
       }
       .width('100%')
@@ -274,6 +293,7 @@ export struct ChatPanel {
           .borderRadius(LociTokens.RADIUS_BLOCK)
           .padding({ left: 14, right: 14, top: 12, bottom: 12 })
           .accessibilityText('Chat 输入框')
+          .enabled(!this.streaming())
           .onChange((value: string): void => {
             this.draft = value
           })

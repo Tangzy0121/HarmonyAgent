@@ -3,8 +3,9 @@
  * 真源:prototype/src/components/workspace/ChapterSummary.tsx;docs/product/03 §7.6。
  * 内容:本章证据条(quiz/feynman/review 事件 + 来源入口)、待复习概念 chips、
  * 三个出口:继续下一章(next ready 才显示)/ 复习薄弱概念(M4 ReviewPage)/ 询问 Agent。
- * M4:待复习 chips 与「复习薄弱概念」通过 onOpenReview 进复习页;
- * extraReviewConceptIds 承载 Chat 建议动作确认后新加入的复习概念(Mock,会话内有效)。
+ * M4:待复习 chips 与「复习薄弱概念」通过 onOpenReview 进复习页。
+ * M5e:Chat 建议动作 mock 已删(turns 协议无「直接创建复习」action,改走 user_question
+ * 流程);extraReviewConceptIds 暂无生产方,保留参数,WorkspacePage 恒传 []。
  */
 import { LociTokens } from '../../theme/LociTokens'
 import {
@@ -19,7 +20,7 @@ import {
 export struct ChapterSummary {
   @Param project: LociProjectSummary = LOCI_EMPTY_PROJECT
   @Param chapter: LociChapter = { id: '', order: 0, title: '', estimatedMinutes: 0, taskState: '', read: false } as LociChapter
-  /** M4:Chat 建议动作确认后追加的复习概念 id(Mock,会话内有效)。 */
+  /** 扩展复习概念 id 槽位(M5e 起暂无生产方,恒为 [])。 */
   @Param extraReviewConceptIds: string[] = []
   @Event onSelectChapter: (chapterId: string) => void = (chapterId: string): void => {}
   @Event onAskAgent: () => void = (): void => {}

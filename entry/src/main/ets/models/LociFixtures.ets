@@ -105,6 +105,8 @@ export interface LociChapter {
   estimatedMinutes: number
   taskState: string
   read: boolean
+  /** M5c:server readingProgress.bookmarkedChapterIds 映射;fixture 无此字段(缺省即未收藏)。 */
+  bookmarked?: boolean
   objective?: string
   sourceRange?: string
   verified?: boolean

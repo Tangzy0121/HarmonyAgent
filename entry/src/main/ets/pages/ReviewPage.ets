@@ -1,13 +1,17 @@
 /**
- * 短复习 ReviewPage(M4)
+ * 短复习 ReviewPage(M4 原型;M5d server 真实化)
  * 真源:prototype/src/pages/ReviewPage.tsx;docs/product/03 §11、docs/product/02 §4;
  * 视觉基准:HelpCC/harmony-migration/baseline/04-review.png。
- * 队列:入口项目 reviewConceptIds ∩ concepts,5 个封顶(docs/02 §4「3—5 个概念」);
- * 每概念两步:主动回忆(先遮定义,点击揭示)→ 应用或对比题(关联章节 quiz 块,
- * 没有则出概念判断 Mock 题)→ 结果反馈(含来源回跳 SourceViewer)。
- * 队列有限、可结束、可稍后:「稍后处理」直接退出且不改数据(Mock 语义:只调整调度)。
- * 结果页按本次答题分「已巩固 / 仍需复习」两组,不把结果包装成分数(docs/03 §11)。
- * Mock 说明:复习事件只记录在页内状态,不写回 appState,接 server 时替换为真实事件流。
+ * 队列:fixture 项目 = reviewConceptIds ∩ concepts,5 个封顶(docs/02 §4「3—5 个概念」);
+ * server 项目(M5d)= GET review/due 到期块(同 5 封顶),题面从详情拉取的章 blocks 找:
+ * quiz 块走答题路径(写回 POST attempts,答错自动入复习调度),
+ * flash_cards 块走回忆卡路径(揭示背面后自评,写回 POST review/:blockId/result)。
+ * 每概念两步:主动回忆(先遮定义,点击揭示)→ 答题/自评 → 结果反馈(含来源回跳 SourceViewer)。
+ * 队列有限、可结束、可稍后:「稍后处理」直接退出且不改数据(server 无推迟端点,保持语义)。
+ * 结果页按本次答题分「已巩固 / 仍需复习」两组,不把结果包装成分数(docs/03 §11);
+ * server 路径「已保存 N 条」为真实写回成功计数,fixture 保持 Mock 语义不写回。
+ * M5d 模拟器实测修复:卡片底栏主按钮从带参 @Builder(cardFooter)改内联——
+ * V2 @Builder 参数按值捕获不响应 @Local,enabled 永远停在初值(device-audit.md #3 同类)。
  */
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../theme/LociTokens'
@@ -18,6 +22,16 @@ import {
   LociSourceAnchor,
   LOCI_EMPTY_PROJECT
 } from '../models/LociFixtures'
+import { LociAppState } from '../models/LociAppState'
+import {
+  WireBookBlock,
+  WireBookChapter,
+  WireFlashCard,
+  WireQuizAttemptResult,
+  WireQuizOption,
+  WireReviewDueItem,
+  WireStoredBook
+} from '../loci/data/LociApiClient'
 import { LociImmersiveHeader } from '../components/create/LociImmersiveHeader'
 import { SourceViewer } from '../components/overlays/SourceViewer'
 
@@ -27,7 +41,7 @@ export interface LociReviewNav {
   returnLabel: string
 }
 
-/** 每概念的第二步题:来自章节 quiz 块,或概念判断 Mock 题。 */
+/** 每概念的第二步题:来自章节 quiz 块,或概念判断 Mock 题(fixture)。 */
 interface ReviewQuiz {
   kindLabel: string
   question: string
@@ -36,25 +50,44 @@ interface ReviewQuiz {
   explanation: string
 }
 
+/**
+ * 复习队列项(M5d 统一抽象):fixture 由概念组装(kind='concept',quiz 必有——
+ * 章节 quiz 块或概念判断 Mock 题);server 由 review/due 到期块组装
+ * (kind='quiz' 走答题写回 attempts;kind='flash_cards' 走自评写回 review/result)。
+ */
+interface ReviewItem {
+  key: string
+  label: string
+  /** 回忆阶段遮住的揭示文本:概念定义 / quiz 反馈 / 闪卡背面。 */
+  reveal: string
+  kind: string
+  /** server 块 id(quiz/flash_cards 写回用);fixture 为 ''。 */
+  blockId: string
+  quiz: ReviewQuiz | null
+  cards: WireFlashCard[]
+  /** 结果反馈的来源回跳锚点 id;无定位时 ''。 */
+  anchorId: string
+}
+
 /** 复习队列上限,真源:docs/product/02 §4(3—5 个概念)。 */
 const REVIEW_QUEUE_CAP: number = 5
 
-/** cardFooter 的传参对象(V2 @Builder 响应式要求对象字面量传参)。 */
-interface ReviewFooterParam {
-  enabled: boolean
-  actionLabel: string
-  action: () => void
-}
-
+/**
+ * 注意(device-audit.md #3 + M5d 实测):V2 @Builder 参数按值捕获,不响应 @Local 状态变化
+ * ——卡片底栏主按钮必须内联在 recallCard/quizCard 里直接读 this.*(细粒度更新才生效),
+ * 不要抽成带参 @Builder(旧 cardFooter/ReviewFooterParam 已因此删除)。
+ */
 @ComponentV2
 export struct ReviewPage {
   @Param project: LociProjectSummary = LOCI_EMPTY_PROJECT
   @Param returnLabel: string = '返回学习书'
+  /** M5d:server 项目经 appState 拉到期队列与写回;fixture 项目不消费(保持 M4 行为)。 */
+  @Param appState: LociAppState = new LociAppState()
   @Event onBack: () => void = (): void => {}
 
-  @Local private queue: LociConcept[] = []
+  @Local private items: ReviewItem[] = []
   @Local private index: number = 0
-  @Local private stage: string = 'recall' // 'recall' | 'quiz' | 'feedback'
+  @Local private stage: string = 'recall' // 'recall' | 'quiz' | 'grade' | 'feedback'
   @Local private recallAnswer: string = ''
   @Local private revealed: boolean = false
   @Local private selectedOptionId: string = ''
@@ -62,50 +95,156 @@ export struct ReviewPage {
   @Local private consolidatedIds: string[] = []
   @Local private stillReviewIds: string[] = []
   @Local private sourceAnchorId: string = ''
+  /** M5d server:到期队列拉取中。 */
+  @Local private loading: boolean = false
+  /** M5d server:真实写回成功计数(结果页「已保存 N 条」)。 */
+  @Local private savedCount: number = 0
+  /** M5d server:写回进行中,防重复提交。 */
+  @Local private submitting: boolean = false
 
   aboutToAppear(): void {
-    const reviewIds: string[] = this.project.reviewConceptIds ?? []
-    this.queue = (this.project.concepts ?? []).filter((concept: LociConcept): boolean =>
-      reviewIds.includes(concept.id)).slice(0, REVIEW_QUEUE_CAP)
-  }
-
-  private currentConcept(): LociConcept | undefined {
-    return this.queue[this.index]
-  }
-
-  private isDone(): boolean {
-    return this.index >= this.queue.length
-  }
-
-  /** 应用或对比题:优先该概念关联章节的 quiz 块;没有则出概念判断 Mock 题。 */
-  private currentQuiz(): ReviewQuiz | null {
-    const concept: LociConcept | undefined = this.currentConcept()
-    if (concept === undefined) {
-      return null
+    if (this.isServer()) {
+      this.loading = true
+      this.loadServerQueue()
+      return
     }
+    const reviewIds: string[] = this.project.reviewConceptIds ?? []
+    this.items = (this.project.concepts ?? []).filter((concept: LociConcept): boolean =>
+      reviewIds.includes(concept.id)).slice(0, REVIEW_QUEUE_CAP)
+      .map((concept: LociConcept): ReviewItem => this.fixtureItem(concept))
+  }
+
+  private isServer(): boolean {
+    return this.appState.isServerProject(this.project.id)
+  }
+
+  /** fixture 组队(原 M4 行为):概念 → 回忆定义 + 章节 quiz 块/概念判断 Mock 题。 */
+  private fixtureItem(concept: LociConcept): ReviewItem {
+    let quiz: ReviewQuiz | null = null
     for (const chapter of this.project.chapters) {
       for (const block of chapter.blocks ?? []) {
         if (block.type === 'quiz' && block.conceptId === concept.id) {
-          return {
+          quiz = {
             kindLabel: '应用判断',
             question: block.question ?? '',
             options: block.options ?? [],
             correctOptionId: block.correctOptionId ?? '',
             explanation: block.explanation ?? concept.definition
           }
+          break
         }
+      }
+      if (quiz !== null) {
+        break
+      }
+    }
+    if (quiz === null) {
+      quiz = {
+        kindLabel: '概念判断',
+        question: `判断:「${concept.label}」——${concept.definition}`,
+        options: [
+          { id: 'a', label: '准确,与我的理解一致' } as LociQuizOption,
+          { id: 'b', label: '不准确,与我的理解有出入' } as LociQuizOption
+        ],
+        correctOptionId: 'a',
+        explanation: concept.definition
       }
     }
     return {
-      kindLabel: '概念判断',
-      question: `判断:「${concept.label}」——${concept.definition}`,
-      options: [
-        { id: 'a', label: '准确,与我的理解一致' } as LociQuizOption,
-        { id: 'b', label: '不准确,与我的理解有出入' } as LociQuizOption
-      ],
-      correctOptionId: 'a',
-      explanation: concept.definition
+      key: concept.id,
+      label: concept.label,
+      reveal: concept.definition,
+      kind: 'concept',
+      blockId: '',
+      quiz: quiz,
+      cards: [],
+      anchorId: this.conceptAnchorId(concept) ?? ''
     }
+  }
+
+  /**
+   * M5d server 组队:GET review/due(≤5)+ GET 详情找块原文;
+   * 块缺失的到期项跳过(防御:调度与块不一致时不白屏)。
+   */
+  private async loadServerQueue(): Promise<void> {
+    const bookId: string = this.project.id
+    try {
+      const due: WireReviewDueItem[] = await this.appState.getReviewDue(bookId)
+      const book: WireStoredBook | undefined = await this.appState.getServerBook(bookId)
+      const items: ReviewItem[] = []
+      due.slice(0, REVIEW_QUEUE_CAP).forEach((dueItem: WireReviewDueItem): void => {
+        const item: ReviewItem | null = this.serverItem(dueItem, book)
+        if (item !== null) {
+          items.push(item)
+        }
+      })
+      this.items = items
+    } catch (error) {
+      promptAction.showToast({
+        message: error instanceof Error ? error.message : '复习队列加载失败,请稍后重试',
+        duration: 1800
+      })
+    }
+    this.loading = false
+  }
+
+  /** M5d:到期项 → 队列项;quiz 块走答题路径,flash_cards 块走自评路径。 */
+  private serverItem(dueItem: WireReviewDueItem, book: WireStoredBook | undefined): ReviewItem | null {
+    const chapter: WireBookChapter | undefined = book?.chapters.find(
+      (entry: WireBookChapter): boolean => entry.id === dueItem.chapterId)
+    const block: WireBookBlock | undefined = (chapter?.blocks ?? []).find(
+      (entry: WireBookBlock): boolean => entry.id === dueItem.blockId)
+    if (dueItem.kind === 'flash_cards') {
+      const cards: WireFlashCard[] = block?.cards ?? []
+      if (block === undefined || cards.length === 0) {
+        return null
+      }
+      return {
+        key: dueItem.blockId,
+        label: block.title.length > 0 ? block.title : dueItem.title,
+        reveal: cards.map((card: WireFlashCard): string => card.back).join('\n'),
+        kind: 'flash_cards',
+        blockId: dueItem.blockId,
+        quiz: null,
+        cards: cards,
+        anchorId: block.sourceAnchors.length > 0 ? block.sourceAnchors[0].sourceId : ''
+      }
+    }
+    if (block === undefined || block.type !== 'quiz') {
+      return null
+    }
+    const explanation: string = block.feedback ?? ''
+    return {
+      key: dueItem.blockId,
+      label: block.title.length > 0 ? block.title : dueItem.title,
+      reveal: explanation,
+      kind: 'quiz',
+      blockId: dueItem.blockId,
+      quiz: {
+        kindLabel: '复习小测',
+        question: block.question ?? '',
+        options: (block.options ?? []).map((option: WireQuizOption): LociQuizOption => {
+          return { id: option.id, label: option.text }
+        }),
+        correctOptionId: block.correctAnswerId ?? '',
+        explanation: explanation
+      },
+      cards: [],
+      anchorId: block.sourceAnchors.length > 0 ? block.sourceAnchors[0].sourceId : ''
+    }
+  }
+
+  private currentItem(): ReviewItem | undefined {
+    return this.items[this.index]
+  }
+
+  /** 第二步题(concept/quiz 路径);flash_cards 无题,走 grade 自评。 */
+  private currentQuiz(): ReviewQuiz | null {
+    return this.currentItem()?.quiz ?? null
+  }
+
+  private isDone(): boolean {
+    return this.index >= this.items.length
   }
 
   private activeAnchor(): LociSourceAnchor | undefined {
@@ -120,30 +259,80 @@ export struct ReviewPage {
     return found?.id
   }
 
-  /** 稍后处理:退出且不改数据(Mock 语义:只调整调度,docs/02 §4)。 */
+  /** 稍后处理:退出且不改数据(server 无推迟端点,docs/02 §4 只调整调度语义保留为退出)。 */
   private defer(): void {
     promptAction.showToast({ message: '已稍后处理,复习会重新安排', duration: 1800 })
     this.onBack()
   }
 
+  /** 回忆提交:flash_cards 进自评(揭示背面),其余进答题。 */
   private submitRecall(): void {
-    this.stage = 'quiz'
+    this.stage = this.currentItem()?.kind === 'flash_cards' ? 'grade' : 'quiz'
   }
 
+  /** 答题提交:server quiz 块走 POST attempts(答错自动入复习调度),判分以 server 为准。 */
   private submitQuiz(): void {
+    const item: ReviewItem | undefined = this.currentItem()
     const quiz: ReviewQuiz | null = this.currentQuiz()
-    this.lastCorrect = quiz !== null && this.selectedOptionId === quiz.correctOptionId
+    if (item === undefined || quiz === null) {
+      return
+    }
+    if (this.isServer() && item.kind === 'quiz') {
+      if (this.submitting) {
+        return
+      }
+      this.submitting = true
+      this.appState.submitQuizAttempt(this.project.id, item.blockId, this.selectedOptionId)
+        .then((result: WireQuizAttemptResult): void => {
+          this.submitting = false
+          this.savedCount += 1
+          this.lastCorrect = result.attempt.isCorrect
+          this.stage = 'feedback'
+          this.appState.refreshProject(this.project.id)
+        })
+        .catch((error: Object): void => {
+          this.submitting = false
+          promptAction.showToast({
+            message: error instanceof Error ? error.message : '保存失败,请重试', duration: 1800
+          })
+        })
+      return
+    }
+    this.lastCorrect = this.selectedOptionId === quiz.correctOptionId
     this.stage = 'feedback'
   }
 
-  /** 「下一项 / 查看结果」:记录本概念结果(Mock:仅页内),推进队列。 */
+  /** flash_cards 自评:POST review/:blockId/result(remembered 推进调度,forgotten 重置 stage)。 */
+  private submitGrade(result: string): void {
+    const item: ReviewItem | undefined = this.currentItem()
+    if (item === undefined || this.submitting) {
+      return
+    }
+    this.submitting = true
+    this.appState.submitReviewResult(this.project.id, item.blockId, result)
+      .then((): void => {
+        this.submitting = false
+        this.savedCount += 1
+        this.lastCorrect = result === 'remembered'
+        this.stage = 'feedback'
+        this.appState.refreshProject(this.project.id)
+      })
+      .catch((error: Object): void => {
+        this.submitting = false
+        promptAction.showToast({
+          message: error instanceof Error ? error.message : '保存失败,请重试', duration: 1800
+        })
+      })
+  }
+
+  /** 「下一项 / 查看结果」:记录本项结果(server 已写回;fixture 仅页内),推进队列。 */
   private advance(): void {
-    const concept: LociConcept | undefined = this.currentConcept()
-    if (concept !== undefined) {
+    const item: ReviewItem | undefined = this.currentItem()
+    if (item !== undefined) {
       if (this.lastCorrect) {
-        this.consolidatedIds = this.consolidatedIds.concat([concept.id])
+        this.consolidatedIds = this.consolidatedIds.concat([item.key])
       } else {
-        this.stillReviewIds = this.stillReviewIds.concat([concept.id])
+        this.stillReviewIds = this.stillReviewIds.concat([item.key])
       }
     }
     this.index += 1
@@ -153,9 +342,9 @@ export struct ReviewPage {
     this.selectedOptionId = ''
   }
 
-  private labelOf(ids: string[]): string {
-    return this.queue.filter((concept: LociConcept): boolean => ids.includes(concept.id))
-      .map((concept: LociConcept): string => concept.label).join('、')
+  private labelOf(keys: string[]): string {
+    return this.items.filter((item: ReviewItem): boolean => keys.includes(item.key))
+      .map((item: ReviewItem): string => item.label).join('、')
   }
 
   build() {
@@ -175,14 +364,14 @@ export struct ReviewPage {
               .fontSize(12)
               .fontColor(LociTokens.INK_MUTED)
               .width('100%')
-            Text(this.isDone() ? '这次复习已经完成' : `${this.index + 1} / ${this.queue.length}`)
+            Text(this.isDone() ? '这次复习已经完成' : `${this.index + 1} / ${this.items.length}`)
               .fontSize(44)
               .fontWeight(FontWeight.Lighter)
               .fontColor(LociTokens.INK)
               .letterSpacing(-1.5)
               .width('100%')
               .accessibilityText(this.isDone() ? '这次复习已经完成' :
-                `第 ${this.index + 1} 个概念,共 ${this.queue.length} 个`)
+                `第 ${this.index + 1} 项,共 ${this.items.length} 项`)
           }
           .layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
@@ -190,8 +379,8 @@ export struct ReviewPage {
           Stack() {
             Rect().width(64).height(1).fill(LociTokens.LINE_STRONG)
             Rect()
-              .width(this.queue.length === 0 ? 0 :
-                64 * Math.min(this.index, this.queue.length) / this.queue.length)
+              .width(this.items.length === 0 ? 0 :
+                64 * Math.min(this.index, this.items.length) / this.items.length)
               .height(1)
               .fill(LociTokens.INK)
           }
@@ -204,7 +393,14 @@ export struct ReviewPage {
         .padding({ bottom: LociTokens.SPACE_5 })
         .border({ width: { bottom: 1 }, color: LociTokens.LINE })
 
-        if (this.queue.length === 0) {
+        if (this.loading) {
+          // M5d server:到期队列拉取中
+          Text('正在加载复习队列…')
+            .fontSize(13)
+            .fontColor(LociTokens.INK_MUTED)
+            .width('100%')
+            .margin({ top: LociTokens.SPACE_7 })
+        } else if (this.items.length === 0) {
           this.emptyState()
         } else if (this.isDone()) {
           this.resultView()
@@ -215,6 +411,8 @@ export struct ReviewPage {
                 this.recallCard()
               } else if (this.stage === 'quiz') {
                 this.quizCard()
+              } else if (this.stage === 'grade') {
+                this.gradeCard()
               } else {
                 this.feedbackCard()
               }
@@ -256,7 +454,7 @@ export struct ReviewPage {
         .fontSize(12)
         .fontColor(LociTokens.INK_MUTED)
       Blank()
-      Text(this.currentConcept()?.label ?? '')
+      Text(this.currentItem()?.label ?? '')
         .fontSize(12)
         .fontColor(LociTokens.INK_MUTED)
     }
@@ -264,13 +462,15 @@ export struct ReviewPage {
     .margin({ top: LociTokens.SPACE_5 })
   }
 
-  /** 第一步:主动回忆(先遮定义,点击揭示)。 */
+  /** 第一步:主动回忆(先遮定义,点击揭示);flash_cards 项先展示卡面。 */
   @Builder
   private recallCard() {
     Column() {
       this.cardHeader('主动回忆')
 
-      Text(`先不看资料:用一两句话说出「${this.currentConcept()?.label ?? ''}」在讲什么。`)
+      Text(this.currentItem()?.kind === 'flash_cards' ?
+        '先不看背面:回忆这张卡问的内容,再揭示对照。' :
+        `先不看资料:用一两句话说出「${this.currentItem()?.label ?? ''}」在讲什么。`)
         .fontSize(LociTokens.FONT_SECTION)
         .fontWeight(FontWeight.Lighter)
         .fontColor(LociTokens.INK)
@@ -278,6 +478,24 @@ export struct ReviewPage {
         .lineHeight(36)
         .width('100%')
         .margin({ top: LociTokens.SPACE_5 })
+
+      if (this.currentItem()?.kind === 'flash_cards') {
+        Column({ space: 6 }) {
+          ForEach(this.currentItem()?.cards ?? [], (card: WireFlashCard) => {
+            Text(card.front)
+              .fontSize(14)
+              .fontColor(LociTokens.INK)
+              .lineHeight(22)
+              .width('100%')
+          }, (card: WireFlashCard): string => card.front)
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+        .padding(LociTokens.SPACE_4)
+        .margin({ top: LociTokens.SPACE_4 })
+        .borderRadius(LociTokens.RADIUS_BLOCK)
+        .backgroundColor(LociTokens.SURFACE)
+      }
 
       TextArea({ placeholder: '用一两句话回答…', text: this.recallAnswer })
         .width('100%')
@@ -302,7 +520,7 @@ export struct ReviewPage {
           .fontSize(11)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
-        Text(this.revealed ? (this.currentConcept()?.definition ?? '') : '点击揭示,对照自己的回答')
+        Text(this.revealed ? (this.currentItem()?.reveal ?? '') : '点击揭示,对照自己的回答')
           .fontSize(this.revealed ? 14 : 13)
           .fontColor(this.revealed ? LociTokens.INK : LociTokens.INK_MUTED)
           .lineHeight(22)
@@ -321,8 +539,38 @@ export struct ReviewPage {
         this.revealed = true
       })
 
-      this.cardFooter({ enabled: this.recallAnswer.trim().length > 0 || this.revealed, actionLabel: '提交回答',
-        action: (): void => this.submitRecall() } as ReviewFooterParam)
+      // 底栏内联(不走 @Builder 传参):V2 @Builder 参数按值捕获不响应 @Local 变化,
+      // enabled 直接读 this.* 由细粒度更新驱动(device-audit.md #3 同款修法)
+      Row() {
+        Text('稍后处理')
+          .fontSize(13)
+          .fontColor(LociTokens.INK_MUTED)
+          .height(LociTokens.CONTROL_MIN)
+          .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .onClick((): void => this.defer())
+        Blank()
+        Text('提交回答')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.recallAnswer.trim().length > 0 || this.revealed ?
+            LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+          .textAlign(TextAlign.Center)
+          .height(LociTokens.CONTROL_MIN)
+          .padding({ left: 22, right: 22 })
+          .borderRadius(LociTokens.RADIUS_CONTROL)
+          .backgroundColor(this.recallAnswer.trim().length > 0 || this.revealed ?
+            LociTokens.ACCENT : LociTokens.SURFACE)
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .onClick((): void => {
+            if (this.recallAnswer.trim().length > 0 || this.revealed) {
+              this.submitRecall()
+            }
+          })
+      }
+      .width('100%')
+      .margin({ top: LociTokens.SPACE_5 })
+      .padding({ bottom: LociTokens.SPACE_6 })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -382,8 +630,96 @@ export struct ReviewPage {
       .width('100%')
       .margin({ top: LociTokens.SPACE_5 })
 
-      this.cardFooter({ enabled: this.selectedOptionId.length > 0, actionLabel: '提交判断',
-        action: (): void => this.submitQuiz() } as ReviewFooterParam)
+      // 底栏内联(同 recallCard,不走 @Builder 传参)
+      Row() {
+        Text('稍后处理')
+          .fontSize(13)
+          .fontColor(LociTokens.INK_MUTED)
+          .height(LociTokens.CONTROL_MIN)
+          .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .onClick((): void => this.defer())
+        Blank()
+        Text('提交判断')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.selectedOptionId.length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+          .textAlign(TextAlign.Center)
+          .height(LociTokens.CONTROL_MIN)
+          .padding({ left: 22, right: 22 })
+          .borderRadius(LociTokens.RADIUS_CONTROL)
+          .backgroundColor(this.selectedOptionId.length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .onClick((): void => {
+            if (this.selectedOptionId.length > 0) {
+              this.submitQuiz()
+            }
+          })
+      }
+      .width('100%')
+      .margin({ top: LociTokens.SPACE_5 })
+      .padding({ bottom: LociTokens.SPACE_6 })
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  /** flash_cards 第二步:揭示背面后自评(写回 POST review/result)。 */
+  @Builder
+  private gradeCard() {
+    Column() {
+      this.cardHeader('记忆自评')
+
+      Column({ space: LociTokens.SPACE_3 }) {
+        ForEach(this.currentItem()?.cards ?? [], (card: WireFlashCard) => {
+          Column({ space: 6 }) {
+            Text(card.front)
+              .fontSize(12)
+              .fontColor(LociTokens.INK_MUTED)
+              .width('100%')
+            Text(card.back)
+              .fontSize(14)
+              .fontColor(LociTokens.INK)
+              .lineHeight(22)
+              .width('100%')
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .padding(LociTokens.SPACE_4)
+          .borderRadius(LociTokens.RADIUS_BLOCK)
+          .backgroundColor(LociTokens.SURFACE)
+        }, (card: WireFlashCard): string => card.front)
+      }
+      .width('100%')
+      .margin({ top: LociTokens.SPACE_5 })
+
+      Row({ space: LociTokens.SPACE_3 }) {
+        Text('没记住')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(LociTokens.INK)
+          .textAlign(TextAlign.Center)
+          .layoutWeight(1)
+          .height(LociTokens.CONTROL_MIN)
+          .borderRadius(LociTokens.RADIUS_CONTROL)
+          .border({ width: 1, color: LociTokens.LINE_STRONG })
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .onClick((): void => this.submitGrade('forgotten'))
+        Text('记住了')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(LociTokens.ACCENT_INK)
+          .textAlign(TextAlign.Center)
+          .layoutWeight(1)
+          .height(LociTokens.CONTROL_MIN)
+          .borderRadius(LociTokens.RADIUS_CONTROL)
+          .backgroundColor(LociTokens.ACCENT)
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .onClick((): void => this.submitGrade('remembered'))
+      }
+      .width('100%')
+      .margin({ top: LociTokens.SPACE_5 })
+      .padding({ bottom: LociTokens.SPACE_6 })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -391,8 +727,7 @@ export struct ReviewPage {
 
   /** 第三步:结果反馈(含来源回跳)。 */
   @Builder
-  private feedbackCard() {
-    Column() {
+  private feedbackCard() {    Column() {
       this.cardHeader('结果与来源')
 
       Row({ space: LociTokens.SPACE_3 }) {
@@ -405,7 +740,7 @@ export struct ReviewPage {
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.INK)
             .width('100%')
-          Text(this.currentQuiz()?.explanation ?? '')
+          Text(this.currentQuiz()?.explanation ?? this.currentItem()?.reveal ?? '')
             .fontSize(13)
             .fontColor(LociTokens.INK_SOFT)
             .lineHeight(21)
@@ -429,10 +764,8 @@ export struct ReviewPage {
           .margin({ top: LociTokens.SPACE_2 })
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {
-            const concept: LociConcept | undefined = this.currentConcept()
-            const anchorId: string | undefined =
-              concept !== undefined ? this.conceptAnchorId(concept) : undefined
-            if (anchorId !== undefined) {
+            const anchorId: string = this.currentItem()?.anchorId ?? ''
+            if (anchorId.length > 0) {
               this.sourceAnchorId = anchorId
             } else {
               promptAction.showToast({ message: '这个概念的来源定位仍在生成', duration: 1800 })
@@ -457,7 +790,7 @@ export struct ReviewPage {
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.defer())
         Blank()
-        Text(this.index === this.queue.length - 1 ? '查看结果' : '下一项')
+        Text(this.index === this.items.length - 1 ? '查看结果' : '下一项')
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.ACCENT_INK)
@@ -477,39 +810,6 @@ export struct ReviewPage {
     .alignItems(HorizontalAlign.Start)
   }
 
-  /** 卡片底栏:稍后处理(左)+ 主按钮(右)。V2 注意:基本类型 @Builder 参数不响应式,用对象字面量。 */
-  @Builder
-  private cardFooter(param: ReviewFooterParam) {
-    Row() {
-      Text('稍后处理')
-        .fontSize(13)
-        .fontColor(LociTokens.INK_MUTED)
-        .height(LociTokens.CONTROL_MIN)
-        .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
-        .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => this.defer())
-      Blank()
-      Text(param.actionLabel)
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(param.enabled ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
-        .textAlign(TextAlign.Center)
-        .height(LociTokens.CONTROL_MIN)
-        .padding({ left: 22, right: 22 })
-        .borderRadius(LociTokens.RADIUS_CONTROL)
-        .backgroundColor(param.enabled ? LociTokens.ACCENT : LociTokens.SURFACE)
-        .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => {
-          if (param.enabled) {
-            param.action()
-          }
-        })
-    }
-    .width('100%')
-    .margin({ top: LociTokens.SPACE_5 })
-    .padding({ bottom: LociTokens.SPACE_6 })
-  }
-
   /** 结果页:已巩固 / 仍需复习分组(不包装成分数,docs/03 §11)。 */
   @Builder
   private resultView() {
@@ -520,7 +820,8 @@ export struct ReviewPage {
           .fontColor(LociTokens.SUCCESS)
           .width('100%')
           .margin({ top: LociTokens.SPACE_6 })
-        Text(`已保存 ${this.queue.length} 条复习事件(Mock)`)
+        Text(this.isServer() ? `已保存 ${this.savedCount} 条复习事件` :
+          `已保存 ${this.items.length} 条复习事件(Mock)`)
           .fontSize(11)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
@@ -592,13 +893,15 @@ export struct ReviewPage {
   @Builder
   private emptyState() {
     Column({ space: LociTokens.SPACE_3 }) {
-      Text('这次没有待复习概念')
+      Text(this.isServer() ? '这次没有到期复习' : '这次没有待复习概念')
         .fontSize(LociTokens.FONT_TITLE)
         .fontWeight(FontWeight.Lighter)
         .fontColor(LociTokens.INK)
         .width('100%')
         .margin({ top: LociTokens.SPACE_7 })
-      Text('概念在小测或讲述中暴露薄弱点后会进入复习队列。')
+      Text(this.isServer() ?
+        '到期的小测与闪卡会出现在这里;答错的小测会自动安排复习。' :
+        '概念在小测或讲述中暴露薄弱点后会进入复习队列。')
         .fontSize(13)
         .fontColor(LociTokens.INK_MUTED)
         .lineHeight(20)

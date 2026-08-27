@@ -13,18 +13,9 @@ export struct LociImmersiveHeader {
   @Event onBack: () => void = (): void => {}
 
   build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Column({ space: 2 }) {
-        Text(this.meta)
-          .fontSize(10)
-          .fontColor(LociTokens.INK_MUTED)
-        Text(this.title)
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(LociTokens.INK)
-      }
-      .alignItems(HorizontalAlign.Center)
-
+    // 三段 Row:左返回 / 中标题(layoutWeight 居中) / 右隐藏占位(与左同结构,保证中间真居中)。
+    // 旧实现 Stack 直接叠加,窄屏下「← 学习库」与「1/3 新建项目」叠字(M4 遗留 bug,2026-08-27 修)。
+    Row() {
       Row({ space: 4 }) {
         Text('←')
           .fontSize(16)
@@ -35,12 +26,39 @@ export struct LociImmersiveHeader {
       }
       .height(LociTokens.CONTROL_MIN)
       .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_3 })
-      .align(Alignment.Start)
       .accessibilityText(`返回${this.backLabel}`)
       .accessibilityRole(AccessibilityRoleType.BUTTON)
       .onClick((): void => this.onBack())
+
+      Column({ space: 2 }) {
+        Text(this.meta)
+          .fontSize(10)
+          .fontColor(LociTokens.INK_MUTED)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(this.title)
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(LociTokens.INK)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Center)
+
+      Row({ space: 4 }) {
+        Text('←')
+          .fontSize(16)
+        Text(this.backLabel)
+          .fontSize(12)
+      }
+      .height(LociTokens.CONTROL_MIN)
+      .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_3 })
+      .visibility(Visibility.Hidden)
+      .accessibilityLevel('no')
     }
     .width('100%')
     .height(52)
+    .alignItems(VerticalAlign.Center)
   }
 }

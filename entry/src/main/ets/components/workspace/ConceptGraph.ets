@@ -53,10 +53,18 @@ export struct ConceptGraph {
   @Local private view: string = 'graph'    // 'graph' | 'list'
   @Local private selectedId: string = ''
 
+  /** 证据写回等导致 project 更新时重绘连线(范围/节点集合可能变化)。 */
+  @Monitor('project')
+  private onProjectChanged(): void {
+    this.drawLines()
+  }
+
   private lineContext: CanvasRenderingContext2D =
     new CanvasRenderingContext2D(new RenderingContextSettings(true))
-  private stageWidthVp: number = 0
-  private stageHeightVp: number = 0
+  // 实测(2026-08-27,Pura 90 模拟器):onAreaChange 的 Area.width/height 单位是 px,不是 vp——
+  // 此前按 vp 记录再乘 vp2px(1) 等于密度二次方,连线被放大 ~3.5 倍甩到节点右下方。
+  private stageWidthPx: number = 0
+  private stageHeightPx: number = 0
 
   private concepts(): LociConcept[] {
     const all: LociConcept[] = this.project.concepts ?? []
@@ -83,17 +91,16 @@ export struct ConceptGraph {
     return POSITIONS[(index < 0 ? 0 : index) % POSITIONS.length]
   }
 
-  /** 关系线重绘:Canvas 坐标为 px,舞台尺寸按 vp 记录后换算。 */
+  /** 关系线重绘:stageWidthPx/stageHeightPx 已是 px(onAreaChange 实测),不再乘密度。 */
   private drawLines(): void {
-    if (this.stageWidthVp <= 0 || this.stageHeightVp <= 0) {
+    if (this.stageWidthPx <= 0 || this.stageHeightPx <= 0) {
       return
     }
-    const scale: number = this.getUIContext().vp2px(1)
-    const widthPx: number = this.stageWidthVp * scale
-    const heightPx: number = this.stageHeightVp * scale
+    const widthPx: number = this.stageWidthPx
+    const heightPx: number = this.stageHeightPx
     this.lineContext.clearRect(0, 0, widthPx, heightPx)
     this.lineContext.strokeStyle = LociTokens.LINE_STRONG
-    this.lineContext.lineWidth = scale
+    this.lineContext.lineWidth = this.getUIContext().vp2px(1)
     this.relations().forEach((relation: LociConceptRelation): void => {
       const from: GraphPosition = this.positionOf(relation.from)
       const to: GraphPosition = this.positionOf(relation.to)
@@ -238,8 +245,8 @@ export struct ConceptGraph {
         .width('100%')
         .height('100%')
         .onAreaChange((_: Area, newArea: Area): void => {
-          this.stageWidthVp = Number(newArea.width)
-          this.stageHeightVp = Number(newArea.height)
+          this.stageWidthPx = Number(newArea.width)
+          this.stageHeightPx = Number(newArea.height)
           this.drawLines()
         })
 

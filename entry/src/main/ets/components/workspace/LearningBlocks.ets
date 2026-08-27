@@ -11,6 +11,20 @@ import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../../theme/LociTokens'
 import { LociLearningBlock, LociQuizOption } from '../../models/LociFixtures'
 
+/** M5c:quiz 提交结果(server 权威);fixture 模式(serverBacked=false)不经过此类型。 */
+export interface QuizAnswerOutcome {
+  isCorrect: boolean
+  /** diagnosis.advice;答对或无 LLM key 时为空串。 */
+  advice: string
+}
+
+/** M5c:feynman 判定结果(server 权威)。 */
+export interface FeynmanOutcome {
+  passed: boolean
+  feedback: string
+  gap: string
+}
+
 /** 「资料依据 N」按钮组,真源:LearningBlocks.tsx SourceLinks。 */
 @ComponentV2
 export struct LociSourceLinks {
@@ -47,16 +61,59 @@ export struct LociSourceLinks {
   }
 }
 
-/** 小测块:选项选择 + 提交 + 对错反馈 + 解释 + 重试,真源:LearningBlocks.tsx Quiz。 */
+/** 小测块:选项选择 + 提交 + 对错反馈 + 解释 + 重试,真源:LearningBlocks.tsx Quiz。
+ * M5c:serverBacked 时提交走 POST attempts——乐观就地判分先出,server 响应到达后
+ * 以 isCorrect 为准更新判定并展示 diagnosis.advice;失败回滚到未提交并 toast。 */
 @ComponentV2
 export struct QuizBlockView {
   @Param block: LociLearningBlock = { id: '', type: 'quiz', title: '', sourceIds: [] } as LociLearningBlock
   @Event onOpenSource: (anchorId: string) => void = (anchorId: string): void => {}
+  /** M5c:server 项目为 true,提交时调 onSubmitAnswer 写回证据。 */
+  @Param serverBacked: boolean = false
+  @Event onSubmitAnswer: (blockId: string, answerId: string) => Promise<QuizAnswerOutcome> =
+    (blockId: string, answerId: string): Promise<QuizAnswerOutcome> =>
+      Promise.resolve({ isCorrect: false, advice: '' } as QuizAnswerOutcome)
   @Local private answer: string = ''
   @Local private submitted: boolean = false
+  /** M5c:server 判定落地标记/结果(未落地前展示本地乐观判定)。 */
+  @Local private submitting: boolean = false
+  @Local private serverJudged: boolean = false
+  @Local private serverCorrect: boolean = false
+  @Local private serverAdvice: string = ''
 
   private isCorrect(): boolean {
+    if (this.serverBacked && this.serverJudged) {
+      return this.serverCorrect
+    }
     return this.submitted && this.answer === this.block.correctOptionId
+  }
+
+  /** M5c:乐观提交;失败回滚到未提交,证据未保存可重试。 */
+  private submitAnswer(): void {
+    if (this.answer.length === 0 || this.submitting) {
+      return
+    }
+    if (!this.serverBacked) {
+      this.submitted = true
+      return
+    }
+    this.submitted = true
+    this.submitting = true
+    this.onSubmitAnswer(this.block.id, this.answer)
+      .then((outcome: QuizAnswerOutcome): void => {
+        this.serverCorrect = outcome.isCorrect
+        this.serverAdvice = outcome.advice
+        this.serverJudged = true
+        this.submitting = false
+      })
+      .catch((error: Object): void => {
+        this.submitted = false
+        this.submitting = false
+        promptAction.showToast({
+          message: error instanceof Error ? error.message : '作答证据保存失败,请重试',
+          duration: 2000
+        })
+      })
   }
 
   build() {
@@ -127,11 +184,7 @@ export struct QuizBlockView {
           .backgroundColor(this.answer.length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
           .margin({ top: LociTokens.SPACE_4 })
           .accessibilityRole(AccessibilityRoleType.BUTTON)
-          .onClick((): void => {
-            if (this.answer.length > 0) {
-              this.submitted = true
-            }
-          })
+          .onClick((): void => this.submitAnswer())
       } else {
         // 就地反馈:正确性 + 关键解释 + 依据 + 重试(docs/03 §7.5)
         Row({ space: LociTokens.SPACE_3 }) {
@@ -149,6 +202,20 @@ export struct QuizBlockView {
               .fontColor(LociTokens.INK_SOFT)
               .lineHeight(19)
               .width('100%')
+            // M5c:server 判分中提示 + 错题诊断补救建议(diagnosis 为 null 时不显示)
+            if (this.submitting) {
+              Text('正在保存作答证据…')
+                .fontSize(11)
+                .fontColor(LociTokens.INK_MUTED)
+                .width('100%')
+            }
+            if (this.serverAdvice.length > 0) {
+              Text(`补救建议:${this.serverAdvice}`)
+                .fontSize(12)
+                .fontColor(LociTokens.ACCENT)
+                .lineHeight(19)
+                .width('100%')
+            }
             if (!this.isCorrect()) {
               Text('重新作答')
                 .fontSize(12)
@@ -190,16 +257,72 @@ export struct QuizBlockView {
   }
 }
 
-/** 费曼讲述块:输入 + 字数 + 提交 + 覆盖度反馈(40 字阈值),真源:LearningBlocks.tsx Feynman。 */
+/** 费曼讲述块:输入 + 字数 + 提交 + 覆盖度反馈(40 字阈值),真源:LearningBlocks.tsx Feynman。
+ * M5c:serverBacked 时提交走 POST feynman(章级端点),反馈展示 server passed/feedback/gap;
+ * 503 feynman_not_configured 等失败留在编辑态并 toast,不丢已写内容。 */
 @ComponentV2
 export struct FeynmanBlockView {
   @Param block: LociLearningBlock = { id: '', type: 'feynman', title: '', sourceIds: [] } as LociLearningBlock
   @Event onOpenSource: (anchorId: string) => void = (anchorId: string): void => {}
+  /** M5c:server 项目为 true,提交时调 onSubmitFeynman。 */
+  @Param serverBacked: boolean = false
+  @Event onSubmitFeynman: (explanation: string) => Promise<FeynmanOutcome> =
+    (explanation: string): Promise<FeynmanOutcome> =>
+      Promise.resolve({ passed: false, feedback: '', gap: '' } as FeynmanOutcome)
   @Local private body: string = ''
   @Local private submitted: boolean = false
+  /** M5c:server 判定结果(serverJudged 前展示本地 40 字阈值乐观判定)。 */
+  @Local private submitting: boolean = false
+  @Local private serverJudged: boolean = false
+  @Local private serverPassed: boolean = false
+  @Local private serverFeedback: string = ''
+  @Local private serverGap: string = ''
 
   private passed(): boolean {
+    if (this.serverBacked && this.serverJudged) {
+      return this.serverPassed
+    }
     return this.body.trim().length >= 40
+  }
+
+  /** M5c:反馈正文——server 判定用真实 feedback + gap,fixture 保持原型固定文案。 */
+  private feedbackText(): string {
+    if (this.serverBacked && this.serverJudged) {
+      if (this.serverPassed) {
+        return this.serverFeedback
+      }
+      return this.serverGap.length > 0 ? `${this.serverFeedback} ${this.serverGap}` : this.serverFeedback
+    }
+    return this.passed() ?
+      '你说明了目标、偏差和更新之间的关系。下一步可以用一个新的例子检验迁移。' :
+      '请补充预测和目标如何形成损失，以及损失为什么能影响参数更新。'
+  }
+
+  private submit(): void {
+    if (this.body.trim().length === 0 || this.submitting) {
+      return
+    }
+    if (!this.serverBacked) {
+      this.submitted = true
+      return
+    }
+    this.submitting = true
+    this.onSubmitFeynman(this.body.trim())
+      .then((outcome: FeynmanOutcome): void => {
+        this.serverPassed = outcome.passed
+        this.serverFeedback = outcome.feedback
+        this.serverGap = outcome.gap
+        this.serverJudged = true
+        this.submitting = false
+        this.submitted = true
+      })
+      .catch((error: Object): void => {
+        this.submitting = false
+        promptAction.showToast({
+          message: error instanceof Error ? error.message : '费曼判定失败,请重试',
+          duration: 2000
+        })
+      })
   }
 
   build() {
@@ -243,7 +366,7 @@ export struct FeynmanBlockView {
             .fontSize(11)
             .fontColor(LociTokens.INK_MUTED)
           Blank()
-          Text('提交讲述')
+          Text(this.submitting ? '正在判定…' : '提交讲述')
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.body.trim().length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
@@ -253,11 +376,7 @@ export struct FeynmanBlockView {
             .borderRadius(LociTokens.RADIUS_CONTROL)
             .backgroundColor(this.body.trim().length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
             .accessibilityRole(AccessibilityRoleType.BUTTON)
-            .onClick((): void => {
-              if (this.body.trim().length > 0) {
-                this.submitted = true
-              }
-            })
+            .onClick((): void => this.submit())
         }
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
@@ -272,9 +391,7 @@ export struct FeynmanBlockView {
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.INK)
               .width('100%')
-            Text(this.passed() ?
-              '你说明了目标、偏差和更新之间的关系。下一步可以用一个新的例子检验迁移。' :
-              '请补充预测和目标如何形成损失，以及损失为什么能影响参数更新。')
+            Text(this.feedbackText())
               .fontSize(12)
               .fontColor(LociTokens.INK_SOFT)
               .lineHeight(19)
@@ -316,12 +433,30 @@ export struct LearningBlockView {
   @Event onOpenSource: (anchorId: string) => void = (anchorId: string): void => {}
   /** 块级选中操作:「解释」「对比」「提问」,唤起 selection 作用域 Chat。 */
   @Event onSelectionAction: (action: string) => void = (action: string): void => {}
+  /** M5c:server 项目 quiz/feynman 写回;fixture 项目 false,保持本地判分。 */
+  @Param serverBacked: boolean = false
+  @Event onSubmitAnswer: (blockId: string, answerId: string) => Promise<QuizAnswerOutcome> =
+    (blockId: string, answerId: string): Promise<QuizAnswerOutcome> =>
+      Promise.resolve({ isCorrect: false, advice: '' } as QuizAnswerOutcome)
+  @Event onSubmitFeynman: (explanation: string) => Promise<FeynmanOutcome> =
+    (explanation: string): Promise<FeynmanOutcome> =>
+      Promise.resolve({ passed: false, feedback: '', gap: '' } as FeynmanOutcome)
 
   build() {
     if (this.block.type === 'quiz') {
-      QuizBlockView({ block: this.block, onOpenSource: this.onOpenSource })
+      QuizBlockView({
+        block: this.block,
+        onOpenSource: this.onOpenSource,
+        serverBacked: this.serverBacked,
+        onSubmitAnswer: this.onSubmitAnswer
+      })
     } else if (this.block.type === 'feynman') {
-      FeynmanBlockView({ block: this.block, onOpenSource: this.onOpenSource })
+      FeynmanBlockView({
+        block: this.block,
+        onOpenSource: this.onOpenSource,
+        serverBacked: this.serverBacked,
+        onSubmitFeynman: this.onSubmitFeynman
+      })
     } else if (this.block.type === 'explanation') {
       this.explanationBlock()
     } else if (this.block.type === 'example') {

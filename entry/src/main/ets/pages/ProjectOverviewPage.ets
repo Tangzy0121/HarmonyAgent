@@ -7,6 +7,9 @@
  * Mock:blocked 项目「恢复项目 / 重试」把 failed 章改为 running 并写回 appState
  * (真源:PrototypeContext retry_project,通知文案逐字一致);preparing 项目
  * 章节为空时显示「正在整理学习方案」生成中面板。
+ * M5d:server 项目 retry 改走 AppRoot.retryServerProject 真实重发(见 AppRoot);
+ * preparing/有 running|pending 章时 5s 轮询 ensureProjectDetail,全章终态自动停止,
+ * aboutToDisappear 清理定时器;fixture 路径行为不变。
  */
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../theme/LociTokens'
@@ -19,6 +22,7 @@ import {
   chapterTaskStateLabel,
   projectStatusLabel
 } from '../models/LociFixtures'
+import { LociAppState } from '../models/LociAppState'
 import { LociImmersiveHeader } from '../components/create/LociImmersiveHeader'
 import { SourceViewer } from '../components/overlays/SourceViewer'
 
@@ -57,15 +61,78 @@ function noticeToneColor(tone: string): string {
 @ComponentV2
 export struct ProjectOverviewPage {
   @Param project: LociProjectSummary = LOCI_EMPTY_PROJECT
+  /** M5d:server 项目轮询/刷新走 appState;fixture 项目不消费(保持 M4 行为)。 */
+  @Param appState: LociAppState = new LociAppState()
   @Event onBack: () => void = (): void => {}
   @Event onOpenWorkspace: (project: LociProjectSummary, chapterId: string) => void =
     (project: LociProjectSummary, chapterId: string): void => {}
   @Event onRetryProject: (project: LociProjectSummary) => void =
     (project: LociProjectSummary): void => {}
 
-  /** Mock:本次会话内已点过恢复/重试(failed→running 已写回 appState)。 */
+  /** Mock:本次会话内已点过恢复/重试(failed→running 已写回 appState,仅 fixture)。 */
   @Local private retried: boolean = false
   @Local private sourceAnchorId: string = ''
+  /** M5d server:轮询刷新到的最新投影(@Param 只入不更新,展示统一走 view())。 */
+  @Local private live: LociProjectSummary = LOCI_EMPTY_PROJECT
+  private pollTimer: number = -1
+
+  /** 展示用项目:server 轮询拉到新投影后覆盖 @Param。 */
+  private view(): LociProjectSummary {
+    return this.live.id.length > 0 ? this.live : this.project
+  }
+
+  private isServer(): boolean {
+    return this.appState.isServerProject(this.project.id)
+  }
+
+  /** 生成中(preparing)或仍有 running/pending 章时需要轮询;全章终态后停止。 */
+  private needsPolling(): boolean {
+    const current: LociProjectSummary = this.view()
+    return current.status === 'preparing' ||
+      current.chapters.some((chapter: LociChapter): boolean =>
+        chapter.taskState === 'running' || chapter.taskState === 'pending')
+  }
+
+  aboutToAppear(): void {
+    if (!this.isServer()) {
+      return
+    }
+    this.refreshFromServer()
+    this.startPolling()
+  }
+
+  aboutToDisappear(): void {
+    this.stopPolling()
+  }
+
+  private startPolling(): void {
+    if (this.pollTimer >= 0) {
+      return
+    }
+    this.pollTimer = setInterval((): void => this.refreshFromServer(), 5000)
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer >= 0) {
+      clearInterval(this.pollTimer)
+      this.pollTimer = -1
+    }
+  }
+
+  /** M5d:ensureProjectDetail 刷新并覆盖展示投影;终态后自动停止轮询。 */
+  private refreshFromServer(): void {
+    this.appState.ensureProjectDetail(this.project.id)
+      .then((): void => {
+        const latest: LociProjectSummary | undefined = this.appState.projects.find(
+          (entry: LociProjectSummary): boolean => entry.id === this.project.id)
+        if (latest !== undefined) {
+          this.live = latest
+        }
+        if (!this.needsPolling()) {
+          this.stopPolling()
+        }
+      })
+  }
 
   private chapterState(chapter: LociChapter): string {
     if (this.retried && chapter.taskState === 'failed') {
@@ -75,38 +142,47 @@ export struct ProjectOverviewPage {
   }
 
   private effectiveStatus(): string {
-    return this.retried && this.project.status === 'blocked' ? 'active' : this.project.status
+    return this.retried && this.view().status === 'blocked' ? 'active' : this.view().status
   }
 
   private activeNotice(): LociProjectNotice | null {
     if (this.retried) {
       return {
-        id: `retry-${this.project.id}`,
+        id: `retry-${this.view().id}`,
         tone: 'info',
         title: RETRY_NOTICE_TITLE,
         detail: RETRY_NOTICE_DETAIL,
         actionLabel: RETRY_NOTICE_ACTION
       } as LociProjectNotice
     }
-    return this.project.notice ?? null
+    return this.view().notice ?? null
   }
 
   private hasReadable(): boolean {
-    return this.project.chapters.some((chapter: LociChapter): boolean =>
+    return this.view().chapters.some((chapter: LociChapter): boolean =>
       this.chapterState(chapter) === 'ready')
   }
 
   private readCount(): number {
-    return this.project.chapters.filter((chapter: LociChapter): boolean => chapter.read).length
+    return this.view().chapters.filter((chapter: LociChapter): boolean => chapter.read).length
   }
 
-  /** Mock 恢复:failed→running、blocked→active 写回 appState(由 AppRoot 执行)。 */
+  /**
+   * 恢复/重试:fixture 走 M4 Mock 假恢复(retried + AppRoot 写回);
+   * server 走 AppRoot.retryServerProject 真实重发,toast 由 AppRoot 呈现,
+   * 这里启动轮询跟随章态(error 章重新进入 generating)。
+   */
   private retry(): void {
+    if (this.isServer()) {
+      this.onRetryProject(this.view())
+      this.startPolling()
+      return
+    }
     if (this.retried) {
       return
     }
     this.retried = true
-    this.onRetryProject(this.project)
+    this.onRetryProject(this.view())
     promptAction.showToast({ message: '已从失败章节继续生成', duration: 1800 })
   }
 
@@ -117,12 +193,12 @@ export struct ProjectOverviewPage {
     } else if (status === 'preparing') {
       // 准备中:进度已在下方章节区展示,真源为滚动到章节列表,移动端同屏无需动作
     } else {
-      this.onOpenWorkspace(this.project, '')
+      this.onOpenWorkspace(this.view(), '')
     }
   }
 
   private activeAnchor(): LociSourceAnchor | undefined {
-    return (this.project.anchors ?? []).find((anchor: LociSourceAnchor): boolean =>
+    return (this.view().anchors ?? []).find((anchor: LociSourceAnchor): boolean =>
       anchor.id === this.sourceAnchorId)
   }
 
@@ -131,7 +207,7 @@ export struct ProjectOverviewPage {
       Column() {
         LociImmersiveHeader({
           title: '项目概览',
-          meta: this.project.source.name,
+          meta: this.view().source.name,
           backLabel: '',
           onBack: (): void => this.onBack()
         })
@@ -161,7 +237,7 @@ export struct ProjectOverviewPage {
       // 证据层:来源查看器(来源资料与依据)
       if (this.sourceAnchorId.length > 0 && this.activeAnchor() !== undefined) {
         SourceViewer({
-          sourceName: this.project.source.name,
+          sourceName: this.view().source.name,
           anchor: this.activeAnchor() as LociSourceAnchor,
           onClose: (): void => {
             this.sourceAnchorId = ''
@@ -185,7 +261,7 @@ export struct ProjectOverviewPage {
         .borderRadius(LociTokens.RADIUS_CONTROL)
         .border({ width: 1, color: statusColor(this.effectiveStatus()) })
         .margin({ top: LociTokens.SPACE_5 })
-      Text(this.project.title)
+      Text(this.view().title)
         .fontSize(LociTokens.FONT_PAGE)
         .fontWeight(FontWeight.Lighter)
         .fontColor(LociTokens.INK)
@@ -193,26 +269,26 @@ export struct ProjectOverviewPage {
         .lineHeight(46)
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
-      Text(this.project.goal)
+      Text(this.view().goal)
         .fontSize(13)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
       Row({ space: LociTokens.SPACE_2 }) {
-        Text(this.project.level)
+        Text(this.view().level)
           .fontSize(11)
           .fontColor(LociTokens.INK_SOFT)
           .padding({ left: 12, right: 12, top: 5, bottom: 5 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .backgroundColor(LociTokens.SURFACE)
-        Text(this.project.depth)
+        Text(this.view().depth)
           .fontSize(11)
           .fontColor(LociTokens.INK_SOFT)
           .padding({ left: 12, right: 12, top: 5, bottom: 5 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .backgroundColor(LociTokens.SURFACE)
-        Text(`${this.project.chapters.length} 章`)
+        Text(`${this.view().chapters.length} 章`)
           .fontSize(11)
           .fontColor(LociTokens.INK_SOFT)
           .padding({ left: 12, right: 12, top: 5, bottom: 5 })
@@ -291,12 +367,12 @@ export struct ProjectOverviewPage {
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .backgroundColor(LociTokens.ACCENT)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
-          .onClick((): void => this.onOpenWorkspace(this.project, ''))
+          .onClick((): void => this.onOpenWorkspace(this.view(), ''))
         }
       }
       .width('100%')
 
-      if (this.project.chapters.length === 0) {
+      if (this.view().chapters.length === 0) {
         // 生成中面板,真源:prototype generation-state(逐字一致)
         Column({ space: LociTokens.SPACE_3 }) {
           Text('✦')
@@ -328,7 +404,7 @@ export struct ProjectOverviewPage {
         .backgroundColor(LociTokens.SURFACE)
       } else {
         Column() {
-          ForEach(this.project.chapters, (chapter: LociChapter) => {
+          ForEach(this.view().chapters, (chapter: LociChapter) => {
             Row({ space: LociTokens.SPACE_3 }) {
               Text(`${chapter.order + 1}`)
                 .fontSize(12)
@@ -362,7 +438,7 @@ export struct ProjectOverviewPage {
                       .height(LociTokens.CONTROL_MIN)
                       .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
                       .accessibilityRole(AccessibilityRoleType.BUTTON)
-                      .onClick((): void => this.onOpenWorkspace(this.project, chapter.id))
+                      .onClick((): void => this.onOpenWorkspace(this.view(), chapter.id))
                   }
                   if (this.chapterState(chapter) === 'failed') {
                     Text('重试')
@@ -411,8 +487,8 @@ export struct ProjectOverviewPage {
           .margin({ top: 6 })
         Row({ space: LociTokens.SPACE_4 }) {
           this.factItem('已读', `${this.readCount()} 章`)
-          this.factItem('已验证', `${(this.project.evidence ?? []).length} 条证据`)
-          this.factItem('待复习', `${(this.project.reviewConceptIds ?? []).length} 个概念`)
+          this.factItem('已验证', `${(this.view().evidence ?? []).length} 条证据`)
+          this.factItem('待复习', `${(this.view().reviewConceptIds ?? []).length} 个概念`)
         }
         .width('100%')
         .margin({ top: LociTokens.SPACE_4 })
@@ -425,18 +501,18 @@ export struct ProjectOverviewPage {
           .fontSize(11)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
-        Text(this.project.source.name)
+        Text(this.view().source.name)
           .fontSize(LociTokens.FONT_TITLE)
           .fontWeight(FontWeight.Lighter)
           .fontColor(LociTokens.INK)
           .width('100%')
           .margin({ top: 6 })
-        Text(`${this.project.source.format} · ${this.project.source.size} · ${this.project.source.units ?? ''}`)
+        Text(`${this.view().source.format} · ${this.view().source.size} · ${this.view().source.units ?? ''}`)
           .fontSize(12)
           .fontColor(LociTokens.INK_SOFT)
           .width('100%')
           .margin({ top: LociTokens.SPACE_2 })
-        if ((this.project.anchors ?? []).length > 0) {
+        if ((this.view().anchors ?? []).length > 0) {
           Row({ space: 5 }) {
             Text('查看来源与依据')
               .fontSize(13)
@@ -449,7 +525,7 @@ export struct ProjectOverviewPage {
           .margin({ top: LociTokens.SPACE_2 })
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {
-            const first: LociSourceAnchor | undefined = (this.project.anchors ?? [])[0]
+            const first: LociSourceAnchor | undefined = (this.view().anchors ?? [])[0]
             if (first !== undefined) {
               this.sourceAnchorId = first.id
             }

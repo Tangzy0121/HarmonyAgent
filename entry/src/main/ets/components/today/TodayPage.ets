@@ -273,6 +273,30 @@ export struct TodayPage {
     .border({ width: { top: 1, bottom: 1 }, color: LociTokens.LINE })
   }
 
+  /** M5a:AUTO 探活失败回退 fixture 时的轻量降级提示条(样式对齐 noticeBanner)。 */
+  @Builder
+  private degradedBanner() {
+    Row({ space: LociTokens.SPACE_3 }) {
+      Column({ space: 2 }) {
+        Text('离线演示数据')
+          .fontSize(LociTokens.FONT_LABEL)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(LociTokens.INK)
+        Text('暂时连不上学习服务,当前展示内置示例;服务恢复后重试即可切换。')
+          .fontSize(11)
+          .fontColor(LociTokens.INK_MUTED)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .margin({ top: LociTokens.SPACE_3 })
+    .padding({ top: LociTokens.SPACE_2, bottom: LociTokens.SPACE_2 })
+    .border({ width: { top: 1, bottom: 1 }, color: LociTokens.LINE })
+  }
+
   @Builder
   private recommendationCard(item: LociRecommendation) {
     Column() {
@@ -544,6 +568,10 @@ export struct TodayPage {
 
       if (this.activeNotice() !== null) {
         this.noticeBanner(this.activeNotice() as ActiveNotice)
+      }
+
+      if (this.appState.degraded) {
+        this.degradedBanner()
       }
 
       if (this.appState.phase === 'error') {

@@ -11,10 +11,12 @@
  * completed→全书总结,preparing/blocked/archived→项目概览。
  */
 import { common } from '@kit.AbilityKit'
+import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../theme/LociTokens'
 import { LociAppState } from '../models/LociAppState'
 import { LociChapter, LociProjectNotice, LociProjectSummary } from '../models/LociFixtures'
 import { CreateFlowViewModel } from '../models/CreateFlowViewModel'
+import { ChapterGenerationCallbacks, ChapterGenerationSession } from '../loci/data/LociApiClient'
 import { LociIdentityBar } from '../components/shell/LociIdentityBar'
 import { LociMenuOverlay } from '../components/shell/LociMenuOverlay'
 import { TodayPage } from '../components/today/TodayPage'
@@ -80,6 +82,16 @@ export struct AppRoot {
       this.openOverview(project)
       return
     }
+    // active → 工作区;server 项目先拉/刷新详情再进(M5a 详情;M5c 断线恢复:拿到最新章态与已落盘块)
+    if (this.appState.isServerProject(project.id)) {
+      this.appState.ensureProjectDetail(project.id)
+        .then((): void => {
+          const latest: LociProjectSummary = this.appState.projects.find(
+            (entry: LociProjectSummary): boolean => entry.id === project.id) ?? project
+          this.openWorkspace(latest, '')
+        })
+      return
+    }
     this.openWorkspace(project, '')
   }
 
@@ -109,8 +121,15 @@ export struct AppRoot {
    * M4 Mock 恢复:真源 PrototypeContext retry_project——
    * blocked→active、failed 章→running、替换为「正在从失败章节继续」通知,
    * 写回 appState,之后从概览「继续学习」进工作区可见 running 章。
+   * M5d:server 项目改走真实重发——error/failed 与 pending 章逐章 startChapterGeneration
+   * (复用 M5c SSE 会话,无 LLM key 时 503 chapter_not_configured 经 toast 呈现),
+   * 结束后 ensureProjectDetail 刷新;fixture 项目保持本地假恢复。
    */
   private retryProject(project: LociProjectSummary): void {
+    if (this.appState.isServerProject(project.id)) {
+      this.retryServerProject(project)
+      return
+    }
     const chapters: LociChapter[] = project.chapters.map((chapter: LociChapter): LociChapter => {
       if (chapter.taskState !== 'failed') {
         return chapter
@@ -157,13 +176,69 @@ export struct AppRoot {
     this.appState.upsertProject(next)
   }
 
-  /** confirm_plan 落地:合并项目 → 重置草稿 → 回到学习库。 */
-  private onPlanConfirmed(project: LociProjectSummary): void {
+  /**
+   * M5d:server 项目真实重发——逐章 startChapterGeneration(串行,首章失败即停),
+   * 生成结束后 ensureProjectDetail 刷新;结果经 toast 呈现,概览页轮询跟随章态。
+   */
+  private retryServerProject(project: LociProjectSummary): void {
+    const targets: LociChapter[] = project.chapters.filter((chapter: LociChapter): boolean =>
+      chapter.taskState === 'failed' || chapter.taskState === 'pending')
+    if (targets.length === 0) {
+      promptAction.showToast({ message: '没有待重新生成的章节', duration: 1800 })
+      return
+    }
+    promptAction.showToast({ message: `已发起 ${targets.length} 个章节的重新生成`, duration: 1800 })
+    let frameError: string = ''
+    const callbacks: ChapterGenerationCallbacks = {
+      onChapterStart: (): void => {},
+      onBlock: (): void => {},
+      onChapterDone: (): void => {},
+      onError: (code: string, message: string): void => {
+        frameError = message.length > 0 ? message : '章节生成失败,请重试'
+      }
+    }
+    const run = async (): Promise<void> => {
+      for (const chapter of targets) {
+        if (frameError.length > 0) {
+          break
+        }
+        const session: ChapterGenerationSession =
+          this.appState.startChapterGeneration(project.id, chapter.id, callbacks)
+        await session.done
+      }
+    }
+    run()
+      .then((): void => {
+        this.appState.ensureProjectDetail(project.id)
+        promptAction.showToast({
+          message: frameError.length > 0 ? frameError : '章节生成完成', duration: 2400
+        })
+      })
+      .catch((error: Object): void => {
+        this.appState.ensureProjectDetail(project.id)
+        promptAction.showToast({
+          message: error instanceof Error ? error.message : '章节生成失败,请重试', duration: 2400
+        })
+      })
+  }
+
+  /**
+   * confirm_plan 落地:合并项目 → 重置草稿 → 回学习库。
+   * M5b:enterProject=true(server 确认成功)时回学习库后直接进项目——
+   * status=generating 经映射为 preparing/active,走现有 open_project 路由(概览/工作区)。
+   */
+  private onPlanConfirmed(project: LociProjectSummary, enterProject: boolean): void {
     this.appState.upsertProject(project)
+    if (enterProject) {
+      this.appState.registerServerProject(project.id)
+    }
     this.createFlow.reset()
     this.currentPage = 'library'
     this.pathStack.popToIndex(0)
     this.pathStack.replacePath({ name: 'library' })
+    if (enterProject) {
+      this.openProject(project)
+    }
   }
 
   private popImmersive(): void {
@@ -208,7 +283,8 @@ export struct AppRoot {
         PlanPage({
           flow: this.createFlow,
           onBack: (): void => this.popImmersive(),
-          onConfirmed: (project: LociProjectSummary): void => this.onPlanConfirmed(project)
+          onConfirmed: (project: LociProjectSummary, enterProject: boolean): void =>
+            this.onPlanConfirmed(project, enterProject)
         })
       }
       .hideTitleBar(true)
@@ -219,6 +295,7 @@ export struct AppRoot {
         WorkspacePage({
           project: (param as LociWorkspaceNav).project,
           initialChapterId: (param as LociWorkspaceNav).chapterId,
+          appState: this.appState,
           onBack: (): void => this.popImmersive(),
           onOpenOverview: (): void => {
             this.openOverview((param as LociWorkspaceNav).project)
@@ -236,6 +313,7 @@ export struct AppRoot {
         ReviewPage({
           project: (param as LociReviewNav).project,
           returnLabel: (param as LociReviewNav).returnLabel,
+          appState: this.appState,
           onBack: (): void => this.popImmersive()
         })
       }
@@ -264,6 +342,7 @@ export struct AppRoot {
       NavDestination() {
         ProjectOverviewPage({
           project: param as LociProjectSummary,
+          appState: this.appState,
           onBack: (): void => this.popImmersive(),
           onOpenWorkspace: (project: LociProjectSummary, chapterId: string): void => {
             const latest: LociProjectSummary = this.appState.projects.find(
