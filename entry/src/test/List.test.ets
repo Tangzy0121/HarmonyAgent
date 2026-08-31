@@ -5,6 +5,9 @@ import agentByteStreamTest from './AgentByteStream.test'
 import voiceSessionTest from './VoiceSession.test'
 import reviewReminderTest from './ReviewReminder.test'
 import reviewDeepLinkTest from './ReviewDeepLink.test'
+import lociSseFrameParserTest from './LociSseFrameParser.test'
+import workspaceProjectStateTest from './WorkspaceProjectState.test'
+import fixtureReviewMapperTest from './FixtureReviewMapper.test'
 
 export default function testsuite(): void {
   sseFrameParserTest()
@@ -14,4 +17,7 @@ export default function testsuite(): void {
   voiceSessionTest()
   reviewReminderTest()
   reviewDeepLinkTest()
+  lociSseFrameParserTest()
+  workspaceProjectStateTest()
+  fixtureReviewMapperTest()
 }

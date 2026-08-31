@@ -10,7 +10,7 @@
  */
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../../theme/LociTokens'
-import { LociProjectSummary } from '../../models/LociFixtures'
+import { LociProjectSummary } from '../../models/LociModels'
 import { CreateFlowViewModel, LociPlanChapter } from '../../models/CreateFlowViewModel'
 import { CreateProgress } from './CreateProgress'
 import { LociImmersiveHeader } from './LociImmersiveHeader'
@@ -57,7 +57,7 @@ export struct PlanPage {
   private chapterRow(chapter: LociPlanChapter, index: number) {
     Row({ space: 10 }) {
       Text(`0${index + 1}`.slice(-2))
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width(30)
 
@@ -65,7 +65,7 @@ export struct PlanPage {
         TextInput({ text: chapter.title })
           .width('100%')
           .padding(0)
-          .fontSize(15)
+          .fontSize(LociTokens.FONT_BODY)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
           .caretColor(LociTokens.ACCENT)
@@ -76,7 +76,7 @@ export struct PlanPage {
             chapter.title = value
           })
         Text(`${chapter.estimatedMinutes} 分钟`)
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
       }
@@ -85,7 +85,7 @@ export struct PlanPage {
 
       Row() {
         Text('↑')
-          .fontSize(15)
+          .fontSize(LociTokens.FONT_BODY)
           .fontColor(index === 0 || this.submitting ? LociTokens.INK_MUTED : LociTokens.INK)
           .opacity(index === 0 || this.submitting ? 0.4 : 1)
           .width(38)
@@ -96,7 +96,7 @@ export struct PlanPage {
           .enabled(index > 0 && !this.submitting)
           .onClick((): void => this.flow.moveChapter(index, -1))
         Text('↓')
-          .fontSize(15)
+          .fontSize(LociTokens.FONT_BODY)
           .fontColor(index === this.flow.planChapters.length - 1 || this.submitting ?
             LociTokens.INK_MUTED : LociTokens.INK)
           .opacity(index === this.flow.planChapters.length - 1 || this.submitting ? 0.4 : 1)
@@ -108,7 +108,7 @@ export struct PlanPage {
           .enabled(index < this.flow.planChapters.length - 1 && !this.submitting)
           .onClick((): void => this.flow.moveChapter(index, 1))
         Text('×')
-          .fontSize(15)
+          .fontSize(LociTokens.FONT_BODY)
           .fontColor(this.flow.planChapters.length <= this.flow.minChapters() || this.submitting ?
             LociTokens.INK_MUTED : LociTokens.INK)
           .opacity(this.flow.planChapters.length <= this.flow.minChapters() || this.submitting ? 0.4 : 1)
@@ -130,11 +130,11 @@ export struct PlanPage {
   private metaItem(label: string, value: string) {
     Column({ space: 6 }) {
       Text(label)
-        .fontSize(10)
+        .fontSize(LociTokens.FONT_MICRO)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text(value)
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -176,7 +176,7 @@ export struct PlanPage {
             .margin({ top: LociTokens.SPACE_3 })
           if (this.flow.goal.trim().length > 0) {
             Text(this.flow.goal.trim())
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.INK_SOFT)
               .lineHeight(21)
               .width('100%')
@@ -194,18 +194,18 @@ export struct PlanPage {
 
           Row({ space: LociTokens.SPACE_3 }) {
             Text('✦')
-              .fontSize(16)
+              .fontSize(LociTokens.FONT_CONTROL)
               .fontColor(LociTokens.ACCENT)
               .width(20)
               .textAlign(TextAlign.Center)
             Column({ space: 4 }) {
               Text('方案依据')
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(LociTokens.INK)
                 .width('100%')
               Text('先建立框架,再用例子验证。确认后优先生成第一章。')
-                .fontSize(11)
+                .fontSize(LociTokens.FONT_CAPTION)
                 .fontColor(LociTokens.INK_MUTED)
                 .lineHeight(17)
                 .width('100%')
@@ -233,7 +233,7 @@ export struct PlanPage {
             .alignItems(HorizontalAlign.Start)
             Blank()
             Text('可编辑')
-              .fontSize(10)
+              .fontSize(LociTokens.FONT_MICRO)
               .fontColor(LociTokens.INK_MUTED)
           }
           .width('100%')
@@ -259,7 +259,7 @@ export struct PlanPage {
         Button(this.submitting ? '正在确认方案…' : '确认并生成第一章')
           .width('100%')
           .height(LociTokens.CONTROL_HEIGHT)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.submitting ? LociTokens.INK_MUTED : LociTokens.ACCENT_INK)
           .backgroundColor(this.submitting ? LociTokens.SURFACE_RAISED : LociTokens.ACCENT)

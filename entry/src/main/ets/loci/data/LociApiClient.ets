@@ -30,6 +30,7 @@
 import { http } from '@kit.NetworkKit'
 import { util } from '@kit.ArkTS'
 import { ServerConfig } from '../../network/ServerConfig'
+import { LociSseFrameParser } from './LociSseFrameParser'
 
 // ---- wire 类型(镜像 StoredBook,M5a 消费子集 + 列表/详情共用形状) ----
 
@@ -443,56 +444,6 @@ async function requestJson(path: string, method: http.RequestMethod,
  * SSE 逐行解析器:`event:`/`data:` 组帧,空行派发;CRLF 在入行时去尾 `\r` 归一。
  * 注释行(`:` 开头,心跳)与未知字段忽略;帧事件名缺省为 'message'(派发侧再按白名单过滤)。
  */
-class SseFrameParser {
-  private eventType: string = ''
-  private dataLines: string[] = []
-  private dispatch: (event: string, data: string) => void
-
-  constructor(dispatch: (event: string, data: string) => void) {
-    this.dispatch = dispatch
-  }
-
-  pushLine(raw: string): void {
-    const line: string = raw.endsWith('\r') ? raw.substring(0, raw.length - 1) : raw
-    if (line.length === 0) {
-      this.flushFrame()
-      return
-    }
-    if (line.startsWith(':')) {
-      return
-    }
-    if (line.startsWith('event:')) {
-      this.eventType = SseFrameParser.fieldValue(line, 6)
-      return
-    }
-    if (line.startsWith('data:')) {
-      this.dataLines.push(SseFrameParser.fieldValue(line, 5))
-      return
-    }
-  }
-
-  /** 流结束时冲刷残留帧(防御:server 总会以空行收尾,正常路径是 no-op)。 */
-  end(): void {
-    this.flushFrame()
-  }
-
-  private flushFrame(): void {
-    if (this.dataLines.length > 0) {
-      this.dispatch(this.eventType, this.dataLines.join('\n'))
-    }
-    this.eventType = ''
-    this.dataLines = []
-  }
-
-  private static fieldValue(line: string, prefix: number): string {
-    let value: string = line.substring(prefix)
-    if (value.startsWith(' ')) {
-      value = value.substring(1)
-    }
-    return value
-  }
-}
-
 export class LociApiClient {
   /** AUTO 探活:短超时、永不抛错,不可达即 false。 */
   async health(): Promise<boolean> {
@@ -584,7 +535,7 @@ export class LociApiClient {
    * M5c:POST /api/books/:id/chapters/:cid/generate → SSE 流(requestInStream 写法
    * 参考 loci/agent/LociAgentTurnClient.ets 的 stream())。
    * 帧处理:字节级缓冲,按 \n 切行(0x0A 不会出现在 UTF-8 多字节序列内,行边界 decode 安全),
-   * SseFrameParser 组帧后白名单派发。终态 = chapter_done / error 帧;
+   * LociSseFrameParser 组帧后白名单派发。终态 = chapter_done / error 帧;
    * 未收终态就 EOF → reject incomplete_stream(断线恢复靠调用侧重拉详情 + 重新 POST)。
    * 前置校验失败(409/404/503)走 JSON 错误体,与非 2xx 统一 normalizeError。
    */
@@ -597,7 +548,7 @@ export class LociApiClient {
     let allBytes: Uint8Array = new Uint8Array(0)
     const decoder: util.TextDecoder = util.TextDecoder.create('utf-8')
 
-    const parser: SseFrameParser = new SseFrameParser((event: string, data: string): void => {
+    const parser: LociSseFrameParser = new LociSseFrameParser((event: string, data: string): void => {
       try {
         switch (event) {
           case 'chapter_start': {

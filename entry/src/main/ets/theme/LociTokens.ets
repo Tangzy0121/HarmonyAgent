@@ -2,7 +2,7 @@
  * loci 纯黑 editorial 设计 Token(ArkTS)
  * 真源:prototype/src/styles/tokens.css(2026-08-24, PR #8)
  * 纪律:屏内纯黑、零阴影/渐变/模糊;层级只靠字阶/字重/灰度/细线/留白。
- * 注意:LociTheme.ets 是旧烟晶视觉,新页面一律使用本文件;旧文件随旧页面逐步退役。
+ * 本文件是 entry 正式页面的唯一设计 Token 来源。
  */
 export class LociTokens {
   // ---- 画布与墨色 ----
@@ -29,11 +29,26 @@ export class LociTokens {
 
   // ---- 字阶(vp;真源为 rem/clamp,按 390 宽移动画布取定值)----
   static readonly FONT_DISPLAY: number = 48            // clamp(3rem,12vw,3.55rem)
+  static readonly FONT_DISPLAY_REVIEW: number = 44
   static readonly FONT_PAGE: number = 41               // clamp(2.55rem,10vw,3.1rem)
+  static readonly FONT_DISPLAY_MEDIUM: number = 40
+  static readonly FONT_DISPLAY_SMALL: number = 38
   static readonly FONT_SECTION: number = 28
+  static readonly FONT_ICON: number = 26
+  static readonly FONT_HEADING: number = 24
+  static readonly FONT_PAGE_SMALL: number = 23
+  static readonly FONT_SUBSECTION: number = 22
   static readonly FONT_TITLE: number = 20
+  static readonly FONT_SUBTITLE: number = 18
+  static readonly FONT_BODY_LARGE: number = 17
+  static readonly FONT_CONTROL: number = 16
   static readonly FONT_BODY: number = 15
+  static readonly FONT_SMALL: number = 14
+  static readonly FONT_META: number = 13
   static readonly FONT_LABEL: number = 12
+  static readonly FONT_CAPTION: number = 11
+  static readonly FONT_MICRO: number = 10
+  static readonly FONT_TINY: number = 9
 
   // ---- 间距(vp)----
   static readonly SPACE_1: number = 4

@@ -5,7 +5,7 @@
  * 附已读·已验证标记;pending 禁用)→ 底部「项目概览与设置」(M4 ProjectOverviewPage)。
  */
 import { LociTokens } from '../../theme/LociTokens'
-import { LociChapter, LociProjectSummary, LOCI_EMPTY_PROJECT, chapterTaskStateLabel } from '../../models/LociFixtures'
+import { LociChapter, LociProjectSummary, LOCI_EMPTY_PROJECT, chapterTaskStateLabel } from '../../models/LociModels'
 
 function taskStateColor(state: string): string {
   switch (state) {
@@ -38,7 +38,7 @@ export struct ChapterRail {
         Row() {
           Column({ space: 4 }) {
             Text('学习书目录')
-              .fontSize(11)
+              .fontSize(LociTokens.FONT_CAPTION)
               .fontColor(LociTokens.INK_MUTED)
               .width('100%')
             Text(`${this.project.chapters.length} 个章节`)
@@ -51,7 +51,7 @@ export struct ChapterRail {
           .alignItems(HorizontalAlign.Start)
 
           Text('×')
-            .fontSize(22)
+            .fontSize(LociTokens.FONT_SUBSECTION)
             .fontColor(LociTokens.INK)
             .textAlign(TextAlign.Center)
             .width(LociTokens.CONTROL_MIN)
@@ -81,7 +81,7 @@ export struct ChapterRail {
             Circle().width(3).height(3).fill(LociTokens.INK_SOFT)
           }
           Text('项目概览与设置')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.INK_SOFT)
         }
         .width('100%')
@@ -105,25 +105,25 @@ export struct ChapterRail {
   private chapterRow(chapter: LociChapter) {
     Row({ space: LociTokens.SPACE_3 }) {
       Text(`${chapter.order + 1}`)
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(this.activeChapterId === chapter.id ? LociTokens.INK : LociTokens.INK_MUTED)
         .textAlign(TextAlign.Center)
         .width(24)
 
       Column({ space: 4 }) {
         Text(chapter.title)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(this.activeChapterId === chapter.id ? FontWeight.Medium : FontWeight.Normal)
           .fontColor(this.rowInk(chapter))
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
         Text(`${chapter.estimatedMinutes} 分钟 · ${chapter.sourceRange ?? '来源待定'}`)
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
         Text(`${chapter.read ? '已读' : '未读'} · ${chapter.verified === true ? '已验证' : '未验证'}`)
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
       }
@@ -133,7 +133,7 @@ export struct ChapterRail {
       Row({ space: 5 }) {
         Circle().width(6).height(6).fill(taskStateColor(chapter.taskState))
         Text(chapterTaskStateLabel(chapter.taskState))
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(taskStateColor(chapter.taskState))
       }
     }

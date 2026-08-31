@@ -7,7 +7,7 @@
  */
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../../theme/LociTokens'
-import { LociSourceAnchor, anchorPrecisionLabel } from '../../models/LociFixtures'
+import { LociSourceAnchor, anchorPrecisionLabel } from '../../models/LociModels'
 
 const EMPTY_ANCHOR: LociSourceAnchor = {
   id: '',
@@ -41,7 +41,7 @@ export struct SourceViewer {
             .width(11)
             .height(13)
             Text('来源查看器')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.INK_SOFT)
           }
           Text(this.sourceName)
@@ -55,7 +55,7 @@ export struct SourceViewer {
         .alignItems(HorizontalAlign.Start)
 
         Text('×')
-          .fontSize(26)
+          .fontSize(LociTokens.FONT_ICON)
           .fontColor(LociTokens.INK)
           .textAlign(TextAlign.Center)
           .width(LociTokens.CONTROL_MIN)
@@ -72,7 +72,7 @@ export struct SourceViewer {
       // ---- 工具条:搜索 / 缩放占位 / 位置 ----
       Row({ space: LociTokens.SPACE_5 }) {
         Text('搜索')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -80,12 +80,12 @@ export struct SourceViewer {
             promptAction.showToast({ message: '来源内搜索将在后续版本提供', duration: 1800 })
           })
         Text('100%')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_MUTED)
           .height(LociTokens.CONTROL_MIN)
         Blank()
         Text(this.anchor.location)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -100,12 +100,12 @@ export struct SourceViewer {
       Scroll() {
         Column({ space: LociTokens.SPACE_4 }) {
           Text(`${this.sourceName} · ${this.anchor.location}`)
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
           if ((this.anchor.contextBefore ?? '').length > 0) {
             Text(this.anchor.contextBefore ?? '')
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontColor(LociTokens.INK_MUTED)
               .lineHeight(24)
               .width('100%')
@@ -114,7 +114,7 @@ export struct SourceViewer {
           Row() {
             Rect().width(2).height('100%').fill(LociTokens.ACCENT)
             Text(this.anchor.excerpt)
-              .fontSize(15)
+              .fontSize(LociTokens.FONT_BODY)
               .fontColor(LociTokens.INK)
               .lineHeight(26)
               .layoutWeight(1)
@@ -125,14 +125,14 @@ export struct SourceViewer {
           .borderRadius(2)
           if ((this.anchor.contextAfter ?? '').length > 0) {
             Text(this.anchor.contextAfter ?? '')
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontColor(LociTokens.INK_MUTED)
               .lineHeight(24)
               .width('100%')
           }
           if (this.expanded) {
             Text('这里保留必要的前后文，帮助核查 Agent 的讲解是否准确表达了资料，而不是只展示一句失去语境的引用。')
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.INK_MUTED)
               .lineHeight(20)
               .width('100%')
@@ -149,11 +149,11 @@ export struct SourceViewer {
       // ---- 底部:定位精度 + 前后文开关 ----
       Row() {
         Text(`定位精度:${anchorPrecisionLabel(this.anchor.precision)}`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(this.anchor.precision === 'unavailable' ? LociTokens.WARNING : LociTokens.INK_MUTED)
         Blank()
         Text(this.expanded ? '收起前后文' : '查看更多前后文')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.ACCENT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)

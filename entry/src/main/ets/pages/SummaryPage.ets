@@ -16,7 +16,7 @@ import {
   LociSourceAnchor,
   LOCI_EMPTY_PROJECT,
   conceptStateLabel
-} from '../models/LociFixtures'
+} from '../models/LociModels'
 import { LociImmersiveHeader } from '../components/create/LociImmersiveHeader'
 import { SourceViewer } from '../components/overlays/SourceViewer'
 
@@ -129,12 +129,12 @@ export struct SummaryPage {
   private hero() {
     Column() {
       Text('✓')
-        .fontSize(23)
+        .fontSize(LociTokens.FONT_PAGE_SMALL)
         .fontColor(LociTokens.SUCCESS)
         .width('100%')
         .margin({ top: LociTokens.SPACE_6 })
       Text('计划范围已经完成')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
@@ -147,7 +147,7 @@ export struct SummaryPage {
         .width('100%')
         .margin({ top: LociTokens.SPACE_2 })
       Text('你完成了计划中的章节与验证。这里回顾代表性证据和仍值得复查的方向,不把结果包装成分数。')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
@@ -156,11 +156,11 @@ export struct SummaryPage {
       Row({ space: LociTokens.SPACE_3 }) {
         Row({ space: 6 }) {
           Text('返回今日')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.ACCENT_INK)
           Text('→')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.ACCENT_INK)
         }
         .justifyContent(FlexAlign.Center)
@@ -172,7 +172,7 @@ export struct SummaryPage {
         .onClick((): void => this.onGoToday())
 
         Text('开始新项目')
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontColor(LociTokens.INK)
           .textAlign(TextAlign.Center)
           .height(LociTokens.CONTROL_HEIGHT)
@@ -199,18 +199,18 @@ export struct SummaryPage {
         ForEach(this.project.chapters, (chapter: LociChapter) => {
           Row({ space: LociTokens.SPACE_3 }) {
             Text(`${chapter.order + 1}`)
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.INK_MUTED)
               .textAlign(TextAlign.Center)
               .width(24)
             Column({ space: 4 }) {
               Text(chapter.title)
-                .fontSize(14)
+                .fontSize(LociTokens.FONT_SMALL)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(LociTokens.INK)
                 .width('100%')
               Text(chapter.objective ?? '')
-                .fontSize(11)
+                .fontSize(LociTokens.FONT_CAPTION)
                 .fontColor(LociTokens.INK_MUTED)
                 .lineHeight(17)
                 .width('100%')
@@ -218,7 +218,7 @@ export struct SummaryPage {
             .layoutWeight(1)
             .alignItems(HorizontalAlign.Start)
             Text('✓')
-              .fontSize(15)
+              .fontSize(LociTokens.FONT_BODY)
               .fontColor(LociTokens.SUCCESS)
           }
           .width('100%')
@@ -242,7 +242,7 @@ export struct SummaryPage {
       this.sectionHeader('代表性学习证据', '你的判断依据')
       if (this.topEvidence().length === 0) {
         Text('这个项目还没有保存学习证据。')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
           .margin({ top: LociTokens.SPACE_3 })
@@ -251,20 +251,20 @@ export struct SummaryPage {
           ForEach(this.topEvidence(), (item: LociEvidence) => {
             Row({ space: LociTokens.SPACE_3 }) {
               Text(item.result === 'supports' ? '✓' : '⚠')
-                .fontSize(15)
+                .fontSize(LociTokens.FONT_BODY)
                 .fontColor(item.result === 'supports' ? LociTokens.SUCCESS : LociTokens.WARNING)
               Column({ space: 4 }) {
                 Text(`${evidenceKindLabel(item.kind)} · ${item.occurredAt}`)
-                  .fontSize(10)
+                  .fontSize(LociTokens.FONT_MICRO)
                   .fontColor(LociTokens.INK_MUTED)
                   .width('100%')
                 Text(item.summary)
-                  .fontSize(13)
+                  .fontSize(LociTokens.FONT_META)
                   .fontColor(LociTokens.INK)
                   .lineHeight(20)
                   .width('100%')
                 Text('回到事件与来源')
-                  .fontSize(11)
+                  .fontSize(LociTokens.FONT_CAPTION)
                   .fontColor(LociTokens.ACCENT)
                   .height(LociTokens.CONTROL_MIN)
                   .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -297,7 +297,7 @@ export struct SummaryPage {
         this.sectionHeader('当前投影', '有证据支持')
         if (this.masteredConcepts().length === 0) {
           Text('还没有已掌握的概念。')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
             .margin({ top: LociTokens.SPACE_3 })
@@ -318,7 +318,7 @@ export struct SummaryPage {
         this.sectionHeader('后续方向', '仍值得复查')
         if (this.reviewConcepts().length === 0) {
           Text('没有待复习的概念。')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
             .margin({ top: LociTokens.SPACE_3 })
@@ -333,10 +333,10 @@ export struct SummaryPage {
 
           Row({ space: 5 }) {
             Text('开始一次短复习')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.ACCENT)
             Text('→')
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontColor(LociTokens.ACCENT)
           }
           .height(LociTokens.CONTROL_MIN)
@@ -360,7 +360,7 @@ export struct SummaryPage {
   private sectionHeader(eyebrow: string, title: string) {
     Column({ space: 6 }) {
       Text(eyebrow)
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text(title)
@@ -379,18 +379,18 @@ export struct SummaryPage {
     Column({ space: 5 }) {
       Row({ space: LociTokens.SPACE_2 }) {
         Text(conceptStateLabel(concept.state))
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(stateColor(concept.state))
           .padding({ left: 10, right: 10, top: 3, bottom: 3 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .border({ width: 1, color: stateColor(concept.state) })
         Text(concept.label)
-          .fontSize(14)
+          .fontSize(LociTokens.FONT_SMALL)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
       }
       Text(concept.definition)
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(19)
         .width('100%')

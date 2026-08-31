@@ -13,7 +13,7 @@ import {
   LociProjectSummary,
   LociRecommendation,
   RecommendationTone
-} from '../../models/LociFixtures'
+} from '../../models/LociModels'
 import {
   WireConceptMastery,
   WireConceptSource,

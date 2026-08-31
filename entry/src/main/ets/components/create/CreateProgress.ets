@@ -18,11 +18,11 @@ export struct CreateProgress {
       Stack() {
         if (index + 1 < this.current) {
           SymbolGlyph($r('sys.symbol.checkmark'))
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor([LociTokens.ACCENT_INK])
         } else {
           Text(`${index + 1}`)
-            .fontSize(10)
+            .fontSize(LociTokens.FONT_MICRO)
             .fontColor(index + 1 === this.current ? LociTokens.INK : LociTokens.INK_MUTED)
         }
       }
@@ -37,7 +37,7 @@ export struct CreateProgress {
       .backgroundColor(index + 1 < this.current ? LociTokens.ACCENT : Color.Transparent)
 
       Text(STEP_LABELS[index])
-        .fontSize(10)
+        .fontSize(LociTokens.FONT_MICRO)
         .fontWeight(FontWeight.Medium)
         .fontColor(index + 1 === this.current ? LociTokens.INK : LociTokens.INK_MUTED)
     }

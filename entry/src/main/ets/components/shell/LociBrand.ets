@@ -2,7 +2,7 @@
  * loci 品牌标志(五瓣符号 + loci 字标)
  * 真源:prototype/src/components/shell/MobileIdentity.tsx 的 BrandMark
  * (shell.css .brand-mark:五瓣旋转 72°,ink 色,无中心圆点)。
- * 花瓣几何沿用 entry 现有 BlossomMark 的 translate 布局。
+ * 花瓣几何采用统一的 translate 布局。
  */
 import { LociTokens } from '../../theme/LociTokens'
 
@@ -34,7 +34,7 @@ export struct LociBrand {
       .height(this.markSize)
 
       Text('loci')
-        .fontSize(16)
+        .fontSize(LociTokens.FONT_CONTROL)
         .fontWeight(FontWeight.Regular)
         .fontColor(this.inkColor)
         .letterSpacing(-0.6)

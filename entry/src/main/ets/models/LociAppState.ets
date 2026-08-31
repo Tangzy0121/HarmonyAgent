@@ -11,21 +11,32 @@
  */
 import { util } from '@kit.ArkTS'
 import { common } from '@kit.AbilityKit'
-import { LociFixtureData, LociProjectSummary, LociRecommendation } from './LociFixtures'
+import { LociFixtureData } from './LociFixtures'
+import { LociLearningBlock, LociProjectSummary, LociRecommendation } from './LociModels'
+import {
+  LociChapterGenerationCallbacks,
+  LociChapterGenerationSession,
+  LociFeynmanSubmissionResult,
+  LociProgressSnapshot,
+  LociQuizSubmissionResult,
+  LociReviewQueueItem
+} from './LociServiceModels'
 import { DataMode, ServerConfig } from '../network/ServerConfig'
 import {
   ChapterGenerationCallbacks,
   ChapterGenerationSession,
   LociApiClient,
+  WireBookBlock,
   WireFeynmanResult,
   WireLearnerProfile,
   WireProgressResult,
   WireQuizAttemptResult,
   WireReviewDueItem,
-  WireReviewResult,
   WireStoredBook
 } from '../loci/data/LociApiClient'
 import { mapBooksToProjects, mapBookToProject } from '../loci/data/ServerProjectMapper'
+import { mapWireBlock } from '../loci/data/ServerProjectMapper'
+import { mapReviewQueue } from '../loci/data/ReviewQueueMapper'
 import { deriveTodayRecommendations } from '../loci/data/TodayRecommendation'
 import { LociAgentTurnClient } from '../loci/agent/LociAgentTurnClient'
 import { LociAgentTurnSession } from '../loci/agent/LociAgentTurnSession'
@@ -41,9 +52,13 @@ export class LociAppState {
   /** AUTO 探活失败回退 fixture 时为 true,今日页据此显示降级提示条。 */
   @Trace degraded: boolean = false
 
-  private api: LociApiClient = new LociApiClient()
+  private api: LociApiClient
   /** server 来源项目 id:openProject 据此决定进工作区前是否拉详情。 */
   private serverProjectIds: Set<string> = new Set()
+
+  constructor(api: LociApiClient = new LociApiClient()) {
+    this.api = api
+  }
 
   async load(context: common.UIAbilityContext): Promise<void> {
     this.phase = 'loading'
@@ -118,26 +133,52 @@ export class LociAppState {
 
   /** M5c:quiz 作答写回(无 LLM key 时 diagnosis=null,其余正常落盘)。 */
   async submitQuizAttempt(bookId: string, blockId: string,
-    answerId: string): Promise<WireQuizAttemptResult> {
-    return this.api.submitQuizAttempt(bookId, blockId, answerId)
+    answerId: string): Promise<LociQuizSubmissionResult> {
+    const result: WireQuizAttemptResult = await this.api.submitQuizAttempt(bookId, blockId, answerId)
+    return {
+      isCorrect: result.attempt.isCorrect,
+      advice: result.diagnosis?.advice ?? ''
+    } as LociQuizSubmissionResult
   }
 
   /** M5c:费曼讲述写回(无 key 时 503 feynman_not_configured)。 */
   async submitFeynman(bookId: string, chapterId: string,
-    explanation: string): Promise<WireFeynmanResult> {
-    return this.api.submitFeynman(bookId, chapterId, explanation)
+    explanation: string): Promise<LociFeynmanSubmissionResult> {
+    const result: WireFeynmanResult = await this.api.submitFeynman(bookId, chapterId, explanation)
+    return {
+      passed: result.passed,
+      feedback: result.feedback,
+      gap: result.gap
+    } as LociFeynmanSubmissionResult
   }
 
   /** M5c:阅读进度上报(visit/bookmark/unbookmark,幂等)。 */
   async reportProgress(bookId: string, chapterId: string,
-    action: string): Promise<WireProgressResult> {
-    return this.api.reportProgress(bookId, chapterId, action)
+    action: string): Promise<LociProgressSnapshot> {
+    const result: WireProgressResult = await this.api.reportProgress(bookId, chapterId, action)
+    return {
+      visitedChapterIds: result.progress.visitedChapterIds ?? [],
+      bookmarkedChapterIds: result.progress.bookmarkedChapterIds ?? []
+    } as LociProgressSnapshot
   }
 
   /** M5c:章节生成 SSE;cancel 由 WorkspacePage 在切章/退页时调用。 */
   startChapterGeneration(bookId: string, chapterId: string,
-    callbacks: ChapterGenerationCallbacks): ChapterGenerationSession {
-    return this.api.startChapterGeneration(bookId, chapterId, callbacks)
+    callbacks: LociChapterGenerationCallbacks): LociChapterGenerationSession {
+    const wireCallbacks: ChapterGenerationCallbacks = {
+      onChapterStart: callbacks.onChapterStart,
+      onBlock: (index: number, block: WireBookBlock): void => {
+        const mapped: LociLearningBlock | null = mapWireBlock(block)
+        if (mapped !== null) {
+          callbacks.onBlock(index, mapped)
+        }
+      },
+      onChapterDone: callbacks.onChapterDone,
+      onError: callbacks.onError
+    }
+    const session: ChapterGenerationSession =
+      this.api.startChapterGeneration(bookId, chapterId, wireCallbacks)
+    return { done: session.done, cancel: (): void => session.cancel() }
   }
 
   /** M5e:Chat 轮次会话(agentTurns SSE);WorkspacePage 持有并 observe。 */
@@ -145,23 +186,21 @@ export class LociAppState {
     return new LociAgentTurnSession(new LociAgentTurnClient())
   }
 
-  /** M5d:到期复习队列(ReviewPage 组队;失败抛错由调用侧 toast)。 */
-  async getReviewDue(bookId: string): Promise<WireReviewDueItem[]> {
-    return this.api.getReviewDue(bookId)
+  /** 页面只消费稳定队列模型，Wire DTO 在数据层完成投影。 */
+  async getReviewQueue(bookId: string): Promise<LociReviewQueueItem[]> {
+    const due: WireReviewDueItem[] = await this.api.getReviewDue(bookId)
+    let book: WireStoredBook | undefined = undefined
+    try {
+      book = await this.api.getBook(bookId)
+    } catch (error) {
+      book = undefined
+    }
+    return mapReviewQueue(due, book)
   }
 
   /** M5d:flash_cards 复习自评写回(quiz 块的复习写回走 submitQuizAttempt)。 */
-  async submitReviewResult(bookId: string, blockId: string, result: string): Promise<WireReviewResult> {
-    return this.api.submitReviewResult(bookId, blockId, result)
-  }
-
-  /** M5d:拉原始 wire 书(ReviewPage 需要 flash_cards/quiz 块原文,mapper 不落 flash 块);失败返回 undefined。 */
-  async getServerBook(id: string): Promise<WireStoredBook | undefined> {
-    try {
-      return await this.api.getBook(id)
-    } catch (error) {
-      return undefined
-    }
+  async submitReviewResult(bookId: string, blockId: string, result: string): Promise<void> {
+    await this.api.submitReviewResult(bookId, blockId, result)
   }
 
   /**

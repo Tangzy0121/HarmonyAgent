@@ -18,10 +18,10 @@ export struct LociImmersiveHeader {
     Row() {
       Row({ space: 4 }) {
         Text('←')
-          .fontSize(16)
+          .fontSize(LociTokens.FONT_CONTROL)
           .fontColor(LociTokens.INK)
         Text(this.backLabel)
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
       }
       .height(LociTokens.CONTROL_MIN)
@@ -32,12 +32,12 @@ export struct LociImmersiveHeader {
 
       Column({ space: 2 }) {
         Text(this.meta)
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.title)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
           .maxLines(1)
@@ -48,9 +48,9 @@ export struct LociImmersiveHeader {
 
       Row({ space: 4 }) {
         Text('←')
-          .fontSize(16)
+          .fontSize(LociTokens.FONT_CONTROL)
         Text(this.backLabel)
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
       }
       .height(LociTokens.CONTROL_MIN)
       .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_3 })

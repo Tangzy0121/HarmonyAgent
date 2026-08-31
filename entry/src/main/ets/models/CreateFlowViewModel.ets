@@ -12,7 +12,7 @@ import {
   LociProjectNotice,
   LociProjectSummary,
   LociSource
-} from './LociFixtures'
+} from './LociModels'
 import {
   LociApiClient,
   WireBookChapter,
@@ -22,6 +22,13 @@ import {
   WireStoredBook
 } from '../loci/data/LociApiClient'
 import { mapBookToProject } from '../loci/data/ServerProjectMapper'
+
+export interface CreateProjectGateway {
+  uploadDocument: (fileName: string, bytes: Uint8Array, contentType: string) => Promise<WireDocumentMeta>
+  createBook: (documentId: string, goal: string, learnerLevel: string) => Promise<WireStoredBook>
+  updateProposal: (bookId: string, edits: WireProposalEdits) => Promise<WireStoredBook>
+  confirmBook: (bookId: string) => Promise<WireStoredBook>
+}
 
 /** 已选来源文件(CreateDraft.file 的 ArkTS 投影);M5b 起携带原始字节供上传。 */
 @ObservedV2
@@ -125,7 +132,11 @@ export class CreateFlowViewModel {
   /** M5b:非空表示 planChapters 是 server 新书(status='proposal')的提案章,确认走 PUT+POST。 */
   @Trace createdBookId: string = ''
   private sourceProject: LociProjectSummary | null = null
-  private api: LociApiClient = new LociApiClient()
+  private api: CreateProjectGateway
+
+  constructor(api: CreateProjectGateway = new LociApiClient()) {
+    this.api = api
+  }
 
   canProceedSource(): boolean {
     return this.file !== null

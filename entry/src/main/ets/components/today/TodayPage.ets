@@ -15,7 +15,7 @@ import {
   LociProjectSummary,
   LociRecommendation,
   RecommendationTone
-} from '../../models/LociFixtures'
+} from '../../models/LociModels'
 
 const WEEKDAYS: string[] = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const MS_PER_DAY: number = 24 * 60 * 60 * 1000
@@ -168,7 +168,7 @@ export struct TodayPage {
     Column() {
       Row() {
         Text('‹')
-          .fontSize(20)
+          .fontSize(LociTokens.FONT_TITLE)
           .fontColor(LociTokens.INK)
           .width(44)
           .height(44)
@@ -177,13 +177,13 @@ export struct TodayPage {
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.moveWeek(-1))
         Text(`${dateAtOffset(this.weekOffset * 7).getMonth() + 1} 月 ${dateAtOffset(this.weekOffset * 7).getDate()} 日起`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK_SOFT)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
         Text('›')
-          .fontSize(20)
+          .fontSize(LociTokens.FONT_TITLE)
           .fontColor(LociTokens.INK)
           .width(44)
           .height(44)
@@ -198,11 +198,11 @@ export struct TodayPage {
         ForEach([0, 1, 2, 3, 4, 5, 6], (index: number) => {
           Column({ space: 6 }) {
             Text(WEEKDAYS[dateAtOffset(this.weekOffset * 7 + index).getDay()].slice(1))
-              .fontSize(9)
+              .fontSize(LociTokens.FONT_TINY)
               .fontColor(this.dayOffset === this.weekOffset * 7 + index ?
                 LociTokens.SCREEN : LociTokens.INK_MUTED)
             Text(`${dateAtOffset(this.weekOffset * 7 + index).getDate()}`)
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontWeight(FontWeight.Medium)
               .fontColor(this.dayOffset === this.weekOffset * 7 + index ?
                 LociTokens.SCREEN : LociTokens.INK)
@@ -238,7 +238,7 @@ export struct TodayPage {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(active.notice.detail)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -256,7 +256,7 @@ export struct TodayPage {
         .onClick((): void => this.onOpenProject(active.project))
 
       Text('×')
-        .fontSize(18)
+        .fontSize(LociTokens.FONT_SUBTITLE)
         .fontColor(LociTokens.INK_MUTED)
         .width(LociTokens.CONTROL_MIN)
         .height(LociTokens.CONTROL_MIN)
@@ -283,7 +283,7 @@ export struct TodayPage {
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
         Text('暂时连不上学习服务,当前展示内置示例;服务恢复后重试即可切换。')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -302,12 +302,12 @@ export struct TodayPage {
     Column() {
       Row() {
         Text(item.eyebrow)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.ACCENT_INK)
         Blank()
         Text(`约 ${item.estimatedMinutes} 分钟`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.ACCENT_INK)
           .opacity(0.68)
@@ -315,7 +315,7 @@ export struct TodayPage {
       .width('100%')
 
       Text(item.title)
-        .fontSize(38)
+        .fontSize(LociTokens.FONT_DISPLAY_SMALL)
         .fontWeight(FontWeight.Lighter)
         .fontColor(LociTokens.ACCENT_INK)
         .letterSpacing(-1)
@@ -326,7 +326,7 @@ export struct TodayPage {
         .margin({ top: 26 })
 
       Text(item.reason)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.ACCENT_INK)
         .opacity(0.72)
         .lineHeight(20)
@@ -359,7 +359,7 @@ export struct TodayPage {
             .fontColor(LociTokens.INK_MUTED)
             .margin({ top: LociTokens.SPACE_3 })
           Button('新建项目')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.ACCENT_INK)
             .height(LociTokens.CONTROL_MIN)
@@ -393,7 +393,7 @@ export struct TodayPage {
 
       Row() {
         Text('左右滑动切换目标')
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
         Blank()
         Row({ space: 7 }) {
@@ -425,7 +425,7 @@ export struct TodayPage {
   private bottomActions() {
     Row({ space: LociTokens.SPACE_2 }) {
       Button('开始')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontWeight(FontWeight.Medium)
         .fontColor(LociTokens.ACCENT_INK)
         .height(LociTokens.CONTROL_HEIGHT)
@@ -440,7 +440,7 @@ export struct TodayPage {
         })
 
       Text('换一个')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .height(LociTokens.CONTROL_MIN)
         .padding({ left: LociTokens.SPACE_4, right: LociTokens.SPACE_4 })
@@ -449,7 +449,7 @@ export struct TodayPage {
         .onClick((): void => this.swapRecommendation())
 
       Text('稍后')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_MUTED)
         .height(LociTokens.CONTROL_MIN)
         .padding({ left: LociTokens.SPACE_4, right: LociTokens.SPACE_4 })
@@ -465,7 +465,7 @@ export struct TodayPage {
   private datePager() {
     Row() {
       Text('‹')
-        .fontSize(20)
+        .fontSize(LociTokens.FONT_TITLE)
         .fontColor(LociTokens.INK_MUTED)
         .width(44)
         .height(LociTokens.CONTROL_MIN)
@@ -476,10 +476,10 @@ export struct TodayPage {
 
       Column({ space: 2 }) {
         Text(WEEKDAYS[dateAtOffset(this.dayOffset).getDay()])
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
         Text(`${dateAtOffset(this.dayOffset).getDate()}`)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
       }
@@ -493,10 +493,10 @@ export struct TodayPage {
 
       Column({ space: 2 }) {
         Text(WEEKDAYS[dateAtOffset(this.dayOffset + 1).getDay()])
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
         Text(`${dateAtOffset(this.dayOffset + 1).getDate()}`)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK_MUTED)
       }
@@ -507,7 +507,7 @@ export struct TodayPage {
       .onClick((): void => this.moveDay(1))
 
       Text('›')
-        .fontSize(20)
+        .fontSize(LociTokens.FONT_TITLE)
         .fontColor(LociTokens.INK_MUTED)
         .width(44)
         .height(LociTokens.CONTROL_MIN)
@@ -583,7 +583,7 @@ export struct TodayPage {
             .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_MUTED)
           Button('重试')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.ACCENT_INK)
             .height(LociTokens.CONTROL_MIN)
             .backgroundColor(LociTokens.ACCENT)

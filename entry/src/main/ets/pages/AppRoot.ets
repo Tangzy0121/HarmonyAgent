@@ -4,7 +4,7 @@
  * / M4 短复习 review / 全书总结 summary / 项目概览 overview)。
  * 真源:prototype/src/components/shell/AppShell.tsx、MobileIdentity.tsx;docs/product/03 §2/§5。
  * 纪律:屏内纯黑画布;一级内容只有今日/学习库;无底部导航、无悬浮 Agent 入口
- * (旧组件 BottomNavigation / AgentLauncher / AppIdentityBar 为废弃语义,不再引用)。
+ * 不设置底部导航、悬浮 Agent 入口或独立 Profile 入口。
  * 沉浸页(create/plan/workspace/review/summary/overview)隐藏全局身份条;
  * createFlow 由壳持有,返回不丢草稿。
  * M4 open_project 路由:draft→创建流,plan_ready→方案确认,active→工作区,
@@ -14,9 +14,12 @@ import { common } from '@kit.AbilityKit'
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../theme/LociTokens'
 import { LociAppState } from '../models/LociAppState'
-import { LociChapter, LociProjectNotice, LociProjectSummary } from '../models/LociFixtures'
+import { LociChapter, LociProjectNotice, LociProjectSummary } from '../models/LociModels'
 import { CreateFlowViewModel } from '../models/CreateFlowViewModel'
-import { ChapterGenerationCallbacks, ChapterGenerationSession } from '../loci/data/LociApiClient'
+import {
+  LociChapterGenerationCallbacks,
+  LociChapterGenerationSession
+} from '../models/LociServiceModels'
 import { LociIdentityBar } from '../components/shell/LociIdentityBar'
 import { LociMenuOverlay } from '../components/shell/LociMenuOverlay'
 import { TodayPage } from '../components/today/TodayPage'
@@ -189,7 +192,7 @@ export struct AppRoot {
     }
     promptAction.showToast({ message: `已发起 ${targets.length} 个章节的重新生成`, duration: 1800 })
     let frameError: string = ''
-    const callbacks: ChapterGenerationCallbacks = {
+    const callbacks: LociChapterGenerationCallbacks = {
       onChapterStart: (): void => {},
       onBlock: (): void => {},
       onChapterDone: (): void => {},
@@ -202,7 +205,7 @@ export struct AppRoot {
         if (frameError.length > 0) {
           break
         }
-        const session: ChapterGenerationSession =
+        const session: LociChapterGenerationSession =
           this.appState.startChapterGeneration(project.id, chapter.id, callbacks)
         await session.done
       }

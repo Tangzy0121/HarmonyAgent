@@ -40,7 +40,7 @@ export struct LociMenuOverlay {
       Row() {
         Stack() {
           Text('×')
-            .fontSize(26)
+            .fontSize(LociTokens.FONT_ICON)
             .fontWeight(FontWeight.Lighter)
             .fontColor(LociTokens.INK)
         }

@@ -42,7 +42,7 @@ import {
   LociProjectSummary,
   LociQuizOption,
   LociSourceAnchor
-} from '../../models/LociFixtures'
+} from '../../models/LociModels'
 import {
   WireBookBlock,
   WireBookChapter,

@@ -16,7 +16,7 @@ import {
   LociProjectSummary,
   projectPrimaryAction,
   projectStatusLabel
-} from '../../models/LociFixtures'
+} from '../../models/LociModels'
 
 interface FilterTab {
   id: LociProjectFilter
@@ -91,13 +91,13 @@ export struct LibraryPage {
   private searchField() {
     Row({ space: 9 }) {
       SymbolGlyph($r('sys.symbol.magnifyingglass'))
-        .fontSize(17)
+        .fontSize(LociTokens.FONT_BODY_LARGE)
         .fontColor([LociTokens.INK_SOFT])
       TextInput({ placeholder: '搜索项目或来源', text: this.query })
         .layoutWeight(1)
         .height('100%')
         .padding(0)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK)
         .placeholderColor(LociTokens.INK_MUTED)
         .placeholderFont({ size: 13 })
@@ -124,11 +124,11 @@ export struct LibraryPage {
         Column({ space: 6 }) {
           Row({ space: 5 }) {
             Text(tab.label)
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontWeight(this.projectFilter === tab.id ? FontWeight.Medium : FontWeight.Normal)
               .fontColor(this.projectFilter === tab.id ? LociTokens.INK : LociTokens.INK_MUTED)
             Text(`${filterCount(this.appState.projects, tab.id)}`)
-              .fontSize(11)
+              .fontSize(LociTokens.FONT_CAPTION)
               .fontColor(this.projectFilter === tab.id ? LociTokens.INK_SOFT : LociTokens.INK_MUTED)
           }
           Rect()
@@ -157,7 +157,7 @@ export struct LibraryPage {
     Stack({ alignContent: Alignment.TopEnd }) {
       Column() {
         Text(`${projectStatusLabel(project.status)} · ${project.lastStudiedLabel}`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(project.status === 'active' ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
           .opacity(project.status === 'active' ? 0.62 : 1)
           .width('100%')
@@ -174,7 +174,7 @@ export struct LibraryPage {
           .margin({ top: 26 })
 
         Text(`${readChapterCount(project)}/${project.chapters.length} 章 · ${project.source.format}`)
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(project.status === 'active' ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
           .opacity(project.status === 'active' ? 0.62 : 1)
           .width('100%')
@@ -182,11 +182,11 @@ export struct LibraryPage {
 
         Row({ space: 5 }) {
           Text(projectPrimaryAction(project.status))
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontWeight(FontWeight.Medium)
             .fontColor(project.status === 'active' ? LociTokens.ACCENT_INK : LociTokens.ACCENT)
           Text('→')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(project.status === 'active' ? LociTokens.ACCENT_INK : LociTokens.ACCENT)
         }
         .width('100%')
@@ -222,7 +222,7 @@ export struct LibraryPage {
   private emptyState() {
     Column() {
       SymbolGlyph($r('sys.symbol.magnifyingglass'))
-        .fontSize(24)
+        .fontSize(LociTokens.FONT_HEADING)
         .fontColor([LociTokens.INK_MUTED])
       Text('没有找到学习项目')
         .fontSize(LociTokens.FONT_SECTION)
@@ -230,12 +230,12 @@ export struct LibraryPage {
         .fontColor(LociTokens.INK)
         .margin({ top: 22 })
       Text('换一个关键词,或者创建一个新的学习项目。')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(20)
         .margin({ top: 10 })
       Button('清除搜索')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK)
         .height(LociTokens.CONTROL_MIN)
         .padding({ left: 22, right: 22 })
@@ -278,11 +278,11 @@ export struct LibraryPage {
 
       Row() {
         Text(`${this.visibleProjects().length} 个项目`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
         Blank()
         Text('按最近学习时间')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
       }
       .width('100%')

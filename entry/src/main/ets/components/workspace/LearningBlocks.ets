@@ -9,7 +9,7 @@
  */
 import { promptAction } from '@kit.ArkUI'
 import { LociTokens } from '../../theme/LociTokens'
-import { LociLearningBlock, LociQuizOption } from '../../models/LociFixtures'
+import { LociLearningBlock, LociQuizOption } from '../../models/LociModels'
 
 /** M5c:quiz 提交结果(server 权威);fixture 模式(serverBacked=false)不经过此类型。 */
 export interface QuizAnswerOutcome {
@@ -48,7 +48,7 @@ export struct LociSourceLinks {
           .height(11)
 
           Text(`资料依据 ${index + 1}`)
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
         }
         .height(LociTokens.CONTROL_MIN)
@@ -119,7 +119,7 @@ export struct QuizBlockView {
   build() {
     Column() {
       Text('小测 · 正式学习证据')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text(this.block.title)
@@ -139,11 +139,11 @@ export struct QuizBlockView {
         ForEach(this.block.options ?? [], (option: LociQuizOption, index: number) => {
           Row({ space: LociTokens.SPACE_3 }) {
             Text(String.fromCharCode(65 + index))
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontWeight(FontWeight.Medium)
               .fontColor(this.optionColor(option.id))
             Text(option.label)
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(this.optionColor(option.id))
               .lineHeight(20)
               .layoutWeight(1)
@@ -174,7 +174,7 @@ export struct QuizBlockView {
 
       if (!this.submitted) {
         Text('提交回答')
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.answer.length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
           .textAlign(TextAlign.Center)
@@ -189,36 +189,36 @@ export struct QuizBlockView {
         // 就地反馈:正确性 + 关键解释 + 依据 + 重试(docs/03 §7.5)
         Row({ space: LociTokens.SPACE_3 }) {
           Text(this.isCorrect() ? '✓' : '⚠')
-            .fontSize(16)
+            .fontSize(LociTokens.FONT_CONTROL)
             .fontColor(this.isCorrect() ? LociTokens.SUCCESS : LociTokens.WARNING)
           Column({ space: 6 }) {
             Text(this.isCorrect() ? '回答正确，已保存一条证据' : '这里还有一个关键混淆')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.INK)
               .width('100%')
             Text(this.block.explanation ?? '')
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.INK_SOFT)
               .lineHeight(19)
               .width('100%')
             // M5c:server 判分中提示 + 错题诊断补救建议(diagnosis 为 null 时不显示)
             if (this.submitting) {
               Text('正在保存作答证据…')
-                .fontSize(11)
+                .fontSize(LociTokens.FONT_CAPTION)
                 .fontColor(LociTokens.INK_MUTED)
                 .width('100%')
             }
             if (this.serverAdvice.length > 0) {
               Text(`补救建议:${this.serverAdvice}`)
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.ACCENT)
                 .lineHeight(19)
                 .width('100%')
             }
             if (!this.isCorrect()) {
               Text('重新作答')
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.ACCENT)
                 .height(LociTokens.CONTROL_MIN)
                 .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -328,7 +328,7 @@ export struct FeynmanBlockView {
   build() {
     Column() {
       Text('费曼讲述 · 章末验证')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text(this.block.title)
@@ -338,7 +338,7 @@ export struct FeynmanBlockView {
         .width('100%')
         .margin({ top: 6 })
       Text(this.block.prompt ?? '')
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(19)
         .width('100%')
@@ -348,7 +348,7 @@ export struct FeynmanBlockView {
         TextArea({ placeholder: '合上资料，用自己的话讲给一个不了解这个主题的人…', text: this.body })
           .width('100%')
           .height(140)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontColor(LociTokens.INK)
           .placeholderColor(LociTokens.INK_MUTED)
           .placeholderFont({ size: 13 })
@@ -363,11 +363,11 @@ export struct FeynmanBlockView {
           })
         Row() {
           Text(`${this.body.length} 字`)
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
           Blank()
           Text(this.submitting ? '正在判定…' : '提交讲述')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.body.trim().length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
             .textAlign(TextAlign.Center)
@@ -383,22 +383,22 @@ export struct FeynmanBlockView {
       } else {
         Row({ space: LociTokens.SPACE_3 }) {
           Text(this.passed() ? '✓' : '⚠')
-            .fontSize(16)
+            .fontSize(LociTokens.FONT_CONTROL)
             .fontColor(this.passed() ? LociTokens.SUCCESS : LociTokens.WARNING)
           Column({ space: 6 }) {
             Text(this.passed() ? '已经覆盖关键链路' : '方向正确，但还缺一个环节')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.INK)
               .width('100%')
             Text(this.feedbackText())
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.INK_SOFT)
               .lineHeight(19)
               .width('100%')
             if (!this.passed()) {
               Text('回到讲述')
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.ACCENT)
                 .height(LociTokens.CONTROL_MIN)
                 .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -471,7 +471,7 @@ export struct LearningBlockView {
   @Builder
   private blockHeader(kicker: string) {
     Text(kicker)
-      .fontSize(11)
+      .fontSize(LociTokens.FONT_CAPTION)
       .fontColor(LociTokens.INK_MUTED)
       .width('100%')
     Text(this.block.title)
@@ -498,7 +498,7 @@ export struct LearningBlockView {
         Rect().width(2).height('100%').fill(LociTokens.ACCENT)
         Column({ space: 8 }) {
           Text('关键判断')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.ACCENT)
             .width('100%')
           Text(this.block.keyPoint ?? '')
@@ -516,26 +516,26 @@ export struct LearningBlockView {
       // 块级选中操作(本期简化:整块代替文字选区,docs/03 §7.4)
       Row({ space: LociTokens.SPACE_5 }) {
         Text('基于这段内容')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
         Text('解释')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.onSelectionAction('解释'))
         Text('对比')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.onSelectionAction('对比'))
         Row({ space: 4 }) {
           Text('▷')
-            .fontSize(10)
+            .fontSize(LociTokens.FONT_MICRO)
             .fontColor(LociTokens.INK_SOFT)
           Text('提问')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_SOFT)
         }
         .height(LociTokens.CONTROL_MIN)
@@ -565,11 +565,11 @@ export struct LearningBlockView {
         .margin({ top: LociTokens.SPACE_5 })
       Column({ space: 6 }) {
         Text('从例子带走')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
         Text(this.block.takeaway ?? '')
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
           .lineHeight(21)
@@ -596,7 +596,7 @@ export struct LearningBlockView {
       this.blockHeader((this.block.formula ?? '').length > 0 ? '公式与结论' : '关键结论')
       if ((this.block.formula ?? '').length > 0) {
         Text(this.block.formula ?? '')
-          .fontSize(15)
+          .fontSize(LociTokens.FONT_BODY)
           .fontFamily('monospace')
           .fontColor(LociTokens.ACCENT)
           .lineHeight(24)
@@ -625,7 +625,7 @@ export struct LearningBlockView {
   private citationBlock() {
     Column() {
       Text('“')
-        .fontSize(40)
+        .fontSize(LociTokens.FONT_DISPLAY_MEDIUM)
         .fontColor(LociTokens.INK_MUTED)
         .lineHeight(36)
         .width('100%')
@@ -636,7 +636,7 @@ export struct LearningBlockView {
         .width('100%')
         .margin({ top: LociTokens.SPACE_2 })
       Text(`—— ${this.block.title}`)
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })

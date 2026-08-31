@@ -17,7 +17,7 @@ import {
   LOCI_EMPTY_PROJECT,
   conceptStateLabel,
   relationTypeLabel
-} from '../../models/LociFixtures'
+} from '../../models/LociModels'
 
 interface GraphPosition {
   x: number
@@ -121,7 +121,7 @@ export struct ConceptGraph {
     Column() {
       // ---- 头:标题 + 范围/视图切换 ----
       Text('知识结构与学习状态')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text('概念图')
@@ -132,7 +132,7 @@ export struct ConceptGraph {
         .width('100%')
         .margin({ top: 4 })
       Text('关系描述知识本身，节点状态来自正式学习证据，两者互不覆盖。')
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(19)
         .width('100%')
@@ -162,7 +162,7 @@ export struct ConceptGraph {
           Text(this.scope === 'chapter' ?
             '这一章的概念还没有生成。可以切换到整本学习书，或先阅读已有章节。' :
             '这本学习书的概念图还没有生成。生成完成后，知识结构会显示在这里。')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_SOFT)
             .lineHeight(19)
             .width('100%')
@@ -191,7 +191,7 @@ export struct ConceptGraph {
       .width('100%')
       .margin({ top: LociTokens.SPACE_5 })
       Text('关系线均有明确类型与资料依据')
-        .fontSize(10)
+        .fontSize(LociTokens.FONT_MICRO)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
         .margin({ top: LociTokens.SPACE_2 })
@@ -205,7 +205,7 @@ export struct ConceptGraph {
   private scopeTab(id: string, label: string) {
     Column({ space: 6 }) {
       Text(label)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontWeight(this.scope === id ? FontWeight.Medium : FontWeight.Normal)
         .fontColor(this.scope === id ? LociTokens.INK : LociTokens.INK_MUTED)
       Rect()
@@ -223,7 +223,7 @@ export struct ConceptGraph {
   @Builder
   private viewTab(id: string, label: string) {
     Text(label)
-      .fontSize(12)
+      .fontSize(LociTokens.FONT_LABEL)
       .fontColor(this.view === id ? LociTokens.INK : LociTokens.INK_MUTED)
       .textAlign(TextAlign.Center)
       .height(LociTokens.CONTROL_MIN)
@@ -253,7 +253,7 @@ export struct ConceptGraph {
       // 关系类型标签(线中点)
       ForEach(this.relations(), (relation: LociConceptRelation) => {
         Text(relationTypeLabel(relation.type))
-          .fontSize(10)
+          .fontSize(LociTokens.FONT_MICRO)
           .fontColor(LociTokens.INK_MUTED)
           .padding({ left: 4, right: 4 })
           .backgroundColor(LociTokens.SCREEN)
@@ -274,14 +274,14 @@ export struct ConceptGraph {
             .stroke(this.selectedId === concept.id ? LociTokens.INK : Color.Transparent)
             .strokeWidth(1.5)
           Text(concept.label)
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontWeight(this.selectedId === concept.id ? FontWeight.Medium : FontWeight.Normal)
             .fontColor(LociTokens.INK)
             .maxLines(2)
             .textAlign(TextAlign.Center)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(conceptStateLabel(concept.state))
-            .fontSize(10)
+            .fontSize(LociTokens.FONT_MICRO)
             .fontColor(conceptStateColor(concept.state))
         }
         .alignItems(HorizontalAlign.Center)
@@ -312,19 +312,19 @@ export struct ConceptGraph {
           Row({ space: 5 }) {
             Circle().width(6).height(6).fill(conceptStateColor(concept.state))
             Text(conceptStateLabel(concept.state))
-              .fontSize(10)
+              .fontSize(LociTokens.FONT_MICRO)
               .fontColor(conceptStateColor(concept.state))
           }
           .width(64)
 
           Column({ space: 4 }) {
             Text(concept.label)
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.INK)
               .width('100%')
             Text(concept.definition)
-              .fontSize(11)
+              .fontSize(LociTokens.FONT_CAPTION)
               .fontColor(LociTokens.INK_MUTED)
               .lineHeight(17)
               .maxLines(2)
@@ -335,7 +335,7 @@ export struct ConceptGraph {
           .alignItems(HorizontalAlign.Start)
 
           Text('›')
-            .fontSize(18)
+            .fontSize(LociTokens.FONT_SUBTITLE)
             .fontColor(LociTokens.INK_MUTED)
         }
         .width('100%')
@@ -359,12 +359,12 @@ export struct ConceptGraph {
         Row({ space: 5 }) {
           Circle().width(6).height(6).fill(conceptStateColor(concept.state))
           Text(conceptStateLabel(concept.state))
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(conceptStateColor(concept.state))
         }
         Blank()
         Text('×')
-          .fontSize(20)
+          .fontSize(LociTokens.FONT_TITLE)
           .fontColor(LociTokens.INK)
           .textAlign(TextAlign.Center)
           .width(LociTokens.CONTROL_MIN)
@@ -383,7 +383,7 @@ export struct ConceptGraph {
         .fontColor(LociTokens.INK)
         .width('100%')
       Text(concept.definition)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
@@ -391,7 +391,7 @@ export struct ConceptGraph {
 
       // 直接关系
       Text('直接关系')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
         .margin({ top: LociTokens.SPACE_5 })
@@ -400,16 +400,16 @@ export struct ConceptGraph {
           Column({ space: 3 }) {
             Row({ space: 6 }) {
               Text(relationTypeLabel(relation.type))
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(LociTokens.ACCENT)
               Text(this.otherConceptLabel(concept.id, relation))
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.INK)
             }
             .width('100%')
             Text(relation.reason)
-              .fontSize(11)
+              .fontSize(LociTokens.FONT_CAPTION)
               .fontColor(LociTokens.INK_MUTED)
               .lineHeight(17)
               .width('100%')
@@ -423,12 +423,12 @@ export struct ConceptGraph {
 
       // 学习证据
       Text('学习证据')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
         .margin({ top: LociTokens.SPACE_5 })
       Text(this.evidenceSummary(concept.id))
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(19)
         .width('100%')
@@ -437,24 +437,24 @@ export struct ConceptGraph {
       // 出口:回到正文 / 询问 Agent / 查看来源
       Row({ space: LociTokens.SPACE_5 }) {
         Text('回到正文')
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontColor(LociTokens.INK)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.onBackToContent())
         Row({ space: 4 }) {
           Text('✦')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.AGENT)
           Text('询问 Agent')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.AGENT)
         }
         .height(LociTokens.CONTROL_MIN)
         .accessibilityRole(AccessibilityRoleType.BUTTON)
         .onClick((): void => this.onAskAgent(concept))
         Text('查看来源')
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontColor(LociTokens.INK_SOFT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -499,7 +499,7 @@ export struct ConceptGraph {
     Row({ space: 5 }) {
       Circle().width(6).height(6).fill(conceptStateColor(state))
       Text(conceptStateLabel(state))
-        .fontSize(10)
+        .fontSize(LociTokens.FONT_MICRO)
         .fontColor(LociTokens.INK_MUTED)
     }
     .height(LociTokens.CONTROL_MIN)

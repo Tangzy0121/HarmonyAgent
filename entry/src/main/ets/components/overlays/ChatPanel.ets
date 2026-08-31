@@ -80,10 +80,10 @@ export struct ChatPanel {
         Column({ space: 6 }) {
           Row({ space: 5 }) {
             Text('✦')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.AGENT)
             Text('loci Chat')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.AGENT)
           }
           Text(this.chatLabel)
@@ -97,7 +97,7 @@ export struct ChatPanel {
         .alignItems(HorizontalAlign.Start)
 
         Text('×')
-          .fontSize(26)
+          .fontSize(LociTokens.FONT_ICON)
           .fontColor(LociTokens.INK)
           .textAlign(TextAlign.Center)
           .width(LociTokens.CONTROL_MIN)
@@ -115,23 +115,23 @@ export struct ChatPanel {
       Row({ space: 6 }) {
         Column({ space: 4 }) {
           Text('当前作用域 · 点击切换')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
           Text(this.scopeText)
-            .fontSize(15)
+            .fontSize(LociTokens.FONT_BODY)
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.INK)
             .width('100%')
           Text(this.projectTitle)
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
         }
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start)
         Text('›')
-          .fontSize(18)
+          .fontSize(LociTokens.FONT_SUBTITLE)
           .fontColor(LociTokens.INK_MUTED)
       }
       .width('100%')
@@ -148,7 +148,7 @@ export struct ChatPanel {
           ListItem() {
             Column({ space: 6 }) {
               Text(message.role === 'assistant' ? 'loci' : '你')
-                .fontSize(11)
+                .fontSize(LociTokens.FONT_CAPTION)
                 .fontColor(message.role === 'assistant' ? LociTokens.AGENT : LociTokens.INK_MUTED)
                 .width('100%')
               Text(message.body)
@@ -158,7 +158,7 @@ export struct ChatPanel {
                 .width('100%')
               if (message.supplement === true) {
                 Text('补充说明 · 不来自当前资料')
-                  .fontSize(10)
+                  .fontSize(LociTokens.FONT_MICRO)
                   .fontColor(LociTokens.INK_MUTED)
                   .width('100%')
               }
@@ -166,7 +166,7 @@ export struct ChatPanel {
                 Row({ space: LociTokens.SPACE_4 }) {
                   ForEach(message.sourceIds ?? [], (sourceId: string, index: number) => {
                     Text(`来源 ${index + 1}`)
-                      .fontSize(11)
+                      .fontSize(LociTokens.FONT_CAPTION)
                       .fontColor(LociTokens.ACCENT)
                       .height(LociTokens.CONTROL_MIN)
                       .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -187,18 +187,18 @@ export struct ChatPanel {
           ListItem() {
             Column({ space: 8 }) {
               Text('loci 提问 · 需要确认')
-                .fontSize(11)
+                .fontSize(LociTokens.FONT_CAPTION)
                 .fontColor(LociTokens.INK_MUTED)
                 .width('100%')
               Text(this.pendingQuestion?.prompt ?? '')
-                .fontSize(14)
+                .fontSize(LociTokens.FONT_SMALL)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(LociTokens.INK)
                 .lineHeight(21)
                 .width('100%')
               ForEach(this.pendingQuestion?.options ?? [], (option: string) => {
                 Text(option)
-                  .fontSize(13)
+                  .fontSize(LociTokens.FONT_META)
                   .fontColor(LociTokens.INK)
                   .width('100%')
                   .constraintSize({ minHeight: LociTokens.CONTROL_MIN })
@@ -209,7 +209,7 @@ export struct ChatPanel {
               }, (option: string): string => option)
               if (this.pendingQuestion?.allowFreeText === true) {
                 Text('也可以在下方输入自己的回答后发送')
-                  .fontSize(11)
+                  .fontSize(LociTokens.FONT_CAPTION)
                   .fontColor(LociTokens.INK_MUTED)
                   .width('100%')
               }
@@ -228,12 +228,12 @@ export struct ChatPanel {
           ListItem() {
             Column({ space: 8 }) {
               Text(this.errorText.length > 0 ? this.errorText : '学习助手生成失败,请重试。')
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.DANGER)
                 .lineHeight(19)
                 .width('100%')
               Text('重试')
-                .fontSize(13)
+                .fontSize(LociTokens.FONT_META)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(LociTokens.INK)
                 .textAlign(TextAlign.Center)
@@ -258,7 +258,7 @@ export struct ChatPanel {
       // ---- 建议追问 ----
       Row({ space: LociTokens.SPACE_5 }) {
         Text('解释关键区别')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -266,7 +266,7 @@ export struct ChatPanel {
             this.draft = '为什么训练损失不能代表泛化能力？'
           })
         Text('建议一个复习动作')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -284,7 +284,7 @@ export struct ChatPanel {
         TextArea({ placeholder: `基于${this.chatLabel}提问…`, text: this.draft })
           .layoutWeight(1)
           .constraintSize({ minHeight: LociTokens.CONTROL_MIN, maxHeight: 96 })
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontColor(LociTokens.INK)
           .placeholderColor(LociTokens.INK_MUTED)
           .placeholderFont({ size: 13 })
@@ -299,7 +299,7 @@ export struct ChatPanel {
           })
         Stack() {
           Text('→')
-            .fontSize(18)
+            .fontSize(LociTokens.FONT_SUBTITLE)
             .fontColor(this.draft.trim().length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
         }
         .width(LociTokens.CONTROL_MIN)

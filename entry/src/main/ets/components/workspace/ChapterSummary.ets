@@ -14,7 +14,7 @@ import {
   LociEvidence,
   LociProjectSummary,
   LOCI_EMPTY_PROJECT
-} from '../../models/LociFixtures'
+} from '../../models/LociModels'
 
 @ComponentV2
 export struct ChapterSummary {
@@ -46,7 +46,7 @@ export struct ChapterSummary {
   build() {
     Column() {
       Text('章末总结')
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text('这一章留下了什么')
@@ -60,7 +60,7 @@ export struct ChapterSummary {
       Column({ space: LociTokens.SPACE_3 }) {
         if (this.chapterEvidence().length === 0) {
           Text('完成本章小测或费曼讲述后，正式证据会出现在这里。')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_MUTED)
             .lineHeight(19)
             .width('100%')
@@ -68,20 +68,20 @@ export struct ChapterSummary {
           ForEach(this.chapterEvidence(), (item: LociEvidence) => {
             Row({ space: LociTokens.SPACE_3 }) {
               Text(item.result === 'supports' ? '✓' : '⚠')
-                .fontSize(15)
+                .fontSize(LociTokens.FONT_BODY)
                 .fontColor(item.result === 'supports' ? LociTokens.SUCCESS : LociTokens.WARNING)
               Column({ space: 4 }) {
                 Text(`${item.sourceEventLabel} · ${item.occurredAt}`)
-                  .fontSize(10)
+                  .fontSize(LociTokens.FONT_MICRO)
                   .fontColor(LociTokens.INK_MUTED)
                   .width('100%')
                 Text(item.summary)
-                  .fontSize(13)
+                  .fontSize(LociTokens.FONT_META)
                   .fontColor(LociTokens.INK)
                   .lineHeight(20)
                   .width('100%')
                 Text('查看事件与来源')
-                  .fontSize(11)
+                  .fontSize(LociTokens.FONT_CAPTION)
                   .fontColor(LociTokens.ACCENT)
                   .height(LociTokens.CONTROL_MIN)
                   .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -109,16 +109,16 @@ export struct ChapterSummary {
       if (this.reviewConcepts().length > 0) {
         Flex({ wrap: FlexWrap.Wrap }) {
           Text('待复习')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .margin({ right: LociTokens.SPACE_3, top: 12 })
           ForEach(this.reviewConcepts(), (concept: LociConcept) => {
             Row({ space: 4 }) {
               Text(concept.label)
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.WARNING)
               Text('→')
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.WARNING)
             }
             .height(LociTokens.CONTROL_MIN)
@@ -140,11 +140,11 @@ export struct ChapterSummary {
         if (this.nextChapter()?.taskState === 'ready') {
           Row({ space: 6 }) {
             Text('继续下一章')
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.ACCENT_INK)
             Text('→')
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontColor(LociTokens.ACCENT_INK)
           }
           .justifyContent(FlexAlign.Center)
@@ -162,7 +162,7 @@ export struct ChapterSummary {
         }
         if (this.reviewConcepts().length > 0) {
           Text('复习薄弱概念')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.INK)
             .textAlign(TextAlign.Center)
             .width('100%')
@@ -174,10 +174,10 @@ export struct ChapterSummary {
         }
         Row({ space: 6 }) {
           Text('✦')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.AGENT)
           Text('询问 Agent')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.AGENT)
         }
         .justifyContent(FlexAlign.Center)

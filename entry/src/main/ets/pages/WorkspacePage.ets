@@ -29,28 +29,31 @@ import {
   LOCI_EMPTY_PROJECT,
   chapterTaskStateLabel,
   chatScopeLabel
-} from '../models/LociFixtures'
+} from '../models/LociModels'
 import { LociAppState } from '../models/LociAppState'
 import {
-  ChapterGenerationSession,
-  WireBookBlock,
-  WireFeynmanResult,
-  WireProgressResult,
-  WireQuizAttemptResult
-} from '../loci/data/LociApiClient'
-import { mapWireBlock } from '../loci/data/ServerProjectMapper'
+  LociChapterGenerationSession,
+  LociFeynmanSubmissionResult,
+  LociProgressSnapshot,
+  LociQuizSubmissionResult
+} from '../models/LociServiceModels'
 import {
   FeynmanOutcome,
   LearningBlockView,
   QuizAnswerOutcome
 } from '../components/workspace/LearningBlocks'
 import { ChapterRail } from '../components/workspace/ChapterRail'
+import { WorkspaceHeader } from '../components/workspace/WorkspaceHeader'
 import { ChapterSummary } from '../components/workspace/ChapterSummary'
 import { ConceptGraph } from '../components/workspace/ConceptGraph'
 import { ChatPanel, LociChatMessage, LOCI_CHAT_FIXTURE_HINT, LOCI_CHAT_WELCOME } from '../components/overlays/ChatPanel'
 import { SourceViewer } from '../components/overlays/SourceViewer'
 import { AgentTurnCitation, AgentTurnQuestion, AgentTurnRequest } from '../loci/agent/LociAgentTurnClient'
 import { LociAgentTurnSession } from '../loci/agent/LociAgentTurnSession'
+import {
+  projectWithBookmark,
+  projectWithProgress
+} from '../loci/workspace/WorkspaceProjectState'
 
 function taskStateColor(state: string): string {
   switch (state) {
@@ -105,7 +108,7 @@ export struct WorkspacePage {
   /** M5c:章节生成会话状态(generatingChapterId 非空 = 正在渐进渲染该章)。 */
   @Local private generatingChapterId: string = ''
   @Local private generatingBlocks: LociLearningBlock[] = []
-  private genSession: ChapterGenerationSession | null = null
+  private genSession: LociChapterGenerationSession | null = null
   /** M5c:visit 防抖计时器(-1 = 无)。 */
   private visitTimer: number = -1
 
@@ -331,20 +334,17 @@ export struct WorkspacePage {
     const chapterId: string = chapter.id
     this.generatingChapterId = chapterId
     this.generatingBlocks = []
-    const session: ChapterGenerationSession = this.appState.startChapterGeneration(bookId, chapterId, {
+    const session: LociChapterGenerationSession = this.appState.startChapterGeneration(bookId, chapterId, {
       onChapterStart: (startedChapterId: string): void => {
         if (this.generatingChapterId === chapterId) {
           this.generatingBlocks = []
         }
       },
-      onBlock: (index: number, block: WireBookBlock): void => {
+      onBlock: (index: number, block: LociLearningBlock): void => {
         if (this.generatingChapterId !== chapterId) {
           return
         }
-        const mapped: LociLearningBlock | null = mapWireBlock(block)
-        if (mapped !== null) {
-          this.generatingBlocks = this.generatingBlocks.concat([mapped])
-        }
+        this.generatingBlocks = this.generatingBlocks.concat([block])
       },
       onChapterDone: (blockCount: number, warnings: string[]): void => {
         // 终态帧;块以刷新后的服务端落盘为准(finishGeneration 重拉详情)
@@ -365,7 +365,7 @@ export struct WorkspacePage {
   }
 
   /** 会话结束(含 server error 帧):重拉详情,章态/块/概念图以服务端落盘为准。 */
-  private finishGeneration(session: ChapterGenerationSession, errorMessage: string): void {
+  private finishGeneration(session: LociChapterGenerationSession, errorMessage: string): void {
     if (this.genSession !== session) {
       return // 已被切章/退页取消,且可能已有新会话,不得清新会话状态
     }
@@ -379,7 +379,7 @@ export struct WorkspacePage {
   }
 
   private cancelGeneration(): void {
-    const session: ChapterGenerationSession | null = this.genSession
+    const session: LociChapterGenerationSession | null = this.genSession
     if (session !== null) {
       this.genSession = null
       session.cancel()
@@ -403,11 +403,11 @@ export struct WorkspacePage {
 
   private handleQuizAnswer(blockId: string, answerId: string): Promise<QuizAnswerOutcome> {
     return this.appState.submitQuizAttempt(this.detail.id, blockId, answerId)
-      .then((result: WireQuizAttemptResult): QuizAnswerOutcome => {
+      .then((result: LociQuizSubmissionResult): QuizAnswerOutcome => {
         this.refreshFromServer()
         return {
-          isCorrect: result.attempt.isCorrect,
-          advice: result.diagnosis?.advice ?? ''
+          isCorrect: result.isCorrect,
+          advice: result.advice
         } as QuizAnswerOutcome
       })
   }
@@ -415,7 +415,7 @@ export struct WorkspacePage {
   private handleFeynmanSubmit(explanation: string): Promise<FeynmanOutcome> {
     const chapterId: string = this.activeChapterId
     return this.appState.submitFeynman(this.detail.id, chapterId, explanation)
-      .then((result: WireFeynmanResult): FeynmanOutcome => {
+      .then((result: LociFeynmanSubmissionResult): FeynmanOutcome => {
         this.refreshFromServer()
         return {
           passed: result.passed,
@@ -443,7 +443,7 @@ export struct WorkspacePage {
     this.visitTimer = setTimeout((): void => {
       this.visitTimer = -1
       this.appState.reportProgress(this.detail.id, chapterId, 'visit')
-        .then((result: WireProgressResult): void => this.applyProgress(result))
+        .then((result: LociProgressSnapshot): void => this.applyProgress(result))
         .catch((): void => {
           promptAction.showToast({ message: '阅读进度未同步,稍后会重试', duration: 1800 })
         })
@@ -464,7 +464,7 @@ export struct WorkspacePage {
     const next: boolean = chapter.bookmarked !== true
     this.applyBookmarkLocal(chapterId, next)
     this.appState.reportProgress(this.detail.id, chapterId, next ? 'bookmark' : 'unbookmark')
-      .then((result: WireProgressResult): void => this.applyProgress(result))
+      .then((result: LociProgressSnapshot): void => this.applyProgress(result))
       .catch((error: Object): void => {
         this.applyBookmarkLocal(chapterId, !next)
         promptAction.showToast({
@@ -475,60 +475,27 @@ export struct WorkspacePage {
   }
 
   /** 以 server 响应的 progress 为准,重建章节 read/bookmarked 标记。 */
-  private applyProgress(result: WireProgressResult): void {
-    const visited: string[] = result.progress.visitedChapterIds ?? []
-    const bookmarked: string[] = result.progress.bookmarkedChapterIds ?? []
-    const chapters: LociChapter[] = this.detail.chapters.map((chapter: LociChapter): LociChapter => {
-      const next: LociChapter = chapter
-      next.read = visited.includes(chapter.id)
-      next.bookmarked = bookmarked.includes(chapter.id)
-      return next
-    })
-    this.detail = this.cloneWithChapters(chapters)
+  private applyProgress(result: LociProgressSnapshot): void {
+    this.detail = projectWithProgress(this.detail, result)
   }
 
   private applyBookmarkLocal(chapterId: string, bookmarked: boolean): void {
-    const chapters: LociChapter[] = this.detail.chapters.map((chapter: LociChapter): LociChapter => {
-      if (chapter.id !== chapterId) {
-        return chapter
-      }
-      const next: LociChapter = chapter
-      next.bookmarked = bookmarked
-      return next
-    })
-    this.detail = this.cloneWithChapters(chapters)
-  }
-
-  /**
-   * 换新 chapters 的 detail 副本。@Local 只对引用变化触发更新,
-   * 必须造新对象(写法对齐 AppRoot.retryProject 的显式逐字段复制)。
-   */
-  private cloneWithChapters(chapters: LociChapter[]): LociProjectSummary {
-    return {
-      id: this.detail.id,
-      title: this.detail.title,
-      shortTitle: this.detail.shortTitle,
-      goal: this.detail.goal,
-      level: this.detail.level,
-      depth: this.detail.depth,
-      source: this.detail.source,
-      status: this.detail.status,
-      lastStudiedLabel: this.detail.lastStudiedLabel,
-      chapters: chapters,
-      notice: this.detail.notice,
-      lastChapterId: this.detail.lastChapterId,
-      concepts: this.detail.concepts,
-      relations: this.detail.relations,
-      anchors: this.detail.anchors,
-      evidence: this.detail.evidence,
-      reviewConceptIds: this.detail.reviewConceptIds
-    } as LociProjectSummary
+    this.detail = projectWithBookmark(this.detail, chapterId, bookmarked)
   }
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        this.header()
+        WorkspaceHeader({
+          title: this.detail.shortTitle ?? this.detail.title,
+          bookmarked: this.currentChapter()?.bookmarked === true,
+          onBack: (): void => this.onBack(),
+          onOpenChapters: (): void => {
+            this.chapterMenuOpen = true
+          },
+          onToggleBookmark: (): void => this.toggleBookmark(),
+          onOpenOverview: (): void => this.onOpenOverview()
+        })
         this.modeToolbar()
 
         if (this.detail.chapters.length === 0) {
@@ -538,7 +505,7 @@ export struct WorkspacePage {
               .fontSize(LociTokens.FONT_TITLE)
               .fontColor(LociTokens.INK)
             Text('项目方案确认后，章节会出现在这里。')
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.INK_SOFT)
           }
           .width('100%')
@@ -626,84 +593,6 @@ export struct WorkspacePage {
     .backgroundColor(LociTokens.SCREEN)
   }
 
-  /** 沉浸页头:返回 + 章节标题(中) + 目录/收藏/更多(右)。 */
-  @Builder
-  private header() {
-    Stack({ alignContent: Alignment.Center }) {
-      Column({ space: 2 }) {
-        Text('学习书工作区')
-          .fontSize(10)
-          .fontColor(LociTokens.INK_MUTED)
-        Text(this.detail.shortTitle ?? this.detail.title)
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(LociTokens.INK)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .alignItems(HorizontalAlign.Center)
-      .padding({ left: 72, right: 132 })
-
-      Row() {
-        Text('←')
-          .fontSize(18)
-          .fontColor(LociTokens.INK)
-          .textAlign(TextAlign.Center)
-          .width(LociTokens.CONTROL_MIN)
-          .height(LociTokens.CONTROL_MIN)
-          .accessibilityText('返回学习库')
-          .accessibilityRole(AccessibilityRoleType.BUTTON)
-          .onClick((): void => this.onBack())
-        Blank()
-
-        // 章节目录(几何三线)
-        Column({ space: 4 }) {
-          Rect().width(16).height(1.5).fill(LociTokens.INK)
-          Rect().width(16).height(1.5).fill(LociTokens.INK)
-          Rect().width(16).height(1.5).fill(LociTokens.INK)
-        }
-        .justifyContent(FlexAlign.Center)
-        .width(LociTokens.CONTROL_MIN)
-        .height(LociTokens.CONTROL_MIN)
-        .accessibilityText('打开章节目录')
-        .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => {
-          this.chapterMenuOpen = true
-        })
-
-        // 收藏(几何书签);M5c:server 章接 bookmark/unbookmark,已收藏填桃色
-        Stack() {
-          Path({ width: 24, height: 24, commands: 'M7 4h10v16l-5-4.2-5 4.2z' })
-            .fill(this.currentChapter()?.bookmarked === true ? LociTokens.ACCENT : Color.Transparent)
-            .stroke(this.currentChapter()?.bookmarked === true ? LociTokens.ACCENT : LociTokens.INK)
-            .strokeWidth(1.4)
-        }
-        .width(LociTokens.CONTROL_MIN)
-        .height(LociTokens.CONTROL_MIN)
-        .accessibilityText('收藏当前章节')
-        .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => this.toggleBookmark())
-
-        // 更多(三点)
-        Row({ space: 4 }) {
-          Circle().width(3).height(3).fill(LociTokens.INK)
-          Circle().width(3).height(3).fill(LociTokens.INK)
-          Circle().width(3).height(3).fill(LociTokens.INK)
-        }
-        .justifyContent(FlexAlign.Center)
-        .width(LociTokens.CONTROL_MIN)
-        .height(LociTokens.CONTROL_MIN)
-        .accessibilityText('更多学习书操作')
-        .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => this.onOpenOverview())
-      }
-      .width('100%')
-    }
-    .width('100%')
-    .height(52)
-    .margin({ top: 28 })
-  }
-
   /** 工具条:正文|概念图 切换 + Chat 作用域 chip。 */
   @Builder
   private modeToolbar() {
@@ -715,10 +604,10 @@ export struct WorkspacePage {
       Blank()
       Row({ space: 5 }) {
         Text('✦')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_SOFT)
         Text(`Chat 作用域:${this.workspaceMode === 'graph' ? '当前学习书' : '当前章节'}`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_SOFT)
       }
       .height(LociTokens.CONTROL_MIN)
@@ -769,7 +658,7 @@ export struct WorkspacePage {
           .height(9)
         }
         Text(label)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(this.workspaceMode === mode ? FontWeight.Medium : FontWeight.Normal)
           .fontColor(this.workspaceMode === mode ? LociTokens.INK : LociTokens.INK_MUTED)
       }
@@ -800,12 +689,12 @@ export struct WorkspacePage {
         // M5c:SSE 渐进渲染——逐块 append,终态后 finishGeneration 重拉详情接管
         Column({ space: LociTokens.SPACE_2 }) {
           Text(`✦ 正在生成,已产出 ${this.generatingBlocks.length} 块…`)
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.ACCENT)
             .width('100%')
             .margin({ top: LociTokens.SPACE_4, bottom: LociTokens.SPACE_2 })
           Text('切换章节或离开页面会中止生成,已生成的内容会保留。')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
         }
@@ -879,12 +768,12 @@ export struct WorkspacePage {
         Row({ space: 5 }) {
           Circle().width(6).height(6).fill(taskStateColor(this.currentChapter()?.taskState ?? ''))
           Text(chapterTaskStateLabel(this.currentChapter()?.taskState ?? ''))
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(taskStateColor(this.currentChapter()?.taskState ?? ''))
         }
         Blank()
         Text(`第 ${(this.currentChapter()?.order ?? 0) + 1} 章 · ${this.currentChapter()?.estimatedMinutes ?? 0} 分钟`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
       }
       .width('100%')
@@ -906,7 +795,7 @@ export struct WorkspacePage {
         .margin({ top: LociTokens.SPACE_3 })
 
       Text(`${this.currentChapter()?.read === true ? '已读' : '未读'} · ${this.currentChapter()?.verified === true ? '已验证' : '未验证'}`)
-        .fontSize(10)
+        .fontSize(LociTokens.FONT_MICRO)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
@@ -924,7 +813,7 @@ export struct WorkspacePage {
         .width(10)
         .height(12)
         Text(`来源范围:${this.currentChapter()?.sourceRange ?? '待定'}`)
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.ACCENT)
       }
       .height(LociTokens.CONTROL_MIN)
@@ -950,12 +839,12 @@ export struct WorkspacePage {
     actionLabel: string) {
     Column({ space: LociTokens.SPACE_3 }) {
       Text(icon)
-        .fontSize(22)
+        .fontSize(LociTokens.FONT_SUBSECTION)
         .fontColor(LociTokens.ACCENT)
         .width('100%')
         .margin({ top: LociTokens.SPACE_7 })
       Text(eyebrow)
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text(title)
@@ -964,13 +853,13 @@ export struct WorkspacePage {
         .fontColor(LociTokens.INK)
         .width('100%')
       Text(body)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
       if (actionLabel.length > 0) {
         Text(actionLabel)
-          .fontSize(13)
+          .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(LociTokens.INK)
           .textAlign(TextAlign.Center)

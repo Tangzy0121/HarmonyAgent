@@ -21,7 +21,7 @@ import {
   LOCI_EMPTY_PROJECT,
   chapterTaskStateLabel,
   projectStatusLabel
-} from '../models/LociFixtures'
+} from '../models/LociModels'
 import { LociAppState } from '../models/LociAppState'
 import { LociImmersiveHeader } from '../components/create/LociImmersiveHeader'
 import { SourceViewer } from '../components/overlays/SourceViewer'
@@ -255,7 +255,7 @@ export struct ProjectOverviewPage {
   private hero() {
     Column() {
       Text(projectStatusLabel(this.effectiveStatus()))
-        .fontSize(10)
+        .fontSize(LociTokens.FONT_MICRO)
         .fontColor(statusColor(this.effectiveStatus()))
         .padding({ left: 10, right: 10, top: 3, bottom: 3 })
         .borderRadius(LociTokens.RADIUS_CONTROL)
@@ -270,26 +270,26 @@ export struct ProjectOverviewPage {
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
       Text(this.view().goal)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
       Row({ space: LociTokens.SPACE_2 }) {
         Text(this.view().level)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_SOFT)
           .padding({ left: 12, right: 12, top: 5, bottom: 5 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .backgroundColor(LociTokens.SURFACE)
         Text(this.view().depth)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_SOFT)
           .padding({ left: 12, right: 12, top: 5, bottom: 5 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .backgroundColor(LociTokens.SURFACE)
         Text(`${this.view().chapters.length} 章`)
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_SOFT)
           .padding({ left: 12, right: 12, top: 5, bottom: 5 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
@@ -308,17 +308,17 @@ export struct ProjectOverviewPage {
   private noticePanel(notice: LociProjectNotice) {
     Column({ space: 6 }) {
       Text(notice.title)
-        .fontSize(14)
+        .fontSize(LociTokens.FONT_SMALL)
         .fontWeight(FontWeight.Medium)
         .fontColor(noticeToneColor(notice.tone))
         .width('100%')
       Text(notice.detail)
-        .fontSize(12)
+        .fontSize(LociTokens.FONT_LABEL)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(19)
         .width('100%')
       Text(notice.actionLabel)
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontWeight(FontWeight.Medium)
         .fontColor(LociTokens.ACCENT)
         .height(LociTokens.CONTROL_MIN)
@@ -339,7 +339,7 @@ export struct ProjectOverviewPage {
       Row() {
         Column({ space: 6 }) {
           Text('学习书')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
           Text('章节状态')
@@ -354,11 +354,11 @@ export struct ProjectOverviewPage {
         if (this.hasReadable()) {
           Row({ space: 5 }) {
             Text('继续学习')
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.ACCENT_INK)
             Text('→')
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.ACCENT_INK)
           }
           .justifyContent(FlexAlign.Center)
@@ -376,16 +376,16 @@ export struct ProjectOverviewPage {
         // 生成中面板,真源:prototype generation-state(逐字一致)
         Column({ space: LociTokens.SPACE_3 }) {
           Text('✦')
-            .fontSize(20)
+            .fontSize(LociTokens.FONT_TITLE)
             .fontColor(LociTokens.ACCENT)
             .width('100%')
           Text('正在整理学习方案')
-            .fontSize(14)
+            .fontSize(LociTokens.FONT_SMALL)
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.INK)
             .width('100%')
           Text('资料结构、章节边界与来源锚点会依次完成。你可以先离开,进度会保留在学习库。')
-            .fontSize(12)
+            .fontSize(LociTokens.FONT_LABEL)
             .fontColor(LociTokens.INK_SOFT)
             .lineHeight(19)
             .width('100%')
@@ -407,18 +407,18 @@ export struct ProjectOverviewPage {
           ForEach(this.view().chapters, (chapter: LociChapter) => {
             Row({ space: LociTokens.SPACE_3 }) {
               Text(`${chapter.order + 1}`)
-                .fontSize(12)
+                .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.INK_MUTED)
                 .textAlign(TextAlign.Center)
                 .width(24)
               Column({ space: 4 }) {
                 Text(chapter.title)
-                  .fontSize(14)
+                  .fontSize(LociTokens.FONT_SMALL)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(LociTokens.INK)
                   .width('100%')
                 Text(chapter.objective ?? '')
-                  .fontSize(11)
+                  .fontSize(LociTokens.FONT_CAPTION)
                   .fontColor(LociTokens.INK_MUTED)
                   .lineHeight(17)
                   .width('100%')
@@ -426,14 +426,14 @@ export struct ProjectOverviewPage {
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
                 Row({ space: LociTokens.SPACE_3 }) {
                   Text(chapterTaskStateLabel(this.chapterState(chapter)))
-                    .fontSize(10)
+                    .fontSize(LociTokens.FONT_MICRO)
                     .fontColor(taskStateColor(this.chapterState(chapter)))
                     .padding({ left: 10, right: 10, top: 3, bottom: 3 })
                     .borderRadius(LociTokens.RADIUS_CONTROL)
                     .border({ width: 1, color: taskStateColor(this.chapterState(chapter)) })
                   if (this.chapterState(chapter) === 'ready') {
                     Text('打开')
-                      .fontSize(12)
+                      .fontSize(LociTokens.FONT_LABEL)
                       .fontColor(LociTokens.ACCENT)
                       .height(LociTokens.CONTROL_MIN)
                       .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
@@ -442,7 +442,7 @@ export struct ProjectOverviewPage {
                   }
                   if (this.chapterState(chapter) === 'failed') {
                     Text('重试')
-                      .fontSize(12)
+                      .fontSize(LociTokens.FONT_LABEL)
                       .fontColor(LociTokens.DANGER)
                       .height(LociTokens.CONTROL_MIN)
                       .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
@@ -476,7 +476,7 @@ export struct ProjectOverviewPage {
     Column() {
       Column() {
         Text('学习状态')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
         Text('已保存的进展')
@@ -498,7 +498,7 @@ export struct ProjectOverviewPage {
 
       Column() {
         Text('来源资料')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.INK_MUTED)
           .width('100%')
         Text(this.view().source.name)
@@ -508,17 +508,17 @@ export struct ProjectOverviewPage {
           .width('100%')
           .margin({ top: 6 })
         Text(`${this.view().source.format} · ${this.view().source.size} · ${this.view().source.units ?? ''}`)
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
           .width('100%')
           .margin({ top: LociTokens.SPACE_2 })
         if ((this.view().anchors ?? []).length > 0) {
           Row({ space: 5 }) {
             Text('查看来源与依据')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.ACCENT)
             Text('→')
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontColor(LociTokens.ACCENT)
           }
           .height(LociTokens.CONTROL_MIN)
@@ -533,10 +533,10 @@ export struct ProjectOverviewPage {
         } else {
           Row({ space: 5 }) {
             Text('◷')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(LociTokens.INK_MUTED)
             Text('来源定位仍在生成')
-              .fontSize(12)
+              .fontSize(LociTokens.FONT_LABEL)
               .fontColor(LociTokens.INK_MUTED)
           }
           .height(LociTokens.CONTROL_MIN)
@@ -557,11 +557,11 @@ export struct ProjectOverviewPage {
   private factItem(label: string, value: string) {
     Column({ space: 4 }) {
       Text(label)
-        .fontSize(11)
+        .fontSize(LociTokens.FONT_CAPTION)
         .fontColor(LociTokens.INK_MUTED)
         .width('100%')
       Text(value)
-        .fontSize(15)
+        .fontSize(LociTokens.FONT_BODY)
         .fontWeight(FontWeight.Medium)
         .fontColor(LociTokens.INK)
         .width('100%')
@@ -587,12 +587,12 @@ export struct ProjectOverviewPage {
         .height(20)
         Column({ space: 3 }) {
           Text('项目管理')
-            .fontSize(14)
+            .fontSize(LociTokens.FONT_SMALL)
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.INK)
             .width('100%')
           Text('调整方案、暂停或归档这个项目')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
             .width('100%')
         }
@@ -602,10 +602,10 @@ export struct ProjectOverviewPage {
 
       Row({ space: 4 }) {
         Text('项目设置')
-          .fontSize(12)
+          .fontSize(LociTokens.FONT_LABEL)
           .fontColor(LociTokens.INK_SOFT)
         Text('›')
-          .fontSize(15)
+          .fontSize(LociTokens.FONT_BODY)
           .fontColor(LociTokens.INK_MUTED)
       }
       .height(LociTokens.CONTROL_MIN)

@@ -15,7 +15,7 @@ import { common } from '@kit.AbilityKit'
 import { fileIo as fs, picker } from '@kit.CoreFileKit'
 import { LociTokens } from '../../theme/LociTokens'
 import { LociAppState } from '../../models/LociAppState'
-import { LociChapter, LociProjectSummary } from '../../models/LociFixtures'
+import { LociChapter, LociProjectSummary } from '../../models/LociModels'
 import { CreateFlowViewModel, MAX_UPLOAD_BYTES } from '../../models/CreateFlowViewModel'
 import { DataMode, ServerConfig } from '../../network/ServerConfig'
 import { CreateProgress } from './CreateProgress'
@@ -187,12 +187,12 @@ export struct CreateProjectPage {
                 .fill(LociTokens.ACCENT)
             }
             Text(option.id)
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontWeight(FontWeight.Medium)
               .fontColor(selected === option.id ? LociTokens.INK : LociTokens.INK_SOFT)
           }
           Text(option.hint)
-            .fontSize(10)
+            .fontSize(LociTokens.FONT_MICRO)
             .fontColor(LociTokens.INK_MUTED)
             .lineHeight(14)
         }
@@ -244,7 +244,7 @@ export struct CreateProjectPage {
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
       Text('支持 PDF、Markdown、DOCX,单个文件不超过 20MB。')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
@@ -258,7 +258,7 @@ export struct CreateProjectPage {
             .fontWeight(FontWeight.Medium)
             .fontColor(LociTokens.INK)
           Text('PDF · Markdown · DOCX')
-            .fontSize(11)
+            .fontSize(LociTokens.FONT_CAPTION)
             .fontColor(LociTokens.INK_MUTED)
         }
         .width('100%')
@@ -275,18 +275,18 @@ export struct CreateProjectPage {
       } else {
         Row({ space: 14 }) {
           SymbolGlyph($r('sys.symbol.doc'))
-            .fontSize(24)
+            .fontSize(LociTokens.FONT_HEADING)
             .fontColor([LociTokens.ACCENT])
           Column({ space: 5 }) {
             Text(this.flow.file.name)
-              .fontSize(14)
+              .fontSize(LociTokens.FONT_SMALL)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.INK)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .width('100%')
             Text(`${this.flow.file.format} · ${this.flow.file.size}`)
-              .fontSize(10)
+              .fontSize(LociTokens.FONT_MICRO)
               .fontColor(LociTokens.INK_MUTED)
               .width('100%')
           }
@@ -294,7 +294,7 @@ export struct CreateProjectPage {
           .alignItems(HorizontalAlign.Start)
 
           Text('×')
-            .fontSize(17)
+            .fontSize(LociTokens.FONT_BODY_LARGE)
             .fontColor(LociTokens.INK_MUTED)
             .width(LociTokens.CONTROL_MIN)
             .height(LociTokens.CONTROL_MIN)
@@ -313,7 +313,7 @@ export struct CreateProjectPage {
       Row() {
         Blank()
         Text('使用演示文件')
-          .fontSize(11)
+          .fontSize(LociTokens.FONT_CAPTION)
           .fontColor(LociTokens.ACCENT)
           .height(LociTokens.CONTROL_MIN)
           .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
@@ -328,11 +328,11 @@ export struct CreateProjectPage {
         // 内联主按钮(不用 @Builder:V2 传参响应式在实机上不可靠,实机核对踩坑)
         Row({ space: 6 }) {
           Text('下一步')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.flow.canProceedSource() ? LociTokens.SCREEN : LociTokens.INK_MUTED)
           Text('→')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(this.flow.canProceedSource() ? LociTokens.SCREEN : LociTokens.INK_MUTED)
         }
         .height(LociTokens.CONTROL_HEIGHT)
@@ -366,14 +366,14 @@ export struct CreateProjectPage {
         .width('100%')
         .margin({ top: LociTokens.SPACE_3 })
       Text('用于调整讲解与练习深度。')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontColor(LociTokens.INK_SOFT)
         .lineHeight(21)
         .width('100%')
         .margin({ top: 18 })
 
       Text('学习目标')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontWeight(FontWeight.Medium)
         .fontColor(LociTokens.INK)
         .width('100%')
@@ -383,7 +383,7 @@ export struct CreateProjectPage {
       })
 
       Text('当前水平')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontWeight(FontWeight.Medium)
         .fontColor(LociTokens.INK)
         .width('100%')
@@ -393,7 +393,7 @@ export struct CreateProjectPage {
       })
 
       Text('学习深度')
-        .fontSize(13)
+        .fontSize(LociTokens.FONT_META)
         .fontWeight(FontWeight.Medium)
         .fontColor(LociTokens.INK)
         .width('100%')
@@ -405,10 +405,10 @@ export struct CreateProjectPage {
       Row({ space: 6 }) {
         Row({ space: 4 }) {
           Text('←')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.INK_SOFT)
           Text('上一步')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontColor(LociTokens.INK_SOFT)
         }
         .height(LociTokens.CONTROL_HEIGHT)
@@ -421,13 +421,13 @@ export struct CreateProjectPage {
         // 内联主按钮(不用 @Builder,同「下一步」的 V2 响应式坑)
         Row({ space: 6 }) {
           Text(this.generating ? '正在上传并生成方案…' : '生成方案')
-            .fontSize(13)
+            .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.flow.canGeneratePlan() && !this.generating ?
               LociTokens.SCREEN : LociTokens.INK_MUTED)
           if (!this.generating) {
             Text('→')
-              .fontSize(13)
+              .fontSize(LociTokens.FONT_META)
               .fontColor(this.flow.canGeneratePlan() ? LociTokens.SCREEN : LociTokens.INK_MUTED)
           }
         }
