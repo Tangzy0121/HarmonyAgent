@@ -1,7 +1,7 @@
 /**
  * 创建进度指示(来源 / 设置 / 确认)
  * 真源:prototype/src/components/project/CreateProgress.tsx 的 .flow-steps。
- * 已完成步骤为桃色圆点 + 对勾,当前步骤描边提亮,未到步骤弱提示;步骤间细线连接。
+ * 已完成步骤为黄色圆点 + 对勾,当前步骤描边提亮,未到步骤弱提示;色相移除后仍可辨识。
  */
 import { LociTokens } from '../../theme/LociTokens'
 

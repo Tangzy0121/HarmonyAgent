@@ -1,10 +1,10 @@
 /**
- * App 壳(M1 + M2 + M3 + M4):NavPathStack + 一级页面(今日/学习库)+ 全屏文字导航
+ * App 壳(M1 + M2 + M3 + M4):NavPathStack + 一级页面(今日/学习库/设置/账户)+ 全屏文字导航
  * + 沉浸页(新建项目 create / 方案确认 plan / M3 学习书工作区 workspace
  * / M4 短复习 review / 全书总结 summary / 项目概览 overview)。
  * 真源:prototype/src/components/shell/AppShell.tsx、MobileIdentity.tsx;docs/product/03 §2/§5。
  * 纪律:屏内纯黑画布;一级内容只有今日/学习库;无底部导航、无悬浮 Agent 入口
- * 不设置底部导航、悬浮 Agent 入口或独立 Profile 入口。
+ * 不设置底部导航或悬浮 Agent 入口;设置与账户为低频一级工具页。
  * 沉浸页(create/plan/workspace/review/summary/overview)隐藏全局身份条;
  * createFlow 由壳持有,返回不丢草稿。
  * M4 open_project 路由:draft→创建流,plan_ready→方案确认,active→工作区,
@@ -30,6 +30,8 @@ import { WorkspacePage, LociWorkspaceNav } from './WorkspacePage'
 import { ReviewPage, LociReviewNav } from './ReviewPage'
 import { SummaryPage } from './SummaryPage'
 import { ProjectOverviewPage } from './ProjectOverviewPage'
+import { SettingsPage } from './SettingsPage'
+import { AccountPage } from './AccountPage'
 
 @ComponentV2
 export struct AppRoot {
@@ -266,6 +268,20 @@ export struct AppRoot {
       .hideTitleBar(true)
       .backgroundColor(LociTokens.SCREEN)
       .onShown((): void => this.syncCurrentPage('library'))
+    } else if (name === 'settings') {
+      NavDestination() {
+        SettingsPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor(LociTokens.SCREEN)
+      .onShown((): void => this.syncCurrentPage('settings'))
+    } else if (name === 'account') {
+      NavDestination() {
+        AccountPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor(LociTokens.SCREEN)
+      .onShown((): void => this.syncCurrentPage('account'))
     } else if (name === 'create') {
       NavDestination() {
         CreateProjectPage({
@@ -382,7 +398,8 @@ export struct AppRoot {
       .hideToolBar(true)
       .mode(NavigationMode.Stack)
 
-      if (this.currentPage === 'today' || this.currentPage === 'library') {
+      if (this.currentPage === 'today' || this.currentPage === 'library' ||
+        this.currentPage === 'settings' || this.currentPage === 'account') {
         Column() {
           LociIdentityBar({ onOpenMenu: (): void => {
             this.menuOpen = true

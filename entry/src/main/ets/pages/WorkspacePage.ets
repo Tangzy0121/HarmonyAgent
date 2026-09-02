@@ -58,7 +58,7 @@ import {
 function taskStateColor(state: string): string {
   switch (state) {
     case 'ready': return LociTokens.SUCCESS
-    case 'running': return LociTokens.ACCENT
+    case 'running': return LociTokens.INK_SOFT
     case 'failed': return LociTokens.DANGER
     default: return LociTokens.INK_MUTED
   }
@@ -804,17 +804,17 @@ export struct WorkspacePage {
       Row({ space: 6 }) {
         Stack() {
           Rect().width(10).height(12).radius(1)
-            .fill(Color.Transparent).stroke(LociTokens.ACCENT).strokeWidth(1.2)
+            .fill(Color.Transparent).stroke(LociTokens.ACTION).strokeWidth(1.2)
           Line().width(5).height(1).startPoint([0, 0]).endPoint([5, 0])
-            .stroke(LociTokens.ACCENT).strokeWidth(1).translate({ y: -1.5 })
+            .stroke(LociTokens.ACTION).strokeWidth(1).translate({ y: -1.5 })
           Line().width(5).height(1).startPoint([0, 0]).endPoint([5, 0])
-            .stroke(LociTokens.ACCENT).strokeWidth(1).translate({ y: 2 })
+            .stroke(LociTokens.ACTION).strokeWidth(1).translate({ y: 2 })
         }
         .width(10)
         .height(12)
         Text(`来源范围:${this.currentChapter()?.sourceRange ?? '待定'}`)
           .fontSize(LociTokens.FONT_LABEL)
-          .fontColor(LociTokens.ACCENT)
+          .fontColor(LociTokens.ACTION)
       }
       .height(LociTokens.CONTROL_MIN)
       .margin({ top: LociTokens.SPACE_2 })
@@ -840,7 +840,7 @@ export struct WorkspacePage {
     Column({ space: LociTokens.SPACE_3 }) {
       Text(icon)
         .fontSize(LociTokens.FONT_SUBSECTION)
-        .fontColor(LociTokens.ACCENT)
+        .fontColor(LociTokens.ACTION)
         .width('100%')
         .margin({ top: LociTokens.SPACE_7 })
       Text(eyebrow)

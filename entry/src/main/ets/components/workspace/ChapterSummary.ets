@@ -82,7 +82,7 @@ export struct ChapterSummary {
                   .width('100%')
                 Text('查看事件与来源')
                   .fontSize(LociTokens.FONT_CAPTION)
-                  .fontColor(LociTokens.ACCENT)
+                  .fontColor(LociTokens.ACTION)
                   .height(LociTokens.CONTROL_MIN)
                   .accessibilityRole(AccessibilityRoleType.BUTTON)
                   .onClick((): void => {
@@ -142,16 +142,16 @@ export struct ChapterSummary {
             Text('继续下一章')
               .fontSize(LociTokens.FONT_SMALL)
               .fontWeight(FontWeight.Medium)
-              .fontColor(LociTokens.ACCENT_INK)
+              .fontColor(LociTokens.ACTION_INK)
             Text('→')
               .fontSize(LociTokens.FONT_SMALL)
-              .fontColor(LociTokens.ACCENT_INK)
+              .fontColor(LociTokens.ACTION_INK)
           }
           .justifyContent(FlexAlign.Center)
           .width('100%')
           .height(LociTokens.CONTROL_HEIGHT)
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .backgroundColor(LociTokens.ACCENT)
+          .backgroundColor(LociTokens.ACTION)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {
             const next: LociChapter | undefined = this.nextChapter()

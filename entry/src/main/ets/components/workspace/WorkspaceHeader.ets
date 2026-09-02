@@ -52,8 +52,8 @@ export struct WorkspaceHeader {
 
         Stack() {
           Path({ width: 24, height: 24, commands: 'M7 4h10v16l-5-4.2-5 4.2z' })
-            .fill(this.bookmarked ? LociTokens.ACCENT : Color.Transparent)
-            .stroke(this.bookmarked ? LociTokens.ACCENT : LociTokens.INK)
+            .fill(this.bookmarked ? LociTokens.ACTION : Color.Transparent)
+            .stroke(LociTokens.ACTION)
             .strokeWidth(1.4)
         }
         .width(LociTokens.CONTROL_MIN)

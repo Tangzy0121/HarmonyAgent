@@ -10,7 +10,7 @@ import { LociChapter, LociProjectSummary, LOCI_EMPTY_PROJECT, chapterTaskStateLa
 function taskStateColor(state: string): string {
   switch (state) {
     case 'ready': return LociTokens.SUCCESS
-    case 'running': return LociTokens.ACCENT
+    case 'running': return LociTokens.INK_SOFT
     case 'failed': return LociTokens.DANGER
     default: return LociTokens.INK_MUTED
   }

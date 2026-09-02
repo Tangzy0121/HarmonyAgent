@@ -110,7 +110,7 @@ export struct SourceViewer {
               .lineHeight(24)
               .width('100%')
           }
-          // 高亮引用片段:桃色左边线 + 色块,不用阴影/模糊
+          // 高亮引用片段:黄色编辑强调,不用阴影/模糊
           Row() {
             Rect().width(2).height('100%').fill(LociTokens.ACCENT)
             Text(this.anchor.excerpt)
@@ -154,7 +154,7 @@ export struct SourceViewer {
         Blank()
         Text(this.expanded ? '收起前后文' : '查看更多前后文')
           .fontSize(LociTokens.FONT_LABEL)
-          .fontColor(LociTokens.ACCENT)
+          .fontColor(LociTokens.ACTION)
           .height(LociTokens.CONTROL_MIN)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {

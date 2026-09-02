@@ -167,7 +167,7 @@ export struct ChatPanel {
                   ForEach(message.sourceIds ?? [], (sourceId: string, index: number) => {
                     Text(`来源 ${index + 1}`)
                       .fontSize(LociTokens.FONT_CAPTION)
-                      .fontColor(LociTokens.ACCENT)
+                      .fontColor(LociTokens.ACTION)
                       .height(LociTokens.CONTROL_MIN)
                       .accessibilityRole(AccessibilityRoleType.BUTTON)
                       .onClick((): void => this.onOpenSource(sourceId))
@@ -288,7 +288,7 @@ export struct ChatPanel {
           .fontColor(LociTokens.INK)
           .placeholderColor(LociTokens.INK_MUTED)
           .placeholderFont({ size: 13 })
-          .caretColor(LociTokens.ACCENT)
+          .caretColor(LociTokens.ACTION)
           .backgroundColor(LociTokens.SURFACE)
           .borderRadius(LociTokens.RADIUS_BLOCK)
           .padding({ left: 14, right: 14, top: 12, bottom: 12 })
@@ -300,12 +300,12 @@ export struct ChatPanel {
         Stack() {
           Text('→')
             .fontSize(LociTokens.FONT_SUBTITLE)
-            .fontColor(this.draft.trim().length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+            .fontColor(this.draft.trim().length > 0 ? LociTokens.ACTION_INK : LociTokens.INK_MUTED)
         }
         .width(LociTokens.CONTROL_MIN)
         .height(LociTokens.CONTROL_MIN)
         .borderRadius(LociTokens.CONTROL_MIN / 2)
-        .backgroundColor(this.draft.trim().length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
+        .backgroundColor(this.draft.trim().length > 0 ? LociTokens.ACTION : LociTokens.SURFACE)
         .accessibilityText('发送问题')
         .accessibilityRole(AccessibilityRoleType.BUTTON)
         .onClick((): void => this.submit())

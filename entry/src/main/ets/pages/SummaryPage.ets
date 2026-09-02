@@ -24,7 +24,7 @@ function stateColor(state: string): string {
   switch (state) {
     case 'mastered': return LociTokens.SUCCESS
     case 'review': return LociTokens.WARNING
-    case 'learning': return LociTokens.ACCENT
+    case 'learning': return LociTokens.INK_SOFT
     default: return LociTokens.INK_MUTED
   }
 }
@@ -158,16 +158,16 @@ export struct SummaryPage {
           Text('返回今日')
             .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
-            .fontColor(LociTokens.ACCENT_INK)
+            .fontColor(LociTokens.ACTION_INK)
           Text('→')
             .fontSize(LociTokens.FONT_META)
-            .fontColor(LociTokens.ACCENT_INK)
+            .fontColor(LociTokens.ACTION_INK)
         }
         .justifyContent(FlexAlign.Center)
         .height(LociTokens.CONTROL_HEIGHT)
         .padding({ left: 22, right: 22 })
         .borderRadius(LociTokens.RADIUS_CONTROL)
-        .backgroundColor(LociTokens.ACCENT)
+        .backgroundColor(LociTokens.ACTION)
         .accessibilityRole(AccessibilityRoleType.BUTTON)
         .onClick((): void => this.onGoToday())
 
@@ -265,7 +265,7 @@ export struct SummaryPage {
                   .width('100%')
                 Text('回到事件与来源')
                   .fontSize(LociTokens.FONT_CAPTION)
-                  .fontColor(LociTokens.ACCENT)
+                  .fontColor(LociTokens.ACTION)
                   .height(LociTokens.CONTROL_MIN)
                   .accessibilityRole(AccessibilityRoleType.BUTTON)
                   .onClick((): void => this.openEvidenceSource(item))
@@ -334,10 +334,10 @@ export struct SummaryPage {
           Row({ space: 5 }) {
             Text('开始一次短复习')
               .fontSize(LociTokens.FONT_META)
-              .fontColor(LociTokens.ACCENT)
+              .fontColor(LociTokens.ACTION)
             Text('→')
               .fontSize(LociTokens.FONT_SMALL)
-              .fontColor(LociTokens.ACCENT)
+              .fontColor(LociTokens.ACTION)
           }
           .height(LociTokens.CONTROL_MIN)
           .margin({ top: LociTokens.SPACE_3 })
