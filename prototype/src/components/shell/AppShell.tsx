@@ -5,7 +5,7 @@ import { ChatPanel } from '../overlays/ChatPanel'
 import { SourceViewer } from '../overlays/SourceViewer'
 import { MobileIdentity } from './MobileIdentity'
 
-const primaryScreens = new Set(['today', 'library'])
+const primaryScreens = new Set(['today', 'library', 'settings', 'account'])
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { state } = usePrototype()
