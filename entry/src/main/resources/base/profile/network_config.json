@@ -1,0 +1,26 @@
+{
+  "network-security-config": {
+    "base-config": {
+      "cleartextTrafficPermitted": false
+    },
+    "domain-config": [
+      {
+        "domains": [
+          {
+            "include-subdomains": false,
+            "name": "10.68.121.228"
+          },
+          {
+            "include-subdomains": false,
+            "name": "127.0.0.1"
+          },
+          {
+            "include-subdomains": false,
+            "name": "localhost"
+          }
+        ],
+        "cleartextTrafficPermitted": true
+      }
+    ]
+  }
+}

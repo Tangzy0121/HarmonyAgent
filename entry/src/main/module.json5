@@ -10,6 +10,13 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    "metadata": [
+      {
+        // M5a:仅放行局域网调试地址的明文 HTTP(见 profile/network_config.json)
+        "name": "ohos.network.security.config",
+        "resource": "$profile:network_config"
+      }
+    ],
     "requestPermissions": [
       { "name": "ohos.permission.INTERNET" },
       {
