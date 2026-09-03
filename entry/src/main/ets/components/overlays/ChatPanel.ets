@@ -180,7 +180,9 @@ export struct ChatPanel {
             .alignItems(HorizontalAlign.Start)
             .padding({ top: LociTokens.SPACE_4, bottom: LociTokens.SPACE_4 })
           }
-        }, (message: LociChatMessage): string => message.id)
+          // M7a:key 必须随内容变化——LociChatMessage 是普通 interface,同 id 复用节点时
+          // body 增长不会重渲(content_delta 逐字上屏曾因此空白,日志收到 77 帧 UI 不动)
+        }, (message: LociChatMessage): string => `${message.id}:${message.body.length}`)
 
         // ---- agent 提问确认卡片(user_question,docs/03 §9.4:写操作必须确认) ----
         if (this.pendingQuestion !== null) {

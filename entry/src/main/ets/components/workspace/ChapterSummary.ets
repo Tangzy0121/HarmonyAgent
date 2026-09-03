@@ -137,9 +137,11 @@ export struct ChapterSummary {
 
       // ---- 三个出口 ----
       Column({ space: LociTokens.SPACE_3 }) {
-        if (this.nextChapter()?.taskState === 'ready') {
+        // M7a:下一章 pending/failed 时也给出入口(此前仅 ready 可进,加上抽屉禁用 pending,
+        // 导致 server 书首章读完后再无路径触发生成——UX 断链修复)
+        if (this.nextChapter() !== undefined && this.nextChapter()?.taskState !== 'running') {
           Row({ space: 6 }) {
-            Text('继续下一章')
+            Text(this.nextChapter()?.taskState === 'ready' ? '继续下一章' : '生成下一章')
               .fontSize(LociTokens.FONT_SMALL)
               .fontWeight(FontWeight.Medium)
               .fontColor(LociTokens.ACCENT_INK)
