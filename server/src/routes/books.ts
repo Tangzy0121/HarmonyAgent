@@ -45,6 +45,7 @@ import {
   LearningEvidenceService,
   LearningEvidenceServiceError,
 } from '../learning/learningEvidenceService.js'
+import type { NoticeService } from '../notices/noticeService.js'
 import {
   extractJsonObject,
   normalizeProposal,
@@ -113,6 +114,8 @@ export interface BooksRouterDependencies {
   staleJobMs?: number
   learningEvidenceService?: LearningEvidenceService
   runtimeActor?: RuntimeActor
+  /** 项目通知（PR-D）：章节生成成败挂钩；缺省不记录 */
+  notices?: NoticeService
 }
 
 export const UPSTREAM_TIMEOUT_MS = 60_000
@@ -277,6 +280,28 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
     ((event: BooksLogEvent) => {
       console.warn(`[books] ${JSON.stringify(event)}`)
     })
+  const notices = dependencies.notices
+  /** 通知失败不得影响主路径（与 emitLog 同原则） */
+  const safeNotify = async (action: () => Promise<unknown>): Promise<void> => {
+    try {
+      await action()
+    } catch {
+      // 通知存储故障不覆盖请求主流程
+    }
+  }
+  const notifyChapterFailed = async (
+    failedBook: StoredBook,
+    failedChapter: StoredBook['chapters'][number],
+  ): Promise<void> => {
+    if (notices === undefined) return
+    await safeNotify(() => notices.append({
+      kind: 'chapter_failed',
+      severity: 'error',
+      message: `《${failedBook.proposal.title}》「${failedChapter.title}」生成失败，可以重试。`,
+      target: { bookId: failedBook.id, chapterId: failedChapter.id },
+      dedupeKey: `chapter_failed:${failedBook.id}:${failedChapter.id}`,
+    }))
+  }
 
   router.use(json({ limit: '1mb' }))
 
@@ -864,6 +889,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
 
       if (result === null) {
         await markChapterError(failureCode)
+        await notifyChapterFailed(book, chapter)
         if (!disconnected && !res.destroyed) {
           writeEvent(res, 'error', { code: failureCode, message: CHAPTER_FAILURE_MESSAGE })
           res.end()
@@ -885,6 +911,24 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       refreshBookStatus()
       await persist()
       emitLog(logger, { category: 'chapter_generated', bookId: book.id, chapterId: chapter.id })
+      if (notices !== undefined) {
+        await safeNotify(() => notices.append({
+          kind: 'chapter_ready',
+          severity: 'info',
+          message: `《${book.proposal.title}》「${chapter.title}」已生成，可以开始阅读。`,
+          target: { bookId: book.id, chapterId: chapter.id },
+          dedupeKey: `chapter_ready:${book.id}:${chapter.id}`,
+        }))
+        if (book.status === 'ready') {
+          await safeNotify(() => notices.append({
+            kind: 'book_ready',
+            severity: 'info',
+            message: `《${book.proposal.title}》全部章节已生成完毕。`,
+            target: { bookId: book.id },
+            dedupeKey: `book_ready:${book.id}`,
+          }))
+        }
+      }
       writeEvent(res, 'chapter_done', { blockCount: result.blocks.length, warnings: result.warnings })
       res.end()
     } catch (error) {
@@ -899,6 +943,7 @@ export function createBooksRouter(dependencies: BooksRouterDependencies): Router
       } catch {
         // store 故障时不覆盖主错误路径
       }
+      await notifyChapterFailed(book, chapter)
       if (!disconnected && !res.destroyed) {
         writeEvent(res, 'error', {
           code: 'chapter_generation_failed',

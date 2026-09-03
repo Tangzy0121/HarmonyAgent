@@ -13,6 +13,7 @@ import type { FlashCardsBlock, QuizBlock } from '../books/bookTypes.js'
 import { createDocumentStore, type DocumentStore } from '../documents/documentStore.js'
 import type { ParsedDocument } from '../documents/pdfParser.js'
 import { LearningEvidenceService } from '../learning/learningEvidenceService.js'
+import { createNoticeService, type NoticeService } from '../notices/noticeService.js'
 import type { MasteryProjector } from '../learning/masteryProjector.js'
 import { BOOK_BLOCK_BUDGET, CHAPTER_UPSTREAM_TIMEOUT_MS, createBooksRouter, UPSTREAM_TIMEOUT_MS } from './books.js'
 
@@ -61,7 +62,7 @@ let documentId: string
 
 function appWith(
   fetchImpl: typeof fetch,
-  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number; staleJobMs?: number; evidenceService?: LearningEvidenceService } = {},
+  options: { apiKey?: string; logger?: (event: unknown) => void; chapterTimeoutMs?: number; staleJobMs?: number; evidenceService?: LearningEvidenceService; notices?: NoticeService } = {},
 ) {
   const app = express()
   app.use('/api/books', createBooksRouter({
@@ -77,6 +78,7 @@ function appWith(
     },
     logger: options.logger ?? vi.fn(),
     learningEvidenceService: options.evidenceService,
+    notices: options.notices,
   }))
   return app
 }
@@ -2111,5 +2113,54 @@ describe('POST /api/books/:id/chapters/:cid/feynman', () => {
       .send({ explanation })
     expect(missingChapter.status).toBe(404)
     expect(missingChapter.body).toEqual({ error: 'chapter_not_found' })
+  })
+})
+
+describe('项目通知挂钩（PR-D）', () => {
+  it('章节生成失败产生 chapter_failed 通知；未读期间重试失败不重复', async () => {
+    const notices = createNoticeService(dir)
+    const fetchImpl = chapterAwareFetch({ onChapter: () => '仍然不是 JSON' })
+    const app = appWith(fetchImpl, { notices })
+    const { id } = await createConfirmedBook(app)
+
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    let list = await notices.list(id)
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({
+      kind: 'chapter_failed', severity: 'error', readAt: null,
+      target: { bookId: id, chapterId: 'ch-1' },
+    })
+    expect(list[0].message).toContain('机器学习入门')
+    expect(list[0].message).toContain('第一章')
+
+    // 重试仍失败：未读期间不刷重复通知
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    list = await notices.list(id)
+    expect(list).toHaveLength(1)
+
+    // 已读后再次失败：产生新通知
+    await notices.markRead(list[0].id)
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    list = await notices.list(id)
+    expect(list).toHaveLength(2)
+  })
+
+  it('章节生成成功产生 chapter_ready；末章完成后追加 book_ready', async () => {
+    const notices = createNoticeService(dir)
+    const fetchImpl = chapterAwareFetch()
+    const app = appWith(fetchImpl, { notices })
+    const { id } = await createConfirmedBook(app)
+
+    await request(app).post(`/api/books/${id}/chapters/ch-1/generate`)
+    let list = await notices.list(id)
+    expect(list.map((notice) => notice.kind)).toEqual(['chapter_ready'])
+
+    await request(app).post(`/api/books/${id}/chapters/ch-2/generate`)
+    await request(app).post(`/api/books/${id}/chapters/ch-3/generate`)
+    list = await notices.list(id)
+    expect(list.filter((notice) => notice.kind === 'chapter_ready')).toHaveLength(3)
+    expect(list.filter((notice) => notice.kind === 'book_ready')).toHaveLength(1)
+    const saved = await bookStore.get(id)
+    expect(saved?.status).toBe('ready')
   })
 })

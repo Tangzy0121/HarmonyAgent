@@ -21,6 +21,8 @@ import { createProjectsRouter } from './routes/projects.js';
 import { createConceptsRouter } from './routes/concepts.js';
 import { createTodayRouter } from './routes/today.js';
 import { createTodayStore } from './today/todayStore.js';
+import { createNoticeService } from './notices/noticeService.js';
+import { createNoticesRouter } from './routes/notices.js';
 import { LearningEvidenceService } from './learning/learningEvidenceService.js';
 import { loadOrCreateEvidenceSecurityKeys } from './learning/evidenceSecurityKeys.js';
 import { createProviderFeynmanEvaluator } from './learning/feynmanEvaluator.js';
@@ -40,6 +42,7 @@ const documentStore = createDocumentStore(dataRoot);
 const bookStore = createBookStore(path.join(dataRoot, 'books'));
 const turnStore = createTurnStore(path.join(dataRoot, 'agent-turns'));
 const todayStore = createTodayStore(dataRoot);
+const noticeService = createNoticeService(dataRoot);
 const runtimeActor = {
   userId: process.env.RUNTIME_USER_ID?.trim() || 'local-user',
   workspaceId: process.env.RUNTIME_WORKSPACE_ID?.trim() || 'local-workspace',
@@ -76,6 +79,7 @@ app.use(
   '/api/documents',
   createDocumentsRouter({
     store: documentStore,
+    notices: noticeService,
   }),
 );
 app.use(
@@ -85,11 +89,17 @@ app.use(
     bookStore,
     learningEvidenceService,
     runtimeActor,
+    notices: noticeService,
   }),
 );
 app.use('/api/books', createConceptsRouter({ bookStore, actorProvider: () => runtimeActor }));
 app.use('/api/learner', createLearnerRouter({ bookStore }));
-app.use('/api/projects', createProjectsRouter({ bookStore, actorProvider: () => runtimeActor }));
+app.use('/api/projects', createProjectsRouter({
+  bookStore,
+  actorProvider: () => runtimeActor,
+  noticeCounts: () => noticeService.unreadCountByBook(),
+}));
+app.use('/api/notices', createNoticesRouter({ noticeService }));
 app.use('/api/today', createTodayRouter({ bookStore, todayStore }));
 app.use(express.json({ limit: '10mb' }));
 

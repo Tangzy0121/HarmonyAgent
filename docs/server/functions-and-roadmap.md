@@ -114,7 +114,14 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 
 ### PR-D 项目通知（docs/product/04 §10.2，M6）
 
-`ProjectNotice`：解析/生成/失败/恢复等项目任务状态挂钩生成；已读与横幅数据源；与今日推荐分别排序、分别读取；不引用、不修改掌握状态。
+合同（2026-09-03 冻结，`feat/project-notices` 实施）：
+
+- `GET /api/notices` → `{ version:'1', notices: ProjectNoticeDto[] }`（`createdAt` 降序，`id` 字典序兜底；`?bookId=` 过滤）；与今日推荐分别排序、分别读取；
+- `POST /api/notices/:id/read` → `200 { version:'1', notice }`；不存在 `404 notice_not_found`；重复已读幂等（返回现状）；
+- `ProjectNoticeDto`：`version:'1'`、`id`、`kind`（`chapter_failed/chapter_ready/book_ready/parse_failed`）、`severity`（`info/error`）、`message`（用户可读文案）、`target{bookId?,chapterId?,documentId?,fileName?}`、`createdAt`、`readAt|null`；
+- 生成挂钩：章节生成失败/成功、全书就绪、来源解析失败四处；去重键（如 `chapter_failed:<bookId>:<chapterId>`）在通知未读期间抑制重复——重试失败不刷重复横幅；
+- 通知**不参与**掌握投影、不修改任何学习事实；PR-A 的 `notices.unreadCount` 占位自本 PR 起由 `NoticeService.unreadCountByBook()` 真实填充；
+- 存储：`server/data/notices.json`。
 
 ## 4. 明确不做
 
