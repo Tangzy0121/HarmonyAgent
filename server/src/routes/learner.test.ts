@@ -73,3 +73,26 @@ describe('GET /api/learner/profile', () => {
     expect(res.body.concepts[0].sources).toHaveLength(2)
   })
 })
+
+describe('GET /api/learner/suggestions', () => {
+  it('returns an empty list when there are no books', async () => {
+    const res = await request(app).get('/api/learner/suggestions')
+
+    expect(res.status).toBe(200)
+    expect(res.body.suggestions).toEqual([])
+  })
+
+  it('returns a weak-concept suggestion with book title for answered books', async () => {
+    const weak = seedBook('book_1', '梯度下降', false, new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    weak.proposal = { title: '机器学习', description: '', rationale: '', estimatedMinutes: 30 }
+    await bookStore.save(weak)
+
+    const res = await request(app).get('/api/learner/suggestions')
+
+    expect(res.status).toBe(200)
+    expect(res.body.suggestions.length).toBeGreaterThan(0)
+    expect(res.body.suggestions.length).toBeLessThanOrEqual(3)
+    expect(res.body.suggestions[0]).toMatchObject({ kind: 'weak', bookId: 'book_1', conceptLabel: '梯度下降' })
+    expect(res.body.suggestions[0].text).toContain('机器学习')
+  })
+})

@@ -23,7 +23,7 @@ const book: StoredBook = {
   proposal: { title: '机器学习入门', description: 'd', rationale: 'r', estimatedMinutes: 30 },
   status: 'ready',
   chapters: [{
-    id: 'ch-1', title: '监督学习', order: 0, objective: '目标', coreConceptId: 'c-1', estimatedMinutes: 6,
+    id: 'ch-1', title: '监督学习', order: 1, objective: '目标', coreConceptId: 'c-1', estimatedMinutes: 6,
     sourceAnchors: [], status: 'ready',
     blocks: [{
       id: 'blk-1', type: 'explanation', status: 'ready', title: '讲解', revision: 1, sourceAnchors: [],
@@ -67,6 +67,7 @@ describe('GET /api/books/:id/export', () => {
     expect(res.headers['content-disposition']).toContain('attachment')
     expect(res.headers['content-disposition']).toContain('.md')
     expect(res.text).toContain('# 《机器学习入门》')
+    expect(res.text).toContain('## 第 1 章 监督学习')
     expect(res.text).toContain('监督学习用带标签的数据训练。')
     expect(res.text).toContain('> 类比：老师批改作业。')
   })

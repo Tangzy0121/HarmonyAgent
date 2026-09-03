@@ -67,8 +67,9 @@ $item = Get-Item -LiteralPath $keyPath -Force
 if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 40 }
 $current = [Security.Principal.WindowsIdentity]::GetCurrent().User
 $system = New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+# 非系统盘目录上 SetOwner 与 DACL 合并为一次 SetAccessControl 必抛
+# UnauthorizedAccessException，拆成两次：先只写 DACL，再单独 SetOwner。
 $acl = New-Object Security.AccessControl.FileSecurity
-$acl.SetOwner($current)
 $acl.SetAccessRuleProtection($true, $false)
 foreach ($sid in @($current, $system)) {
   $rule = New-Object Security.AccessControl.FileSystemAccessRule(
@@ -77,6 +78,9 @@ foreach ($sid in @($current, $system)) {
   $acl.AddAccessRule($rule)
 }
 [IO.File]::SetAccessControl($keyPath, $acl)
+$ownerOnly = New-Object Security.AccessControl.FileSecurity
+$ownerOnly.SetOwner($current)
+[IO.File]::SetAccessControl($keyPath, $ownerOnly)
 `
 
 const WINDOWS_VERIFY_SCRIPT = String.raw`

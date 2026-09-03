@@ -140,6 +140,59 @@ describe('normalizeProposal', () => {
     expect(() => normalizeProposal(42, PAGE_COUNT)).toThrowError(ProposalValidationError)
     expect(() => normalizeProposal(null, PAGE_COUNT)).toThrowError(ProposalValidationError)
   })
+
+  describe('sourceDoc（多资料）', () => {
+    const DOC_PAGES = [3, 2]
+    const TOTAL_PAGES = 5
+
+    function multiChapters(): unknown[] {
+      return [
+        validChapter({ pageStart: 1, pageEnd: 2, sourceDoc: 1 }),
+        validChapter({ title: '第二章', pageStart: 1, pageEnd: 2, sourceDoc: 2 }),
+        validChapter({ title: '第三章', pageStart: 2, pageEnd: 3, sourceDoc: 1 }),
+      ]
+    }
+
+    it('accepts chapters whose sourceDoc and page range fit the matching document', () => {
+      const normalized = normalizeProposal(validProposal(multiChapters()), TOTAL_PAGES, DOC_PAGES)
+
+      expect(normalized.chapters.map((chapter) => chapter.sourceDoc)).toEqual([1, 2, 1])
+    })
+
+    it('defaults a missing sourceDoc to the first document', () => {
+      const chapters = [validChapter(), validChapter({ title: '第二章' }), validChapter({ title: '第三章' })]
+      const normalized = normalizeProposal(validProposal(chapters), TOTAL_PAGES, DOC_PAGES)
+
+      expect(normalized.chapters.every((chapter) => chapter.sourceDoc === 1)).toBe(true)
+    })
+
+    it('throws proposal_invalid for an out-of-range or non-integer sourceDoc', () => {
+      for (const sourceDoc of [0, 3, 1.5, '2', -1]) {
+        const chapters = multiChapters().map((chapter, index) => (
+          index === 0 ? { ...(chapter as Record<string, unknown>), sourceDoc } : chapter
+        ))
+        expect(() => normalizeProposal(validProposal(chapters), TOTAL_PAGES, DOC_PAGES), String(sourceDoc))
+          .toThrowError(ProposalValidationError)
+      }
+    })
+
+    it('throws proposal_invalid when the page range exceeds its own document even within the total', () => {
+      // 资料 2 只有 2 页；pageEnd 3 不超合计 5 页，但越过所属资料页数
+      const chapters = [
+        validChapter({ pageStart: 1, pageEnd: 2, sourceDoc: 1 }),
+        validChapter({ title: '第二章', pageStart: 1, pageEnd: 3, sourceDoc: 2 }),
+        validChapter({ title: '第三章', pageStart: 2, pageEnd: 3, sourceDoc: 1 }),
+      ]
+      expect(() => normalizeProposal(validProposal(chapters), TOTAL_PAGES, DOC_PAGES))
+        .toThrowError(ProposalValidationError)
+    })
+
+    it('omits sourceDoc when no documents table is given（单源兼容）', () => {
+      const normalized = normalizeProposal(validProposal(), PAGE_COUNT)
+
+      expect('sourceDoc' in normalized.chapters[0]).toBe(false)
+    })
+  })
 })
 
 describe('extractJsonObject', () => {

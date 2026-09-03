@@ -39,7 +39,8 @@ function fixtureBook(): StoredBook {
     proposal: { title: '机器学习入门', description: 'd', rationale: 'r', estimatedMinutes: 30 },
     status: 'partial',
     chapters: [
-      chapter('ch-1', 0, '监督学习', 'ready', [
+      // 真实落盘书的 order 为 1..N（buildBook 的 index+1），fixture 按真实形态写
+      chapter('ch-1', 1, '监督学习', 'ready', [
         block({ type: 'explanation', body: '监督学习用带标签的数据训练。', keyPoint: '标签是关键' }),
         block({ type: 'citation', title: '原文依据', excerpt: 'labeled examples map inputs to outputs', location: '第 3 页' }),
         block({
@@ -66,7 +67,7 @@ function fixtureBook(): StoredBook {
         block({ type: 'flash_cards', title: '闪卡', cards: [{ front: '什么是监督学习？', back: '带标签的学习', hint: '想标签' }] }),
         block({ type: 'figure', title: '图解', kind: 'flowchart', mermaid: 'graph TD; A-->B', caption: '流程' }),
       ]),
-      chapter('ch-2', 1, '无监督学习', 'generating', [
+      chapter('ch-2', 2, '无监督学习', 'generating', [
         block({ type: 'explanation', body: '无监督学习发现结构。', keyPoint: '没有标签' }),
       ]),
     ],
@@ -103,6 +104,12 @@ describe('renderBookMarkdown', () => {
     expect(ch1).toBeGreaterThan(-1)
     expect(ch2).toBeGreaterThan(ch1)
     expect(md).toContain('监督学习的目标')
+  })
+
+  it('exports the first chapter of a real 1-based-order book as 第 1 章 (off-by-one regression)', () => {
+    // 回归：真实落盘书 order 从 1 开始，导出标题不得再 +1
+    expect(md).toContain('## 第 1 章 监督学习')
+    expect(md).not.toContain('## 第 2 章 监督学习')
   })
 
   it('marks incomplete chapters with a warning', () => {
