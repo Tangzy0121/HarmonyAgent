@@ -103,7 +103,14 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 
 ### PR-C 今日推荐服务端化（docs/product/04 §10.1，M6）
 
-服务端确定性排序：到期复习 > 遗忘悬崖 > 进行中 > 最新证据（沿用 `learning/suggestions.ts` 信号并上移为正式合同）。返回一条主推荐 + 最多两条备选，含动作、原因、项目、预计时间、有效期；模型只生成解释文案，不改业务优先级。entry 端切换为消费服务端合同，兼容窗口内保留本地派生作断网降级。
+合同（2026-09-03 冻结，`feat/today-recommendation` 实施）：
+
+- `GET /api/today` → `{ version:'1', generatedAt, primary: TodayRecommendationDto|null, alternatives: TodayRecommendationDto[] }`（备选 ≤2）；无可推荐时 `primary=null`（空态）；
+- `POST /api/today/state` → body `{ recommendationId, state: 'dismissed'|'snoozed'|'completed' }`，`200 { version:'1', recommendationId, state }`；非法 body `400 invalid_request`。拒绝/稍后/完成只调展示状态，**不改变任何掌握状态**；
+- 推荐派生**零 LLM、确定性**：优先级 到期复习 > 遗忘悬崖 > 薄弱巩固 > 继续阅读（信号沿用 `learning/suggestions.ts` 与 `learnerProfile.ts`）；同优先级内按最近学习降序、bookId 字典序兜底——同输入同输出；
+- `TodayRecommendationDto`：`id`（按日确定：`rec_<日期>_<action>_<bookId>[_<concept>]`，状态每日自然重置）、`action`（`review_due/review_cliff/review_weak/continue_reading`）、`bookId`、`conceptLabel|null`、`reason`（一句可读原因）、`evidenceRefs[]`（参与排序的块/概念引用）、`estimatedMinutes`、`expiresAt`（次日 00:00）、`rank`（primary/alternative）、`state`（active/dismissed/snoozed/completed，叠加自 todayStore）；
+- 状态持久化：`server/data/today-state.json`（按推荐 ID 记录 dismissed/snoozed(until)/completed）；snoozed 默认 +4 小时，可用 `untilIso` 指定；
+- entry 端切换数据源另排切片，兼容窗口内保留本地派生作断网降级。
 
 ### PR-D 项目通知（docs/product/04 §10.2，M6）
 
