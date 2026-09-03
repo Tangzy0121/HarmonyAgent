@@ -80,8 +80,15 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 
 ### PR-A 学习项目聚合 DTO（docs/product/04 §2）
 
-`GET /api/projects` 与 `GET /api/projects/:id`：聚合目标、主要来源、当前学习书、生命周期状态、可执行动作摘要、未处理通知摘要。读取时由 Document + Book + 学习状态组合，不强制单表迁移。客户端只消费该 DTO，不自行猜测资源关联。
+合同（2026-09-03 冻结，`feat/projects-dto` 实施）：
 
+- `GET /api/projects` → `{ version: '1', projects: LearningProjectDto[] }`，排序：`lastLearnedAt` 降序（空则 `createdAt`，再空按 `projectId` 字典序），确定性可测试；
+- `GET /api/projects/:id` → `{ version: '1', project: LearningProjectDto }`；不存在返回 `404 { error: 'project_not_found' }`；
+- 首版 `projectId === bookId`（一书一项目），`owner` 为当前单用户 actor。
+
+`LearningProjectDto`（`version: '1'`）字段：`projectId`、`owner{userId,workspaceId}`、`title`、`goal`、`learnerLevel`、`documentIds[]`、`bookId`、`status`（学习书状态机原值）、`createdAt`、`updatedAt`、`lastLearnedAt|null`（最近学习行为时间）、`progress{chaptersReady,chaptersTotal,completion|null}`（复用 `deriveCompletion`）、`actions{canRead,hasPendingGeneration,dueReviewCount}`、`notices{unreadCount}`（PR-D 落地前恒 0）。
+
+读取时由 Book + 学习状态组合生成，不迁移单表；客户端只消费该 DTO，不自行猜测资源关联。
 ### PR-B 概念图 API 与纠正（docs/product/04 §8，M5）
 
 concepts/relations 读取端点；受控关系类型（`depends_on/part_of/causes/contrasts_with/applies_to/extends`），`related` 不作兜底；`ConceptRelationCorrection` 写入与投影优先级——已确认纠正不被再生成覆盖，原始记录保留供审计。普通 Chat 在结构上不可写（沿用能力/工具权限模型）。
