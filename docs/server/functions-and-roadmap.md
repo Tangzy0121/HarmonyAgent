@@ -48,6 +48,33 @@
 | `GET /profile` | 跨书学习者画像（label 归一 + 悬崖 1.5× + 节律四桶 + 30 天活跃日） | Prototype |
 | `GET /suggestions` | starter 建议（遗忘悬崖 > 薄弱 < 0.3 > 继续读，≤3 条） | Prototype |
 
+### 学习项目 `/api/projects`（PR #13）
+
+| 端点 | 说明 | 状态 |
+| --- | --- | --- |
+| `GET /` / `GET /:id` | 学习项目聚合 DTO（目标/来源/进度/动作/未读通知数）；404 project_not_found | Prototype |
+
+### 概念图 `/api/books/:id`（PR #14）
+
+| 端点 | 说明 | 状态 |
+| --- | --- | --- |
+| `GET /concepts` / `GET /relations` | 跨章聚合概念（含投影 mastery）/关系（含纠正覆盖层） | Prototype |
+| `POST /relations/:rid/corrections` | 关系纠正 confirm/reject/retype；幂等；纠正不被再生成覆盖 | Prototype |
+
+### 今日推荐 `/api/today`（PR #15）
+
+| 端点 | 说明 | 状态 |
+| --- | --- | --- |
+| `GET /` | 确定性派生 1 主 + ≤2 备选（到期复习>悬崖>薄弱>继续阅读）；空态 primary=null | Prototype |
+| `POST /state` | dismissed/snoozed(+4h 或 untilIso)/completed；只调展示，不动学习事实 | Prototype |
+
+### 项目通知 `/api/notices`（PR #16）
+
+| 端点 | 说明 | 状态 |
+| --- | --- | --- |
+| `GET /`（`?bookId=`） | 项目通知列表（createdAt 降序），生成/解析四处挂钩产生 | Prototype |
+| `POST /:id/read` | 幂等已读；404 notice_not_found | Prototype |
+
 ### Agent `/api/agent`
 
 turns 四端点见 [agent-architecture.md](agent-architecture.md) §4.3（Integrated）；`POST /book-chat` 为 admin 参考端旧合同（Prototype）。
@@ -69,16 +96,16 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 | `Concept` / `ConceptRelation` | 块内 `concept`/`ConceptRelation` 随书生成；**无独立端点** | Prototype |
 | `ConceptState` | `masteryProjector` 投影读模型（未验证/学习中/已掌握/待复习） | Integrated |
 | `ReviewItem` | `books/schedule.ts` + `review/due` | Integrated |
-| `LearningProject` | **缺**：以 books 列表充当项目视图，无聚合 DTO | Planned |
-| `TodayRecommendation` | **缺服务端合同**：entry 端本地派生 + `learner/suggestions` 部分覆盖 | Planned |
-| `ProjectNotice` | **缺**：项目任务状态无独立通知对象 | Planned |
-| 概念关系纠正 `ConceptRelationCorrection` | **缺** | Planned |
+| `LearningProject` | `projects/projectMapper.ts` 聚合 DTO（PR #13） | Prototype |
+| `TodayRecommendation` | `today/todayRecommendation.ts` 确定性派生 + todayStore（PR #15） | Prototype |
+| `ProjectNotice` | `notices/noticeService.ts` + 生成/解析挂钩（PR #16） | Prototype |
+| 概念关系纠正 `ConceptRelationCorrection` | 覆盖层 `concepts/conceptGraph.ts`（PR #14） | Prototype |
 
 ## 3. 缺口与实施顺序
 
 四个缺口按 docs/product/06 §4 的拆分精神逐 PR 推进，每 PR：先在本文档冻结合同 → 服务端实现 + 合同测试 → entry 联调另排切片。
 
-### PR-A 学习项目聚合 DTO（docs/product/04 §2）
+### PR-A 学习项目聚合 DTO（docs/product/04 §2）✅ 已完成（PR #13）
 
 合同（2026-09-03 冻结，`feat/projects-dto` 实施）：
 
@@ -89,7 +116,7 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 `LearningProjectDto`（`version: '1'`）字段：`projectId`、`owner{userId,workspaceId}`、`title`、`goal`、`learnerLevel`、`documentIds[]`、`bookId`、`status`（学习书状态机原值）、`createdAt`、`updatedAt`、`lastLearnedAt|null`（最近学习行为时间）、`progress{chaptersReady,chaptersTotal,completion|null}`（复用 `deriveCompletion`）、`actions{canRead,hasPendingGeneration,dueReviewCount}`、`notices{unreadCount}`（PR-D 落地前恒 0）。
 
 读取时由 Book + 学习状态组合生成，不迁移单表；客户端只消费该 DTO，不自行猜测资源关联。
-### PR-B 概念图 API 与纠正（docs/product/04 §8，M5）
+### PR-B 概念图 API 与纠正（docs/product/04 §8，M5）✅ 已完成（PR #14）
 
 合同（2026-09-03 冻结，`feat/concept-graph-api` 实施）：
 
@@ -101,7 +128,7 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 
 普通 Chat 在结构上不可写关系：不为纠正注册任何 Agent 工具（沿用能力/工具权限模型）。
 
-### PR-C 今日推荐服务端化（docs/product/04 §10.1，M6）
+### PR-C 今日推荐服务端化（docs/product/04 §10.1，M6）✅ 已完成（PR #15）
 
 合同（2026-09-03 冻结，`feat/today-recommendation` 实施）：
 
@@ -112,7 +139,7 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 - 状态持久化：`server/data/today-state.json`（按推荐 ID 记录 dismissed/snoozed(until)/completed）；snoozed 默认 +4 小时，可用 `untilIso` 指定；
 - entry 端切换数据源另排切片，兼容窗口内保留本地派生作断网降级。
 
-### PR-D 项目通知（docs/product/04 §10.2，M6）
+### PR-D 项目通知（docs/product/04 §10.2，M6）✅ 已完成（PR #16）
 
 合同（2026-09-03 冻结，`feat/project-notices` 实施）：
 
