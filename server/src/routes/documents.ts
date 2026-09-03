@@ -5,6 +5,7 @@ import { parsePdf, PdfParseError, type ParsedDocument } from '../documents/pdfPa
 import { parseTextDocument, TextDocumentError } from '../documents/textDocument.js'
 import { parseDocx, DocxParseError } from '../documents/docxParser.js'
 import { parseEpub, EpubParseError } from '../documents/epubParser.js'
+import type { NoticeService } from '../notices/noticeService.js'
 
 export interface DocumentsLogEvent {
   category: 'document_saved' | 'document_save_failed' | 'document_removed'
@@ -17,6 +18,8 @@ export type DocumentsLogger = (event: DocumentsLogEvent) => void
 interface DocumentsRouterDependencies {
   store: DocumentStore
   logger?: DocumentsLogger
+  /** 项目通知（PR-D）：解析失败挂钩；缺省不记录 */
+  notices?: NoticeService
 }
 
 const MAX_FILE_NAME_LENGTH = 120
@@ -118,6 +121,17 @@ export function createDocumentsRouter(dependencies: DocumentsRouterDependencies)
     } catch (error) {
       const code = error instanceof PdfParseError || error instanceof TextDocumentError || error instanceof DocxParseError || error instanceof EpubParseError ? error.code : 'pdf_unreadable'
       emitLog(logger, { category: 'document_save_failed', errorCode: code })
+      try {
+        await dependencies.notices?.append({
+          kind: 'parse_failed',
+          severity: 'error',
+          message: `资料「${fileName}」解析失败（${code}），可以重新上传。`,
+          target: { fileName },
+          dedupeKey: `parse_failed:${fileName}:${code}`,
+        })
+      } catch {
+        // 通知存储故障不影响主错误路径
+      }
       res.status(422).json({ error: code })
     }
   })
