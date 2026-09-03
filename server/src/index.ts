@@ -18,6 +18,7 @@ import { createTurnStore } from './agent/runtime/turnStore.js';
 import { createAgentTurnsRouter } from './routes/agentTurns.js';
 import { createLearnerRouter } from './routes/learner.js';
 import { createProjectsRouter } from './routes/projects.js';
+import { createConceptsRouter } from './routes/concepts.js';
 import { LearningEvidenceService } from './learning/learningEvidenceService.js';
 import { loadOrCreateEvidenceSecurityKeys } from './learning/evidenceSecurityKeys.js';
 import { createProviderFeynmanEvaluator } from './learning/feynmanEvaluator.js';
@@ -83,6 +84,7 @@ app.use(
     runtimeActor,
   }),
 );
+app.use('/api/books', createConceptsRouter({ bookStore, actorProvider: () => runtimeActor }));
 app.use('/api/learner', createLearnerRouter({ bookStore }));
 app.use('/api/projects', createProjectsRouter({ bookStore, actorProvider: () => runtimeActor }));
 app.use(express.json({ limit: '10mb' }));

@@ -91,7 +91,15 @@ OpenAI 兼容转发 + 审计日志，密钥不出服务端（Integrated）。
 读取时由 Book + 学习状态组合生成，不迁移单表；客户端只消费该 DTO，不自行猜测资源关联。
 ### PR-B 概念图 API 与纠正（docs/product/04 §8，M5）
 
-concepts/relations 读取端点；受控关系类型（`depends_on/part_of/causes/contrasts_with/applies_to/extends`），`related` 不作兜底；`ConceptRelationCorrection` 写入与投影优先级——已确认纠正不被再生成覆盖，原始记录保留供审计。普通 Chat 在结构上不可写（沿用能力/工具权限模型）。
+合同（2026-09-03 冻结，`feat/concept-graph-api` 实施）：
+
+- `GET /api/books/:id/concepts` → `{ version:'1', concepts: [{ id,label,description,chapterId,blockId, learningState, mastery|null }] }`：跨章聚合 concept 块内概念；`mastery` 来自掌握投影读模型（无投影为 null），`learningState` 为块内存储值；
+- `GET /api/books/:id/relations` → `{ version:'1', relations: [...] }`：聚合全部 concept 块关系（含 `chapterId`/`blockId`），**应用纠正覆盖层**——已确认纠正优先于生成原值，原始记录不落改、保留供审计；
+- `POST /api/books/:id/relations/:rid/corrections` → `201 { version:'1', correction }`；body `{ action: 'confirm'|'reject'|'retype', suggestedType?, note? }`。错误：`404 book_not_found` / `404 relation_not_found` / `400 invalid_correction`（retype 缺 suggestedType 或类型非法）。幂等：同 relation+action+suggestedType 重复提交返回 `200` 与既有纠正，不重复记账；
+- 纠正匹配：优先 `relationId`，再生成后 ID 变化时按 `(sourceId,targetId)` 对回退匹配——纠正不被再生成覆盖；
+- **关系类型沿用生成端现行五类**（`前置/包含/相似/对比/应用`）。docs/product/04 §8 的英文受控类型（depends_on/part_of/…）与现行类型表的映射迁移属产品+后端共同评审事项（docs/product/README §4），不在本 PR。
+
+普通 Chat 在结构上不可写关系：不为纠正注册任何 Agent 工具（沿用能力/工具权限模型）。
 
 ### PR-C 今日推荐服务端化（docs/product/04 §10.1，M6）
 

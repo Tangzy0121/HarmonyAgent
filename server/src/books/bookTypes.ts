@@ -96,6 +96,21 @@ export interface ConceptRelation {
   sourceAnchor: SourceAnchor
 }
 
+/** 用户对概念关系的纠正（PR-B；合同见 docs/server/functions-and-roadmap.md）。原始生成关系不落改，读取投影优先应用纠正。 */
+export interface ConceptRelationCorrection {
+  id: string
+  /** 目标关系 ID；再生成后 ID 变化时按 (sourceId,targetId) 对回退匹配 */
+  relationId: string
+  relationSourceId: string
+  relationTargetId: string
+  action: 'confirm' | 'reject' | 'retype'
+  /** action=retype 时必填，须为受控类型之一 */
+  suggestedType?: ConceptRelation['type']
+  note?: string
+  operator: { userId: string; workspaceId: string }
+  createdAt: string
+}
+
 export interface ConceptBlock extends BaseBookBlock {
   type: 'concept'
   concepts: ConceptItem[]
@@ -350,6 +365,8 @@ export interface StoredBook {
   activeChapterId: string
   userNotes: UserNote[]
   userCards?: UserCard[]
+  /** 概念关系用户纠正记录（PR-B）；缺省视为无纠正 */
+  relationCorrections?: ConceptRelationCorrection[]
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest
