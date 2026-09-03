@@ -1,7 +1,8 @@
 /**
  * loci 纯黑 editorial 设计 Token(ArkTS)
- * 真源:prototype/src/styles/tokens.css(2026-08-24, PR #8)
- * 纪律:屏内纯黑、零阴影/渐变/模糊;层级只靠字阶/字重/灰度/细线/留白。
+ * 真源:prototype/src/styles/tokens.css(2026-09-02, commit d0da27a)
+ * 纪律:屏内纯黑、零阴影/渐变/模糊;功能只靠字阶/字重/灰度/图形/细线/留白。
+ * 黄色只做内容色块与编辑式强调,不作为按钮或唯一状态信号。
  * 本文件是 entry 正式页面的唯一设计 Token 来源。
  */
 export class LociTokens {
@@ -16,16 +17,18 @@ export class LociTokens {
   static readonly SURFACE: string = '#161616'          // 内容色块
   static readonly SURFACE_RAISED: string = '#202020'   // 浮起色块
 
-  // ---- 语义色 ----
-  static readonly ACCENT: string = '#dd9a89'           // 桃色学习动作
-  static readonly ACCENT_INK: string = '#18100e'       // 桃色上的文字
+  // ---- 装饰色与黑白控件 ----
+  static readonly ACCENT: string = '#c8bc40'           // 参考图芥末黄,仅用于编辑式点缀
+  static readonly ACCENT_INK: string = '#17160b'       // 黄色内容色块上的文字
+  static readonly ACTION: string = LociTokens.INK      // 所有高优先级控件统一柔白
+  static readonly ACTION_INK: string = LociTokens.SCREEN
   static readonly CARD_BLUE: string = '#93a9be'        // 目标卡·灰蓝
   static readonly CARD_MIST: string = '#a9b3bb'        // 目标卡·雾灰
   static readonly CARD_STONE: string = '#b8b0a4'       // 目标卡·暖石
-  static readonly AGENT: string = '#bca9e9'            // Agent 紫
-  static readonly SUCCESS: string = '#8fc7a5'
-  static readonly WARNING: string = '#d6b179'
-  static readonly DANGER: string = '#df938b'
+  static readonly AGENT: string = LociTokens.INK_SOFT  // Agent 由图标与标签识别
+  static readonly SUCCESS: string = LociTokens.INK
+  static readonly WARNING: string = LociTokens.INK_SOFT
+  static readonly DANGER: string = LociTokens.INK
 
   // ---- 字阶(vp;真源为 rem/clamp,按 390 宽移动画布取定值)----
   static readonly FONT_DISPLAY: number = 48            // clamp(3rem,12vw,3.55rem)

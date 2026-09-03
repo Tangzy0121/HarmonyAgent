@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import type { ParsedDocument, ParsedPage } from './pdfParser.js'
 
-export type DocumentFormat = 'PDF' | 'Markdown' | 'DOCX'
+export type DocumentFormat = 'PDF' | 'Markdown' | 'DOCX' | 'EPUB'
 
 export interface StoredDocumentMeta {
   id: string

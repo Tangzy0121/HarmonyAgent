@@ -3,6 +3,8 @@ export type PrimaryDestination = 'today' | 'library'
 export type Screen =
   | 'today'
   | 'library'
+  | 'settings'
+  | 'account'
   | 'create'
   | 'plan'
   | 'overview'

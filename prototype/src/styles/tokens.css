@@ -12,15 +12,15 @@
   --line-strong: rgb(243 242 238 / 0.38);
   --surface: #161616;
   --surface-raised: #202020;
-  --accent: #dd9a89;
-  --accent-ink: #18100e;
+  --accent: #c8bc40;
+  --accent-ink: #17160b;
   --card-blue: #93a9be;
   --card-mist: #a9b3bb;
   --card-stone: #b8b0a4;
-  --agent: #bca9e9;
-  --success: #8fc7a5;
-  --warning: #d6b179;
-  --danger: #df938b;
+  --agent: var(--ink-soft);
+  --success: var(--ink);
+  --warning: var(--ink-soft);
+  --danger: var(--ink);
 
   --font-display: clamp(3rem, 12vw, 3.55rem);
   --font-page: clamp(2.55rem, 10vw, 3.1rem);

@@ -184,7 +184,7 @@ export struct CreateProjectPage {
               Circle()
                 .width(6)
                 .height(6)
-                .fill(LociTokens.ACCENT)
+                .fill(LociTokens.ACTION)
             }
             Text(option.id)
               .fontSize(LociTokens.FONT_SMALL)
@@ -276,7 +276,7 @@ export struct CreateProjectPage {
         Row({ space: 14 }) {
           SymbolGlyph($r('sys.symbol.doc'))
             .fontSize(LociTokens.FONT_HEADING)
-            .fontColor([LociTokens.ACCENT])
+            .fontColor([LociTokens.ACTION])
           Column({ space: 5 }) {
             Text(this.flow.file.name)
               .fontSize(LociTokens.FONT_SMALL)
@@ -314,7 +314,7 @@ export struct CreateProjectPage {
         Blank()
         Text('使用演示文件')
           .fontSize(LociTokens.FONT_CAPTION)
-          .fontColor(LociTokens.ACCENT)
+          .fontColor(LociTokens.ACTION)
           .height(LociTokens.CONTROL_MIN)
           .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
           .textAlign(TextAlign.Center)

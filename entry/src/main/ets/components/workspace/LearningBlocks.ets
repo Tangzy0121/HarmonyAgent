@@ -147,6 +147,15 @@ export struct QuizBlockView {
               .fontColor(this.optionColor(option.id))
               .lineHeight(20)
               .layoutWeight(1)
+            if (this.submitted && option.id === this.block.correctOptionId) {
+              Text('正确答案')
+                .fontSize(LociTokens.FONT_MICRO)
+                .fontColor(LociTokens.INK_MUTED)
+            } else if (this.submitted && option.id === this.answer) {
+              Text('你的选择')
+                .fontSize(LociTokens.FONT_MICRO)
+                .fontColor(LociTokens.INK_MUTED)
+            }
           }
           .width('100%')
           .constraintSize({ minHeight: LociTokens.CONTROL_MIN })
@@ -176,12 +185,12 @@ export struct QuizBlockView {
         Text('提交回答')
           .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.answer.length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+          .fontColor(this.answer.length > 0 ? LociTokens.ACTION_INK : LociTokens.INK_MUTED)
           .textAlign(TextAlign.Center)
           .width('100%')
           .height(LociTokens.CONTROL_HEIGHT)
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .backgroundColor(this.answer.length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
+          .backgroundColor(this.answer.length > 0 ? LociTokens.ACTION : LociTokens.SURFACE)
           .margin({ top: LociTokens.SPACE_4 })
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.submitAnswer())
@@ -212,14 +221,14 @@ export struct QuizBlockView {
             if (this.serverAdvice.length > 0) {
               Text(`补救建议:${this.serverAdvice}`)
                 .fontSize(LociTokens.FONT_LABEL)
-                .fontColor(LociTokens.ACCENT)
+                .fontColor(LociTokens.ACTION)
                 .lineHeight(19)
                 .width('100%')
             }
             if (!this.isCorrect()) {
               Text('重新作答')
                 .fontSize(LociTokens.FONT_LABEL)
-                .fontColor(LociTokens.ACCENT)
+                .fontColor(LociTokens.ACTION)
                 .height(LociTokens.CONTROL_MIN)
                 .accessibilityRole(AccessibilityRoleType.BUTTON)
                 .onClick((): void => {
@@ -352,7 +361,7 @@ export struct FeynmanBlockView {
           .fontColor(LociTokens.INK)
           .placeholderColor(LociTokens.INK_MUTED)
           .placeholderFont({ size: 13 })
-          .caretColor(LociTokens.ACCENT)
+          .caretColor(LociTokens.ACTION)
           .backgroundColor(LociTokens.SURFACE)
           .borderRadius(LociTokens.RADIUS_BLOCK)
           .padding(LociTokens.SPACE_4)
@@ -369,12 +378,12 @@ export struct FeynmanBlockView {
           Text(this.submitting ? '正在判定…' : '提交讲述')
             .fontSize(LociTokens.FONT_META)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.body.trim().length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+            .fontColor(this.body.trim().length > 0 ? LociTokens.ACTION_INK : LociTokens.INK_MUTED)
             .textAlign(TextAlign.Center)
             .height(LociTokens.CONTROL_HEIGHT)
             .padding({ left: 22, right: 22 })
             .borderRadius(LociTokens.RADIUS_CONTROL)
-            .backgroundColor(this.body.trim().length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
+            .backgroundColor(this.body.trim().length > 0 ? LociTokens.ACTION : LociTokens.SURFACE)
             .accessibilityRole(AccessibilityRoleType.BUTTON)
             .onClick((): void => this.submit())
         }
@@ -399,7 +408,7 @@ export struct FeynmanBlockView {
             if (!this.passed()) {
               Text('回到讲述')
                 .fontSize(LociTokens.FONT_LABEL)
-                .fontColor(LociTokens.ACCENT)
+                .fontColor(LociTokens.ACTION)
                 .height(LociTokens.CONTROL_MIN)
                 .accessibilityRole(AccessibilityRoleType.BUTTON)
                 .onClick((): void => {
@@ -493,7 +502,7 @@ export struct LearningBlockView {
         .width('100%')
         .margin({ top: LociTokens.SPACE_5 })
 
-      // 关键判断:左侧桃色竖线引用块
+      // 关键判断:黄色编辑强调引用块
       Row() {
         Rect().width(2).height('100%').fill(LociTokens.ACCENT)
         Column({ space: 8 }) {

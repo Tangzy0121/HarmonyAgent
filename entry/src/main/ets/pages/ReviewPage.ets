@@ -340,7 +340,7 @@ export struct ReviewPage {
         .fontColor(LociTokens.INK)
         .placeholderColor(LociTokens.INK_MUTED)
         .placeholderFont({ size: 14 })
-        .caretColor(LociTokens.ACCENT)
+        .caretColor(LociTokens.ACTION)
         .backgroundColor(LociTokens.SURFACE)
         .borderRadius(LociTokens.RADIUS_BLOCK)
         .padding(14)
@@ -390,13 +390,13 @@ export struct ReviewPage {
           .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.recallAnswer.trim().length > 0 || this.revealed ?
-            LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+            LociTokens.ACTION_INK : LociTokens.INK_MUTED)
           .textAlign(TextAlign.Center)
           .height(LociTokens.CONTROL_MIN)
           .padding({ left: 22, right: 22 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
           .backgroundColor(this.recallAnswer.trim().length > 0 || this.revealed ?
-            LociTokens.ACCENT : LociTokens.SURFACE)
+            LociTokens.ACTION : LociTokens.SURFACE)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {
             if (this.recallAnswer.trim().length > 0 || this.revealed) {
@@ -435,10 +435,10 @@ export struct ReviewPage {
                 .width(14)
                 .height(14)
                 .fill(Color.Transparent)
-                .stroke(this.selectedOptionId === option.id ? LociTokens.ACCENT : LociTokens.LINE_STRONG)
+                .stroke(this.selectedOptionId === option.id ? LociTokens.ACTION : LociTokens.LINE_STRONG)
                 .strokeWidth(1.4)
               if (this.selectedOptionId === option.id) {
-                Circle().width(6).height(6).fill(LociTokens.ACCENT)
+                Circle().width(6).height(6).fill(LociTokens.ACTION)
               }
             }
             .width(14)
@@ -454,7 +454,7 @@ export struct ReviewPage {
           .borderRadius(LociTokens.RADIUS_BLOCK)
           .border({
             width: 1,
-            color: this.selectedOptionId === option.id ? LociTokens.ACCENT : LociTokens.LINE
+            color: this.selectedOptionId === option.id ? LociTokens.ACTION : LociTokens.LINE
           })
           .constraintSize({ minHeight: LociTokens.CONTROL_MIN })
           .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -479,12 +479,12 @@ export struct ReviewPage {
         Text('提交判断')
           .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.selectedOptionId.length > 0 ? LociTokens.ACCENT_INK : LociTokens.INK_MUTED)
+          .fontColor(this.selectedOptionId.length > 0 ? LociTokens.ACTION_INK : LociTokens.INK_MUTED)
           .textAlign(TextAlign.Center)
           .height(LociTokens.CONTROL_MIN)
           .padding({ left: 22, right: 22 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .backgroundColor(this.selectedOptionId.length > 0 ? LociTokens.ACCENT : LociTokens.SURFACE)
+          .backgroundColor(this.selectedOptionId.length > 0 ? LociTokens.ACTION : LociTokens.SURFACE)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => {
             if (this.selectedOptionId.length > 0) {
@@ -544,12 +544,12 @@ export struct ReviewPage {
         Text('记住了')
           .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
-          .fontColor(LociTokens.ACCENT_INK)
+          .fontColor(LociTokens.ACTION_INK)
           .textAlign(TextAlign.Center)
           .layoutWeight(1)
           .height(LociTokens.CONTROL_MIN)
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .backgroundColor(LociTokens.ACCENT)
+          .backgroundColor(LociTokens.ACTION)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.submitGrade('remembered'))
       }
@@ -584,17 +584,17 @@ export struct ReviewPage {
           Row({ space: 5 }) {
             Stack() {
               Rect().width(10).height(12).radius(1)
-                .fill(Color.Transparent).stroke(LociTokens.ACCENT).strokeWidth(1.2)
+                .fill(Color.Transparent).stroke(LociTokens.ACTION).strokeWidth(1.2)
               Line().width(5).height(1).startPoint([0, 0]).endPoint([5, 0])
-                .stroke(LociTokens.ACCENT).strokeWidth(1).translate({ y: -1.5 })
+                .stroke(LociTokens.ACTION).strokeWidth(1).translate({ y: -1.5 })
               Line().width(5).height(1).startPoint([0, 0]).endPoint([5, 0])
-                .stroke(LociTokens.ACCENT).strokeWidth(1).translate({ y: 2 })
+                .stroke(LociTokens.ACTION).strokeWidth(1).translate({ y: 2 })
             }
             .width(10)
             .height(12)
             Text('查看来源与相关正文')
               .fontSize(LociTokens.FONT_LABEL)
-              .fontColor(LociTokens.ACCENT)
+              .fontColor(LociTokens.ACTION)
           }
           .height(LociTokens.CONTROL_MIN)
           .margin({ top: LociTokens.SPACE_2 })
@@ -629,12 +629,12 @@ export struct ReviewPage {
         Text(this.index === this.items.length - 1 ? '查看结果' : '下一项')
           .fontSize(LociTokens.FONT_META)
           .fontWeight(FontWeight.Medium)
-          .fontColor(LociTokens.ACCENT_INK)
+          .fontColor(LociTokens.ACTION_INK)
           .textAlign(TextAlign.Center)
           .height(LociTokens.CONTROL_MIN)
           .padding({ left: 22, right: 22 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .backgroundColor(LociTokens.ACCENT)
+          .backgroundColor(LociTokens.ACTION)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.advance())
       }
@@ -683,17 +683,17 @@ export struct ReviewPage {
           Text(this.returnLabel)
             .fontSize(LociTokens.FONT_SMALL)
             .fontWeight(FontWeight.Medium)
-            .fontColor(LociTokens.ACCENT_INK)
+            .fontColor(LociTokens.ACTION_INK)
           Text('→')
             .fontSize(LociTokens.FONT_SMALL)
-            .fontColor(LociTokens.ACCENT_INK)
+            .fontColor(LociTokens.ACTION_INK)
         }
         .justifyContent(FlexAlign.Center)
         .width('100%')
         .height(LociTokens.CONTROL_HEIGHT)
         .margin({ top: LociTokens.SPACE_3, bottom: LociTokens.SPACE_6 })
         .borderRadius(LociTokens.RADIUS_CONTROL)
-        .backgroundColor(LociTokens.ACCENT)
+        .backgroundColor(LociTokens.ACTION)
         .accessibilityRole(AccessibilityRoleType.BUTTON)
         .onClick((): void => this.onBack())
       }

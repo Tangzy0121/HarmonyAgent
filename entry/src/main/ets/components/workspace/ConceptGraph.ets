@@ -35,7 +35,7 @@ const STAGE_HEIGHT: number = 420
 function conceptStateColor(state: string): string {
   switch (state) {
     case 'mastered': return LociTokens.SUCCESS
-    case 'learning': return LociTokens.ACCENT
+    case 'learning': return LociTokens.INK_SOFT
     case 'review': return LociTokens.WARNING
     default: return LociTokens.INK_MUTED
   }
@@ -402,7 +402,7 @@ export struct ConceptGraph {
               Text(relationTypeLabel(relation.type))
                 .fontSize(LociTokens.FONT_LABEL)
                 .fontWeight(FontWeight.Medium)
-                .fontColor(LociTokens.ACCENT)
+                .fontColor(LociTokens.ACTION)
               Text(this.otherConceptLabel(concept.id, relation))
                 .fontSize(LociTokens.FONT_LABEL)
                 .fontColor(LociTokens.INK)

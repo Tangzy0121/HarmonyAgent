@@ -8,6 +8,9 @@ import { mockProjects } from '../data/mockData'
 import { CreateProjectPage } from '../pages/CreateProjectPage'
 import { LibraryPage } from '../pages/LibraryPage'
 import { PlanPage } from '../pages/PlanPage'
+import { SettingsPage } from '../pages/SettingsPage'
+import { AccountPage } from '../pages/AccountPage'
+import { primaryMenuItems } from '../components/shell/MobileIdentity'
 
 describe('mobile prototype shell', () => {
   it('shows the loci identity and menu trigger without persistent navigation or profile controls', () => {
@@ -26,6 +29,16 @@ describe('mobile prototype shell', () => {
 
     expect(html).not.toContain('aria-label="打开 loci Chat"')
     expect(html).not.toContain('class="agent-launcher"')
+  })
+
+  it('uses settings and account as utility destinations in the primary menu', () => {
+    expect(primaryMenuItems.map((item) => item.label)).toEqual(['今日', '学习库', '设置', '账户'])
+    expect(primaryMenuItems.some((item) => item.label === '新建项目')).toBe(false)
+
+    const settings = renderToStaticMarkup(<SettingsPage />)
+    const account = renderToStaticMarkup(<AccountPage />)
+    expect(settings).toContain('每日复习提醒')
+    expect(account).toContain('本地演示账户')
   })
 
   it('renders Today as one horizontal learning-target carousel', () => {

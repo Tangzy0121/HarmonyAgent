@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { usePrototype } from '../../app/PrototypeContext'
+import type { Screen } from '../../types/product'
 import { Icon } from '../ui/Icon'
+
+type PrimaryMenuScreen = Extract<Screen, 'today' | 'library' | 'settings' | 'account'>
+
+export const primaryMenuItems: ReadonlyArray<{ screen: PrimaryMenuScreen; label: string }> = [
+  { screen: 'today', label: '今日' },
+  { screen: 'library', label: '学习库' },
+  { screen: 'settings', label: '设置' },
+  { screen: 'account', label: '账户' },
+]
 
 function BrandMark() {
   return (
@@ -33,9 +43,9 @@ export function MobileIdentity() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [open])
 
-  const navigate = (destination: 'today' | 'library' | 'create') => {
-    if (destination === 'create') dispatch({ type: 'screen', screen: 'create' })
-    else dispatch({ type: 'navigate', destination })
+  const navigate = (screen: PrimaryMenuScreen) => {
+    if (screen === 'today' || screen === 'library') dispatch({ type: 'navigate', destination: screen })
+    else dispatch({ type: 'screen', screen })
     closeMenu()
   }
 
@@ -56,9 +66,12 @@ export function MobileIdentity() {
           </header>
           <nav className="nav-menu__list" aria-labelledby="primary-menu-title">
             <h2 className="sr-only" id="primary-menu-title">页面导航</h2>
-            <button type="button" aria-current={state.screen === 'today' ? 'page' : undefined} onClick={() => navigate('today')}><span>今日</span>{state.screen === 'today' && <Icon name="arrow" size={28} />}</button>
-            <button type="button" aria-current={state.screen === 'library' ? 'page' : undefined} onClick={() => navigate('library')}><span>学习库</span>{state.screen === 'library' && <Icon name="arrow" size={28} />}</button>
-            <button type="button" onClick={() => navigate('create')}><span>新建项目</span></button>
+            {primaryMenuItems.map((item) => (
+              <button key={item.screen} type="button" aria-current={state.screen === item.screen ? 'page' : undefined} onClick={() => navigate(item.screen)}>
+                <span>{item.label}</span>
+                {state.screen === item.screen && <Icon name="arrow" size={28} />}
+              </button>
+            ))}
           </nav>
         </section>
       )}

@@ -1,5 +1,5 @@
 /**
- * 全屏文字导航(M1:今日 / 学习库)
+ * 全屏文字导航(M1:今日 / 学习库 / 设置 / 账户)
  * 真源:prototype/src/components/shell/MobileIdentity.tsx 的 .nav-menu
  * (纯黑全屏,顶部关闭 + loci 标志,列表沉底,大字号文字项,当前项带箭头)。
  * 动效纪律:瞬时显隐,不做大动画,天然满足「减少动态」(docs/product/03 §12)。
@@ -62,6 +62,8 @@ export struct LociMenuOverlay {
       Column() {
         this.menuItem('today', '今日')
         this.menuItem('library', '学习库')
+        this.menuItem('settings', '设置')
+        this.menuItem('account', '账户')
       }
       .width('100%')
       .padding({ left: LociTokens.PAGE_X, right: LociTokens.PAGE_X, bottom: LociTokens.SPACE_8 })

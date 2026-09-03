@@ -67,6 +67,23 @@ describe('mobile editorial visual system', () => {
     expect(css).toContain('.page--library .page-header__action .button > span { display: none; }')
   })
 
+  it('keeps color decorative and controls fully legible in grayscale', () => {
+    const tokens = readStyle('tokens.css')
+    const shell = readStyle('shell.css')
+    const pages = readStyle('pages.css')
+    const workspace = readStyle('workspace.css')
+    const overlays = readStyle('overlays.css')
+
+    expect(tokens).toContain('--accent: #c8bc40')
+    expect(tokens).not.toContain('#dd9a89')
+    expect(shell).toContain('.button--accent { color: var(--screen); background: var(--ink); }')
+    expect(pages).toContain('.switch-control[aria-checked="true"] { border-color: var(--ink); background: var(--ink); }')
+    expect(overlays).toContain('.chat-composer > button')
+    expect(overlays).toContain('color: var(--screen); background: var(--ink)')
+    expect(workspace).toContain('content: "正确答案"')
+    expect(workspace).toContain('content: "你的选择"')
+  })
+
   it('lays out create-flow choices in one compact row', () => {
     const css = readStyle('pages.css')
     const choiceRule = css.match(/\.choice-row \{[^}]+\}/u)?.[0] ?? ''

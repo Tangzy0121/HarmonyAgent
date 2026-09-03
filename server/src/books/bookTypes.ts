@@ -26,7 +26,7 @@ export type BookBlockType =
 export interface SourceDocument {
   id: string
   fileName: string
-  format: 'PDF' | 'Markdown' | 'DOCX'
+  format: 'PDF' | 'Markdown' | 'DOCX' | 'EPUB'
   pageCount: number
   sizeLabel: string
   updatedLabel: string
@@ -115,6 +115,8 @@ export interface QuizBlock extends BaseBookBlock {
   options: QuizOption[]
   correctAnswerId: string
   feedback: string
+  /** 缺省 = 成书生成；'adaptive' = 薄弱概念智能出题现场生成 */
+  origin?: 'adaptive'
 }
 
 // 错题四类诊断：类型定义放本文件（diagnosisPrompt.ts 从这里 import），
@@ -185,6 +187,16 @@ export interface UserNote {
   chapterId: string
   blockId: string
   body: string
+  createdAt: string
+}
+
+/** 用户问答卡（对话沉淀「存入题库」产物）：用户数据，不在生成白名单内 */
+export interface UserCard {
+  id: string
+  chapterId: string
+  front: string
+  back: string
+  hint?: string
   createdAt: string
 }
 
@@ -326,6 +338,10 @@ export interface ReviewScheduleEntry {
 export interface StoredBook {
   id: string
   source: SourceDocument
+  /** 多文件合书的全部来源（= 创建时的 documentIds 顺序）；单源书缺省，读取回退 [source] */
+  sources?: SourceDocument[]
+  /** 多源书落盘的 docId → 全文 sha256（book health 留口）；单源书缺省 */
+  sourceFingerprints?: Record<string, string>
   goal: LearningGoal
   learnerLevel: LearnerLevel
   proposal: BookProposal
@@ -333,6 +349,7 @@ export interface StoredBook {
   chapters: BookChapter[]
   activeChapterId: string
   userNotes: UserNote[]
+  userCards?: UserCard[]
   quizAttempts: QuizAttempt[]
   evidence: LearningEvidence[]
   pretest?: BookPretest

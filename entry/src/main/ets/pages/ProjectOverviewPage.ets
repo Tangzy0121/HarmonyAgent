@@ -33,7 +33,7 @@ const RETRY_NOTICE_ACTION: string = '阅读已有章节'
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'active': return LociTokens.ACCENT
+    case 'active': return LociTokens.INK
     case 'blocked': return LociTokens.DANGER
     case 'completed': return LociTokens.SUCCESS
     case 'archived': return LociTokens.INK_MUTED
@@ -44,7 +44,7 @@ function statusColor(status: string): string {
 function taskStateColor(state: string): string {
   switch (state) {
     case 'ready': return LociTokens.SUCCESS
-    case 'running': return LociTokens.ACCENT
+    case 'running': return LociTokens.INK_SOFT
     case 'failed': return LociTokens.DANGER
     default: return LociTokens.INK_MUTED
   }
@@ -54,7 +54,7 @@ function noticeToneColor(tone: string): string {
   switch (tone) {
     case 'danger': return LociTokens.DANGER
     case 'warning': return LociTokens.WARNING
-    default: return LociTokens.ACCENT
+    default: return LociTokens.INK_MUTED
   }
 }
 
@@ -320,7 +320,7 @@ export struct ProjectOverviewPage {
       Text(notice.actionLabel)
         .fontSize(LociTokens.FONT_META)
         .fontWeight(FontWeight.Medium)
-        .fontColor(LociTokens.ACCENT)
+        .fontColor(LociTokens.ACTION)
         .height(LociTokens.CONTROL_MIN)
         .accessibilityRole(AccessibilityRoleType.BUTTON)
         .onClick((): void => this.noticeAction())
@@ -356,16 +356,16 @@ export struct ProjectOverviewPage {
             Text('继续学习')
               .fontSize(LociTokens.FONT_LABEL)
               .fontWeight(FontWeight.Medium)
-              .fontColor(LociTokens.ACCENT_INK)
+              .fontColor(LociTokens.ACTION_INK)
             Text('→')
               .fontSize(LociTokens.FONT_LABEL)
-              .fontColor(LociTokens.ACCENT_INK)
+              .fontColor(LociTokens.ACTION_INK)
           }
           .justifyContent(FlexAlign.Center)
           .height(LociTokens.CONTROL_MIN)
           .padding({ left: 18, right: 18 })
           .borderRadius(LociTokens.RADIUS_CONTROL)
-          .backgroundColor(LociTokens.ACCENT)
+          .backgroundColor(LociTokens.ACTION)
           .accessibilityRole(AccessibilityRoleType.BUTTON)
           .onClick((): void => this.onOpenWorkspace(this.view(), ''))
         }
@@ -434,7 +434,7 @@ export struct ProjectOverviewPage {
                   if (this.chapterState(chapter) === 'ready') {
                     Text('打开')
                       .fontSize(LociTokens.FONT_LABEL)
-                      .fontColor(LociTokens.ACCENT)
+                      .fontColor(LociTokens.ACTION)
                       .height(LociTokens.CONTROL_MIN)
                       .padding({ left: LociTokens.SPACE_2, right: LociTokens.SPACE_2 })
                       .accessibilityRole(AccessibilityRoleType.BUTTON)
@@ -516,10 +516,10 @@ export struct ProjectOverviewPage {
           Row({ space: 5 }) {
             Text('查看来源与依据')
               .fontSize(LociTokens.FONT_META)
-              .fontColor(LociTokens.ACCENT)
+              .fontColor(LociTokens.ACTION)
             Text('→')
               .fontSize(LociTokens.FONT_SMALL)
-              .fontColor(LociTokens.ACCENT)
+              .fontColor(LociTokens.ACTION)
           }
           .height(LociTokens.CONTROL_MIN)
           .margin({ top: LociTokens.SPACE_2 })
