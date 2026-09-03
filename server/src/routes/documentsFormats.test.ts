@@ -33,6 +33,27 @@ async function makeDocx(paragraphs: string[]): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+/** 程序生成最小 EPUB 夹具：mimetype + container.xml + content.opf + 一个 xhtml 章节 */
+async function makeEpub(body: string): Promise<Buffer> {
+  const zip = new JSZip()
+  zip.file('mimetype', 'application/epub+zip')
+  zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`)
+  zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <manifest><item id="chap-1" href="one.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="chap-1"/></spine>
+</package>`)
+  zip.file('OEBPS/one.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>one</title></head><body>${body}</body></html>`)
+  return zip.generateAsync({ type: 'nodebuffer' })
+}
+
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'documents-formats-'))
   const store: DocumentStore = createDocumentStore(dir)
@@ -113,6 +134,42 @@ describe('documents routes · 多格式', () => {
 
     expect(res.status).toBe(422)
     expect(res.body).toEqual({ error: 'docx_unreadable' })
+  })
+
+  it('POST epub returns 200 with EPUB format', async () => {
+    const buf = await makeEpub(`<p>${LONG_TEXT}</p>`)
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Content-Type', 'application/epub+zip')
+      .set('x-file-name', 'chapter.epub')
+      .send(buf)
+
+    expect(res.status).toBe(200)
+    expect(res.body.format).toBe('EPUB')
+    expect(res.body.pageCount).toBeGreaterThanOrEqual(1)
+  })
+
+  it('POST a corrupted epub returns 422 epub_unreadable', async () => {
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Content-Type', 'application/epub+zip')
+      .set('x-file-name', 'broken.epub')
+      .send(Buffer.from('definitely not a zip'))
+
+    expect(res.status).toBe(422)
+    expect(res.body).toEqual({ error: 'epub_unreadable' })
+  })
+
+  it('POST epub as octet-stream dispatches by file extension', async () => {
+    const buf = await makeEpub(`<p>${LONG_TEXT}</p>`)
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Content-Type', 'application/octet-stream')
+      .set('x-file-name', encodeURIComponent('讲义.epub'))
+      .send(buf)
+
+    expect(res.status).toBe(200)
+    expect(res.body.format).toBe('EPUB')
   })
 
   it('POST octet-stream dispatches by file extension', async () => {

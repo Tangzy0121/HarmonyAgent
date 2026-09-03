@@ -2,6 +2,7 @@ import { Router } from 'express'
 
 import type { BookStore } from '../books/bookStore.js'
 import { deriveLearnerProfile } from '../learning/learnerProfile.js'
+import { deriveSuggestions } from '../learning/suggestions.js'
 
 interface LearnerRouterDependencies {
   bookStore: BookStore
@@ -16,6 +17,16 @@ export function createLearnerRouter(dependencies: LearnerRouterDependencies): Ro
     try {
       const books = await bookStore.list()
       res.status(200).json(deriveLearnerProfile(books, new Date()))
+    } catch {
+      res.status(500).json({ error: 'internal_error' })
+    }
+  })
+
+  // starter 建议：模板化派生（悬崖>薄弱>继续读，≤3 条），零 LLM
+  router.get('/suggestions', async (_req, res) => {
+    try {
+      const books = await bookStore.list()
+      res.status(200).json({ suggestions: deriveSuggestions(books, new Date()) })
     } catch {
       res.status(500).json({ error: 'internal_error' })
     }

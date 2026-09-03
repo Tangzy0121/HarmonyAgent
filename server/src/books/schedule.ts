@@ -48,7 +48,7 @@ export function applyReviewGrade(
   }
 }
 
-/** 到期复习项：dueAt <= now 且块仍存在，按 dueAt 升序。 */
+/** 到期复习项：dueAt <= now 且块仍存在，按 dueAt 升序。用户问答卡（userCards）按闪卡出队。 */
 export function listDueItems(book: StoredBook, now: Date): DueItem[] {
   const schedule = book.reviewSchedule ?? {}
   const due: DueItem[] = []
@@ -59,6 +59,11 @@ export function listDueItems(book: StoredBook, now: Date): DueItem[] {
       if (!entry || entry.dueAt > now.toISOString()) continue
       due.push({ blockId: block.id, chapterId: chapter.id, kind: entry.kind, title: block.title, dueAt: entry.dueAt, stage: entry.stage, lapses: entry.lapses })
     }
+  }
+  for (const card of book.userCards ?? []) {
+    const entry = schedule[card.id]
+    if (!entry || entry.dueAt > now.toISOString()) continue
+    due.push({ blockId: card.id, chapterId: card.chapterId, kind: 'flash_cards', title: card.front.slice(0, 30), dueAt: entry.dueAt, stage: entry.stage, lapses: entry.lapses })
   }
   return due.sort((a, b) => a.dueAt.localeCompare(b.dueAt))
 }

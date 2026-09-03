@@ -17,6 +17,8 @@ export interface NormalizedProposalChapter {
   estimatedMinutes: number
   pageStart: number
   pageEnd: number
+  /** 多文件合书：本章依据的资料序号（1 基）；仅在传入 documents 页数表时产出 */
+  sourceDoc?: number
 }
 
 export interface NormalizedProposal {
@@ -103,7 +105,7 @@ function optionalText(value: unknown): string {
   return value.trim()
 }
 
-export function normalizeProposal(value: unknown, pageCount: number): NormalizedProposal {
+export function normalizeProposal(value: unknown, pageCount: number, documentPageCounts?: number[]): NormalizedProposal {
   // 形状归一：模型返回裸数组时按 { chapters: [...] } 处理
   const record = Array.isArray(value) ? { chapters: value } : value
   if (!isRecord(record)) invalid()
@@ -115,6 +117,15 @@ export function normalizeProposal(value: unknown, pageCount: number): Normalized
     const pageStart = requiredPage(chapterValue.pageStart)
     const pageEnd = requiredPage(chapterValue.pageEnd)
     if (pageStart < 1 || pageEnd > pageCount || pageStart > pageEnd) invalid()
+    let sourceDoc: number | undefined
+    if (documentPageCounts !== undefined) {
+      // 多资料：sourceDoc 缺省 1；越界（伪造序号）或页码超出所属资料页数一律拒绝
+      sourceDoc = chapterValue.sourceDoc === undefined || chapterValue.sourceDoc === null
+        ? 1
+        : requiredPage(chapterValue.sourceDoc)
+      if (sourceDoc < 1 || sourceDoc > documentPageCounts.length) invalid()
+      if (pageEnd > documentPageCounts[sourceDoc - 1]) invalid()
+    }
     return {
       title: normalizeChapterTitle(chapterValue.title),
       objective: requiredText(chapterValue.objective),
@@ -122,6 +133,7 @@ export function normalizeProposal(value: unknown, pageCount: number): Normalized
       estimatedMinutes: requiredMinutes(chapterValue.estimatedMinutes),
       pageStart,
       pageEnd,
+      ...(sourceDoc !== undefined ? { sourceDoc } : {}),
     }
   })
 
