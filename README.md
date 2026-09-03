@@ -13,7 +13,10 @@
 | `entry/` | 唯一正式产品客户端，使用 ArkTS、ArkUI 实现 |
 | `server/` | 正式产品的唯一业务后端和事实来源 |
 | `docs/product/` | 现行产品文档，定义产品流程、页面、领域边界和验收要求 |
-| `archive/documentation-2026-08-24/` | 已封存的旧文档，只供历史追溯 |
+| `docs/server/` | 后端开发者文档：Agent 架构、功能清单与实施路线（与 `server/` 代码同步维护） |
+| `docs/client/` | HarmonyOS 客户端文档；目前收录已归档的跨平台迁移方案索引 |
+| `docs/submission/` | 比赛交付材料（作品说明与评审截图） |
+| `archive/` | 已封存文档：`documentation-2026-08-24/` 为旧产品文档包，`superseded-workflow/` 为旧流程 specs/plans，只供历史追溯 |
 
 `prototype/` 是移动端纯前端原型，不是 Web 产品端，也不接入 `server/`。它通过本地 Mock 数据覆盖主要页面和状态，用于评审信息架构、文案、排版和交互。正式业务能力只由 `entry + server` 实现和验收。
 
@@ -46,8 +49,9 @@ HarmonyOS 客户端请使用 DevEco Studio 打开仓库根工程并运行 `entry
 ## 文档真源
 
 - 产品定义、流程、页面语义、领域模型和验收：[`docs/product/`](docs/product/README.md)
+- 后端 Agent 架构、功能清单与实施路线：[`docs/server/`](docs/server/README.md)
 - 当前原型的目标与边界：[`prototype/PRODUCT.md`](prototype/PRODUCT.md)
 - 当前原型的视觉与组件规范：[`prototype/DESIGN.md`](prototype/DESIGN.md)
-- 旧方案和旧 QA：仅供追溯，不构成现行依据
+- 旧方案和旧 QA（`archive/`）：仅供追溯，不构成现行依据
 
 同一问题发生冲突时，依次采用用户最新确认的决定、`docs/product/` 对应专项文档、`prototype/` 中的现行原型规范，以及代码和测试所证明的实现状态。正式 API 和业务事实始终以 `entry + server` 为准。
