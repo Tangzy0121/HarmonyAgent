@@ -110,7 +110,9 @@ export class LociAgentTurnSession {
       await stream.done
     } catch (error) {
       streamError = error instanceof Error ? error.message : '连接学习助手失败,请重试。'
+      console.warn(`[loci] turn stream error: ${streamError}`)
     }
+    console.info(`[loci] turn stream done: phase=${this.phase} lastEventId=${this.lastEventId} err=${streamError}`)
     if (!this.current(generation) || this.cancelRequested || !this.active()) {
       return // settling 帧已落地相位(waitingUser/completed/error),或已被取消/换代
     }
@@ -155,6 +157,7 @@ export class LociAgentTurnSession {
   }
 
   accept(event: AgentTurnEvent): void {
+    console.info(`[loci] turn event: ${event.type}#${event.eventId} turn=${event.turnId}`)
     if (this.cancelRequested) {
       return
     }
