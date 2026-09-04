@@ -101,7 +101,8 @@ app.use('/api/projects', createProjectsRouter({
 }));
 app.use('/api/notices', createNoticesRouter({ noticeService }));
 app.use('/api/today', createTodayRouter({ bookStore, todayStore }));
-app.use(express.json({ limit: '10mb' }));
+// 注意:各业务路由器自带 json()/raw() 解析(见 books/agentTurns/documents),
+// 这里的 app 级 express.json() 在路由器之后挂载,仅兜 /v1、/api 代理等后续路由。
 
 // Health check
 app.get('/health', (_req, res) => {
