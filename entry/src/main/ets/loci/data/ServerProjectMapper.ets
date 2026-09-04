@@ -44,11 +44,15 @@ import {
   LociSourceAnchor
 } from '../../models/LociModels'
 import {
+  WireAggregatedConcept,
+  WireAggregatedRelation,
   WireBookBlock,
   WireBookChapter,
   WireConceptItem,
   WireConceptRelation,
   WireLearningEvidence,
+  WireLearningProject,
+  WireProjectNotice,
   WireQuizOption,
   WireSourceAnchor,
   WireStoredBook
@@ -375,4 +379,144 @@ export function mapBookToProject(book: WireStoredBook): LociProjectSummary {
 
 export function mapBooksToProjects(books: WireStoredBook[]): LociProjectSummary[] {
   return books.map((book: WireStoredBook): LociProjectSummary => mapBookToProject(book))
+}
+
+/** ArkTS 安全副本:显式字面量逐字段拷贝(Object.assign 在 ArkTS 受限)。 */
+export function cloneProject(project: LociProjectSummary): LociProjectSummary {
+  return {
+    id: project.id,
+    title: project.title,
+    shortTitle: project.shortTitle,
+    goal: project.goal,
+    level: project.level,
+    depth: project.depth,
+    source: project.source,
+    status: project.status,
+    lastStudiedLabel: project.lastStudiedLabel,
+    chapters: project.chapters,
+    notice: project.notice,
+    lastChapterId: project.lastChapterId,
+    concepts: project.concepts,
+    relations: project.relations,
+    anchors: project.anchors,
+    evidence: project.evidence,
+    reviewConceptIds: project.reviewConceptIds
+  }
+}
+
+/**
+ * PR-A:/api/projects 聚合 DTO 增强列表投影。
+ * 以 lastLearnedAt(无则 updatedAt)重排(最近学习在前)并覆盖 lastStudiedLabel;status 保持 mapProjectStatus 派生。
+ * DTO 里没有的书保持原样排在尾部。不可达时调用侧跳过本函数即可。
+ */
+export function applyProjectDtos(projects: LociProjectSummary[],
+  dtos: WireLearningProject[]): LociProjectSummary[] {
+  const dtoByBookId: Map<string, WireLearningProject> = new Map()
+  dtos.forEach((dto: WireLearningProject): void => {
+    dtoByBookId.set(dto.bookId, dto)
+  })
+  const recencyMs = (dto: WireLearningProject): number => {
+    const parsed: number = Date.parse(dto.lastLearnedAt ?? dto.updatedAt)
+    return isNaN(parsed) ? 0 : parsed
+  }
+  const enriched: LociProjectSummary[] = projects.map((project: LociProjectSummary): LociProjectSummary => {
+    const dto: WireLearningProject | undefined = dtoByBookId.get(project.id)
+    if (dto === undefined) {
+      return project
+    }
+    const next: LociProjectSummary = cloneProject(project)
+    // status 不覆盖:DTO 是 book 5 态,UI 要 mapProjectStatus 的 7 态派生(含 visited/chapters 逻辑)
+    next.lastStudiedLabel = lastStudiedLabel(dto.lastLearnedAt ?? dto.updatedAt)
+    return next
+  })
+  enriched.sort((a: LociProjectSummary, b: LociProjectSummary): number => {
+    const dtoA: WireLearningProject | undefined = dtoByBookId.get(a.id)
+    const dtoB: WireLearningProject | undefined = dtoByBookId.get(b.id)
+    const timeA: number = dtoA !== undefined ? recencyMs(dtoA) : 0
+    const timeB: number = dtoB !== undefined ? recencyMs(dtoB) : 0
+    return timeB - timeA
+  })
+  return enriched
+}
+
+/** mastery 投影 → 概念图节点状态;null 保持块内 learningState 映射。 */
+function masteryToState(mastery: number | null, learningState: string): string {
+  if (mastery === null) {
+    return mapConceptState(learningState)
+  }
+  if (mastery >= 0.7) {
+    return 'mastered'
+  }
+  if (mastery >= 0.3) {
+    return 'learning'
+  }
+  return 'review'
+}
+
+/**
+ * PR-B:概念图数据源切换为聚合端点。按 id 合并:状态用 mastery 投影覆盖,
+ * chapterIds/sourceIds 保留详情投影的跨章聚合结果;关系已含纠正应用(已拒绝剔除)。
+ */
+export function enrichProjectGraph(project: LociProjectSummary,
+  concepts: WireAggregatedConcept[], relations: WireAggregatedRelation[]): LociProjectSummary {
+  const existingById: Map<string, LociConcept> = new Map()
+  const currentConcepts: LociConcept[] = project.concepts ?? []
+  currentConcepts.forEach((concept: LociConcept): void => {
+    existingById.set(concept.id, concept)
+  })
+  const nextConcepts: LociConcept[] = concepts.map((item: WireAggregatedConcept): LociConcept => {
+    const existing: LociConcept | undefined = existingById.get(item.id)
+    return {
+      id: item.id,
+      label: item.label,
+      definition: item.description,
+      state: masteryToState(item.mastery, item.learningState),
+      chapterIds: existing !== undefined && existing.chapterIds.length > 0 ?
+        existing.chapterIds : [item.chapterId],
+      sourceIds: existing?.sourceIds ?? []
+    }
+  })
+  const existingRelById: Map<string, LociConceptRelation> = new Map()
+  const currentRelations: LociConceptRelation[] = project.relations ?? []
+  currentRelations.forEach((relation: LociConceptRelation): void => {
+    existingRelById.set(relation.id, relation)
+  })
+  const nextRelations: LociConceptRelation[] = relations
+    .filter((relation: WireAggregatedRelation): boolean => relation.status !== '已拒绝')
+    .map((relation: WireAggregatedRelation): LociConceptRelation => {
+      return {
+        id: relation.id,
+        from: relation.sourceId,
+        to: relation.targetId,
+        type: mapRelationType(relation.type),
+        reason: existingRelById.get(relation.id)?.reason ?? '',
+        sourceIds: existingRelById.get(relation.id)?.sourceIds ?? []
+      }
+    })
+  const next: LociProjectSummary = cloneProject(project)
+  next.concepts = nextConcepts
+  next.relations = nextRelations
+  return next
+}
+
+/**
+ * PR-D:服务端通知 → 项目 banner(复用今日页既有 activeNotice 逻辑)。
+ * severity error→danger,其余→info;title 按 kind 给短文案,detail 用服务端 message。
+ */
+export function mapNoticeToBanner(notice: WireProjectNotice): LociProjectNotice {
+  let title: string = '项目通知'
+  switch (notice.kind) {
+    case 'chapter_ready': title = '章节就绪'; break
+    case 'chapter_failed': title = '章节生成失败'; break
+    case 'book_ready': title = '学习书就绪'; break
+    case 'parse_failed': title = '资料解析失败'; break
+    default: break
+  }
+  return {
+    id: notice.id,
+    tone: notice.severity === 'error' ? 'danger' : 'info',
+    title: title,
+    detail: notice.message,
+    actionLabel: '查看'
+  }
 }

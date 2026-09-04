@@ -48,6 +48,9 @@ export struct ConceptGraph {
   @Event onBackToContent: () => void = (): void => {}
   @Event onAskAgent: (concept: LociConcept) => void = (concept: LociConcept): void => {}
   @Event onOpenSource: (anchorId: string) => void = (anchorId: string): void => {}
+  /** PR-B:关系纠正(confirm/reject)事件,由 WorkspacePage 调 appState.correctRelation 落服务端。 */
+  @Event onCorrectRelation: (relation: LociConceptRelation, action: string) => void =
+    (relation: LociConceptRelation, action: string): void => {}
 
   @Local private scope: string = 'chapter' // 'chapter' | 'book'
   @Local private view: string = 'graph'    // 'graph' | 'list'
@@ -416,6 +419,12 @@ export struct ConceptGraph {
           }
           .width('100%')
           .alignItems(HorizontalAlign.Start)
+          .constraintSize({ minHeight: LociTokens.CONTROL_MIN })
+          .accessibilityRole(AccessibilityRoleType.BUTTON)
+          .accessibilityDescription(`纠正 ${this.otherConceptLabel(concept.id, relation)} 的关系`)
+          .onClick((): void => {
+            this.confirmRelationCorrection(concept, relation)
+          })
         }, (relation: LociConceptRelation): string => relation.id)
       }
       .width('100%')
@@ -474,6 +483,32 @@ export struct ConceptGraph {
     .borderRadius(LociTokens.RADIUS_BLOCK)
     .backgroundColor(LociTokens.SURFACE)
     .margin({ top: LociTokens.SPACE_4 })
+  }
+
+  /** PR-B:直接关系行点击 → 纠正确认框(retype 需类型选择器,本切片先 confirm/reject)。 */
+  private confirmRelationCorrection(concept: LociConcept, relation: LociConceptRelation): void {
+    const other: string = this.otherConceptLabel(concept.id, relation)
+    AlertDialog.show({
+      title: '纠正概念关系',
+      message: `「${concept.label}」与「${other}」的关系当前为「${relationTypeLabel(relation.type)}」。确认无误,还是应当移除?`,
+      autoCancel: true,
+      alignment: DialogAlignment.Bottom,
+      buttons: [
+        {
+          value: '确认关系',
+          action: (): void => this.onCorrectRelation(relation, 'confirm')
+        },
+        {
+          value: '移除关系',
+          action: (): void => this.onCorrectRelation(relation, 'reject')
+        },
+        {
+          value: '取消',
+          action: (): void => {
+          }
+        }
+      ]
+    })
   }
 
   private directRelations(conceptId: string): LociConceptRelation[] {

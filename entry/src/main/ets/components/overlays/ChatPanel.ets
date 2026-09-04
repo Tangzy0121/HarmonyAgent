@@ -52,6 +52,8 @@ export struct ChatPanel {
   @Event onRetry: () => void = (): void => {}
   /** M5e:作用域切换(chapter⇄project,由宿主页改 refs 重开轮)。 */
   @Event onSwitchScope: () => void = (): void => {}
+  /** PR-B 修:选章卡片选项回显(章节 ID → 章节标题);无匹配原样显示。回答仍回发原始值。 */
+  @Param resolveOptionLabel: (option: string) => string = (option: string): string => option
 
   @Local private draft: string = ''
 
@@ -199,7 +201,7 @@ export struct ChatPanel {
                 .lineHeight(21)
                 .width('100%')
               ForEach(this.pendingQuestion?.options ?? [], (option: string) => {
-                Text(option)
+                Text(this.resolveOptionLabel(option))
                   .fontSize(LociTokens.FONT_META)
                   .fontColor(LociTokens.INK)
                   .width('100%')

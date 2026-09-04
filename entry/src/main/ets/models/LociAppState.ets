@@ -32,12 +32,16 @@ import {
   WireProgressResult,
   WireQuizAttemptResult,
   WireReviewDueItem,
-  WireStoredBook
+  WireAggregatedConcept,
+  WireAggregatedRelation,
+  WireLearningProject,
+  WireProjectNotice,
+  WireStoredBook,
+  WireTodayResponse
 } from '../loci/data/LociApiClient'
-import { mapBooksToProjects, mapBookToProject } from '../loci/data/ServerProjectMapper'
-import { mapWireBlock } from '../loci/data/ServerProjectMapper'
+import { applyProjectDtos, cloneProject, enrichProjectGraph, mapBooksToProjects, mapBookToProject, mapNoticeToBanner, mapWireBlock } from '../loci/data/ServerProjectMapper'
 import { mapReviewQueue } from '../loci/data/ReviewQueueMapper'
-import { deriveTodayRecommendations } from '../loci/data/TodayRecommendation'
+import { deriveTodayRecommendations, mapServerTodayRecommendations } from '../loci/data/TodayRecommendation'
 import { LociAgentTurnClient } from '../loci/agent/LociAgentTurnClient'
 import { LociAgentTurnSession } from '../loci/agent/LociAgentTurnSession'
 
@@ -55,6 +59,10 @@ export class LociAppState {
   private api: LociApiClient
   /** server 来源项目 id:openProject 据此决定进工作区前是否拉详情。 */
   private serverProjectIds: Set<string> = new Set()
+  /** PR-C:来自服务端 /api/today 的推荐 id;仅这些 id 的三键动作回写 /api/today/state。 */
+  private serverTodayIds: Set<string> = new Set()
+  /** PR-C:/api/today 不可用(404/旧 server)时 false,回退本地派生且不再重复尝试。 */
+  private todayApiAvailable: boolean = true
 
   constructor(api: LociApiClient = new LociApiClient()) {
     this.api = api
@@ -87,11 +95,28 @@ export class LociAppState {
         console.info(`[loci] load: server books=${books.length}`)
         this.serverProjectIds = new Set(books.map((book: WireStoredBook): string => book.id))
         this.projects = mapBooksToProjects(books)
-        // M5d:今日推荐本地派生;失败/为空保持 fixture 推荐
-        const derived: LociRecommendation[] = await this.loadServerRecommendations(books)
-        if (derived.length > 0) {
-          this.recommendations = derived
-          console.info(`[loci] load: derived recommendations=${derived.length}`)
+        // PR-A:聚合 DTO 增强(最近学习排序/状态/标签);失败保持 getBooks 投影
+        try {
+          const projectDtos: WireLearningProject[] = await this.api.getProjects()
+          this.projects = applyProjectDtos(this.projects, projectDtos)
+        } catch (error) {
+          console.warn(`[loci] load: /api/projects unavailable, keep books projection`)
+        }
+        // PR-D:未读通知挂到项目 banner;失败静默
+        await this.loadServerNotices()
+        // PR-C:今日推荐优先服务端 /api/today(确定性零 LLM);失败/为空回退本地派生,再空保持 fixture
+        this.serverTodayIds = new Set()
+        const serverRecs: LociRecommendation[] = await this.loadServerTodayRecommendations()
+        if (serverRecs.length > 0) {
+          this.recommendations = serverRecs
+          this.serverTodayIds = new Set(serverRecs.map((item: LociRecommendation): string => item.id))
+          console.info(`[loci] load: server today recommendations=${serverRecs.length}`)
+        } else {
+          const derived: LociRecommendation[] = await this.loadServerRecommendations(books)
+          if (derived.length > 0) {
+            this.recommendations = derived
+            console.info(`[loci] load: derived recommendations=${derived.length}`)
+          }
         }
         this.degraded = false
         this.errorMessage = ''
@@ -227,6 +252,52 @@ export class LociAppState {
     }
   }
 
+  /**
+   * PR-C:服务端今日推荐。/api/today 一次不可达(旧 server 无此路由)记 todayApiAvailable=false,
+   * 本次会话后续直接回退本地派生;返回空数组由调用侧走 M5d 派生路径。
+   */
+  private async loadServerTodayRecommendations(): Promise<LociRecommendation[]> {
+    if (!this.todayApiAvailable) {
+      return []
+    }
+    try {
+      const response: WireTodayResponse = await this.api.getTodayRecommendations()
+      return mapServerTodayRecommendations(response, this.projects)
+    } catch (error) {
+      this.todayApiAvailable = false
+      console.warn(`[loci] load: /api/today unavailable, fallback to local derive`)
+      return []
+    }
+  }
+
+  /** PR-C:今日推荐三键状态回写(仅服务端来源的推荐;fire-and-forget,失败仅记日志)。 */
+  private postTodayState(id: string, state: string): void {
+    if (!this.serverTodayIds.has(id)) {
+      return
+    }
+    this.api.setTodayRecommendationState(id, state)
+      .catch((error: Object): void => {
+        console.warn(`[loci] today state post failed: id=${id} state=${state}`)
+      })
+  }
+
+  /** 「开始」→ completed;本地移除该卡,下次 load 服务端也不再下发。 */
+  completeRecommendation(id: string): void {
+    this.postTodayState(id, 'completed')
+    this.recommendations = this.recommendations.filter(
+      (item: LociRecommendation): boolean => item.id !== id)
+  }
+
+  /** 「换一个」→ dismissed(换出的卡今日不再出现)。 */
+  dismissRecommendation(id: string): void {
+    this.postTodayState(id, 'dismissed')
+  }
+
+  /** 「稍后」→ snoozed(服务端默认 4h 后回来)。 */
+  snoozeRecommendation(id: string): void {
+    this.postTodayState(id, 'snoozed')
+  }
+
   /** 拉详情并原位更新 projects;失败时静默保留列表投影(调用侧照常进工作区)。 */
   async ensureProjectDetail(id: string): Promise<void> {
     if (!this.serverProjectIds.has(id)) {
@@ -237,6 +308,77 @@ export class LociAppState {
       this.upsertProject(mapBookToProject(book))
     } catch (error) {
       // 详情拉取失败不阻断导航,工作区以列表投影进入(章节块为空由消费侧兜底)
+      return
+    }
+    // PR-B:概念图数据源切聚合端点(mastery 投影 + 关系纠正);失败保持详情投影
+    try {
+      const concepts: WireAggregatedConcept[] = await this.api.getBookConcepts(id)
+      const relations: WireAggregatedRelation[] = await this.api.getBookRelations(id)
+      const current: LociProjectSummary | undefined = this.projects.find(
+        (entry: LociProjectSummary): boolean => entry.id === id)
+      if (current !== undefined) {
+        this.upsertProject(enrichProjectGraph(current, concepts, relations))
+      }
+    } catch (error) {
+      console.warn(`[loci] detail: concepts/relations unavailable, keep block projection`)
+    }
+  }
+
+  /** PR-D:未读通知按 target.bookId 挂到项目 banner(每项目取列表首条=最新);失败静默。 */
+  private async loadServerNotices(): Promise<void> {
+    try {
+      const notices: WireProjectNotice[] = await this.api.getNotices()
+      const seen: Set<string> = new Set()
+      notices.forEach((notice: WireProjectNotice): void => {
+        if (notice.readAt !== null) {
+          return
+        }
+        const bookId: string = notice.target.bookId ?? ''
+        if (bookId.length === 0 || seen.has(bookId)) {
+          return
+        }
+        const index: number = this.projects.findIndex(
+          (entry: LociProjectSummary): boolean => entry.id === bookId)
+        if (index < 0) {
+          return
+        }
+        seen.add(bookId)
+        const next: LociProjectSummary = cloneProject(this.projects[index])
+        next.notice = mapNoticeToBanner(notice)
+        const projects: LociProjectSummary[] = this.projects.slice()
+        projects[index] = next
+        this.projects = projects
+      })
+    } catch (error) {
+      console.warn(`[loci] load: /api/notices unavailable, skip banners`)
+    }
+  }
+
+  /** PR-D:banner 关闭 → 服务端标记已读(fire-and-forget),本地摘除。 */
+  dismissNotice(noticeId: string, projectId: string): void {
+    this.api.markNoticeRead(noticeId)
+      .catch((error: Object): void => {
+        console.warn(`[loci] notice read post failed: id=${noticeId}`)
+      })
+    const index: number = this.projects.findIndex(
+      (entry: LociProjectSummary): boolean => entry.id === projectId)
+    if (index >= 0 && this.projects[index].notice?.id === noticeId) {
+      const next: LociProjectSummary = cloneProject(this.projects[index])
+      next.notice = undefined
+      const projects: LociProjectSummary[] = this.projects.slice()
+      projects[index] = next
+      this.projects = projects
+    }
+  }
+
+  /** PR-B:概念关系纠正写回(confirm/reject);成功 true,调用侧随后 refreshProject 刷新概念图。 */
+  async correctRelation(bookId: string, relationId: string, action: string): Promise<boolean> {
+    try {
+      await this.api.postRelationCorrection(bookId, relationId, action)
+      return true
+    } catch (error) {
+      console.warn(`[loci] relation correction failed: relation=${relationId} action=${action}`)
+      return false
     }
   }
 

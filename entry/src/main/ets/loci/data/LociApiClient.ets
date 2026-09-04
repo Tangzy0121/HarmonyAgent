@@ -310,6 +310,125 @@ export interface WireLearnerProfile {
   derivedAt: string
 }
 
+/** PR-C:GET /api/today 的推荐项(确定性零 LLM,按日重置)。action 四值见 server todayRecommendation.ts。 */
+export interface WireTodayRecommendation {
+  id: string
+  action: string
+  bookId: string
+  conceptLabel: string | null
+  reason: string
+  evidenceRefs: string[]
+  estimatedMinutes: number
+  expiresAt: string
+  rank: string
+  state: string
+}
+
+/** GET /api/today → 200 信封;无推荐时 primary=null。 */
+export interface WireTodayResponse {
+  version: string
+  generatedAt: string
+  primary: WireTodayRecommendation | null
+  alternatives: WireTodayRecommendation[]
+}
+
+/** PR-A:GET /api/projects 的聚合 DTO(消费子集;goal/owner 等暂不声明)。 */
+export interface WireLearningProject {
+  projectId: string
+  title: string
+  bookId: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  lastLearnedAt: string | null
+  progress: WireProjectProgress
+  actions: WireProjectActions
+  notices: WireProjectNotices
+}
+
+export interface WireProjectProgress {
+  chaptersReady: number
+  chaptersTotal: number
+  completion: number | null
+}
+
+export interface WireProjectActions {
+  canRead: boolean
+  hasPendingGeneration: boolean
+  dueReviewCount: number
+}
+
+export interface WireProjectNotices {
+  unreadCount: number
+}
+
+interface WireProjectsEnvelope {
+  version: string
+  projects: WireLearningProject[]
+}
+
+/** PR-B:聚合概念(附章节/块定位与掌握度投影;无投影 mastery=null)。 */
+export interface WireAggregatedConcept {
+  id: string
+  label: string
+  description: string
+  learningState: string
+  chapterId: string
+  blockId: string
+  mastery: number | null
+}
+
+/** PR-B:聚合关系(纠正已应用:reject 剔除/retype 已改型;correctedBy 标记命中纠正)。 */
+export interface WireAggregatedRelation {
+  id: string
+  sourceId: string
+  targetId: string
+  type: string
+  status: string
+  chapterId: string
+  blockId: string
+  correctedBy: string | null
+}
+
+interface WireConceptsEnvelope {
+  version: string
+  concepts: WireAggregatedConcept[]
+}
+
+interface WireRelationsEnvelope {
+  version: string
+  relations: WireAggregatedRelation[]
+}
+
+/** PR-D:项目通知(章节就绪/失败等;dedupeKey 服务端未读去重,端侧不感知)。 */
+export interface WireProjectNotice {
+  id: string
+  kind: string
+  severity: string
+  message: string
+  target: WireNoticeTarget
+  createdAt: string
+  readAt: string | null
+}
+
+export interface WireNoticeTarget {
+  bookId?: string
+  chapterId?: string
+  documentId?: string
+  fileName?: string
+}
+
+interface WireNoticesEnvelope {
+  version: string
+  notices: WireProjectNotice[]
+}
+
+/** 关系纠正请求体(ArkTS 不支持 Record 字面量,用具体接口)。 */
+interface WireCorrectionPayload {
+  action: string
+  suggestedType?: string
+}
+
 /** 章节生成 SSE 白名单事件回调(chapter_start/block/chapter_done/error,其余帧忽略)。 */
 export interface ChapterGenerationCallbacks {
   onChapterStart: (chapterId: string) => void
@@ -721,5 +840,69 @@ export class LociApiClient {
   async getLearnerProfile(): Promise<WireLearnerProfile> {
     const text: string = await requestJson('/api/learner/profile', http.RequestMethod.GET)
     return JSON.parse(text) as WireLearnerProfile
+  }
+
+  /** PR-C:GET /api/today → 服务端今日推荐(primary + alternatives;无推荐 primary=null)。 */
+  async getTodayRecommendations(): Promise<WireTodayResponse> {
+    const text: string = await requestJson('/api/today', http.RequestMethod.GET)
+    return JSON.parse(text) as WireTodayResponse
+  }
+
+  /**
+   * PR-C:POST /api/today/state {recommendationId, state, untilIso?}。
+   * state: dismissed | snoozed | completed;snoozed 不传 untilIso 时服务端默认 +4h。
+   */
+  async setTodayRecommendationState(recommendationId: string, state: string): Promise<void> {
+    const body: string = JSON.stringify({ recommendationId: recommendationId, state: state })
+    await requestJson('/api/today/state', http.RequestMethod.POST, body,
+      ServerConfig.TIMEOUT_MS, 'application/json; charset=utf-8')
+  }
+
+  /** PR-A:GET /api/projects → 学习项目聚合 DTO(含进度/到期数/未读通知数)。 */
+  async getProjects(): Promise<WireLearningProject[]> {
+    const text: string = await requestJson('/api/projects', http.RequestMethod.GET)
+    return (JSON.parse(text) as WireProjectsEnvelope).projects ?? []
+  }
+
+  /** PR-B:GET /api/books/:id/concepts → 全书概念聚合(含 mastery 投影)。 */
+  async getBookConcepts(bookId: string): Promise<WireAggregatedConcept[]> {
+    const text: string =
+      await requestJson('/api/books/' + encodeURIComponent(bookId) + '/concepts', http.RequestMethod.GET)
+    return (JSON.parse(text) as WireConceptsEnvelope).concepts ?? []
+  }
+
+  /** PR-B:GET /api/books/:id/relations → 全书关系聚合(纠正已应用)。 */
+  async getBookRelations(bookId: string): Promise<WireAggregatedRelation[]> {
+    const text: string =
+      await requestJson('/api/books/' + encodeURIComponent(bookId) + '/relations', http.RequestMethod.GET)
+    return (JSON.parse(text) as WireRelationsEnvelope).relations ?? []
+  }
+
+  /**
+   * PR-B:POST /api/books/:id/relations/:rid/corrections {action, suggestedType?, note?}。
+   * action: confirm | reject | retype(retype 须带 suggestedType 受控五值之一);幂等。
+   */
+  async postRelationCorrection(bookId: string, relationId: string, action: string,
+    suggestedType: string = ''): Promise<void> {
+    const payload: WireCorrectionPayload = { action: action }
+    if (suggestedType.length > 0) {
+      payload.suggestedType = suggestedType
+    }
+    const body: string = JSON.stringify(payload)
+    await requestJson('/api/books/' + encodeURIComponent(bookId) + '/relations/' +
+      encodeURIComponent(relationId) + '/corrections',
+      http.RequestMethod.POST, body, ServerConfig.TIMEOUT_MS, 'application/json; charset=utf-8')
+  }
+
+  /** PR-D:GET /api/notices → 项目通知(createdAt 降序)。 */
+  async getNotices(): Promise<WireProjectNotice[]> {
+    const text: string = await requestJson('/api/notices', http.RequestMethod.GET)
+    return (JSON.parse(text) as WireNoticesEnvelope).notices ?? []
+  }
+
+  /** PR-D:POST /api/notices/:id/read → 标记已读(幂等)。 */
+  async markNoticeRead(noticeId: string): Promise<void> {
+    await requestJson('/api/notices/' + encodeURIComponent(noticeId) + '/read',
+      http.RequestMethod.POST, '{}', ServerConfig.TIMEOUT_MS, 'application/json; charset=utf-8')
   }
 }
