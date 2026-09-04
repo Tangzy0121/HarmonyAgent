@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { json, Router } from 'express'
 
 import type { BookStore } from '../books/bookStore.js'
 import { deriveTodayRecommendations, type TodayRecommendationDto } from '../today/todayRecommendation.js'
@@ -35,6 +35,7 @@ async function filterActive(
 
 export function createTodayRouter(dependencies: TodayRouterDependencies): Router {
   const router = Router()
+  router.use(json({ limit: '1mb' }))
   const { bookStore, todayStore } = dependencies
   const now = dependencies.now ?? (() => new Date())
 

@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { json, Router } from 'express'
 
 import type { NoticeService } from '../notices/noticeService.js'
 
@@ -8,6 +8,7 @@ interface NoticesRouterDependencies {
 
 export function createNoticesRouter(dependencies: NoticesRouterDependencies): Router {
   const router = Router()
+  router.use(json({ limit: '1mb' }))
   const { noticeService } = dependencies
 
   router.get('/', async (req, res, next) => {

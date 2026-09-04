@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Router } from 'express'
+import { json, Router } from 'express'
 
 import { BookStoreError, type BookStore } from '../books/bookStore.js'
 import type { ConceptRelation, ConceptRelationCorrection } from '../books/bookTypes.js'
@@ -18,6 +18,7 @@ interface ConceptsRouterDependencies {
 
 export function createConceptsRouter(dependencies: ConceptsRouterDependencies): Router {
   const router = Router()
+  router.use(json({ limit: '1mb' }))
   const { bookStore, actorProvider } = dependencies
   const now = dependencies.now ?? (() => new Date())
 
