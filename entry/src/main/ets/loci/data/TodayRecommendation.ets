@@ -18,7 +18,9 @@ import {
   WireConceptMastery,
   WireConceptSource,
   WireLearnerProfile,
-  WireReviewDueItem
+  WireReviewDueItem,
+  WireTodayRecommendation,
+  WireTodayResponse,
 } from './LociApiClient'
 
 /** 推荐条数上限(与 fixture 3 条对齐,Swiper 滑动体验)。 */
@@ -238,5 +240,53 @@ export function deriveTodayRecommendations(
     index: number): LociRecommendation => {
     item.tone = TONES[index % TONES.length]
     return item
+  })
+}
+
+/**
+ * PR-C:服务端 /api/today DTO → LociRecommendation。
+ * action→kind:review_* → review;continue_reading → continue。
+ * 文案:title 取 conceptLabel(悬崖/薄弱)或 action 短文案,reason 原样用服务端句子(含书名)。
+ * tone 按序循环(与本地派生一致);primary 在前、alternatives 随后。
+ */
+export function mapServerTodayRecommendations(response: WireTodayResponse,
+  projects: LociProjectSummary[]): LociRecommendation[] {
+  const items: WireTodayRecommendation[] = []
+  if (response.primary !== null) {
+    items.push(response.primary)
+  }
+  response.alternatives.forEach((item: WireTodayRecommendation): void => {
+    items.push(item)
+  })
+  const titleByBookId: Map<string, string> = new Map()
+  projects.forEach((project: LociProjectSummary): void => {
+    titleByBookId.set(project.id, project.title)
+  })
+  return items.map((item: WireTodayRecommendation, index: number): LociRecommendation => {
+    const isReview: boolean = item.action.startsWith('review')
+    let eyebrow: string = '继续学习'
+    let title: string = '继续学习'
+    if (item.action === 'review_due') {
+      eyebrow = '今日复习'
+      title = '复习到期'
+    } else if (item.action === 'review_cliff') {
+      eyebrow = '遗忘悬崖'
+      title = `巩固:${item.conceptLabel ?? ''}`
+    } else if (item.action === 'review_weak') {
+      eyebrow = '需要巩固'
+      title = `巩固:${item.conceptLabel ?? ''}`
+    }
+    return {
+      id: item.id,
+      projectId: item.bookId,
+      kind: isReview ? 'review' : 'continue',
+      tone: TONES[index % TONES.length],
+      eyebrow: eyebrow,
+      title: title,
+      reason: item.reason,
+      projectLabel: titleByBookId.get(item.bookId) ?? '',
+      estimatedMinutes: item.estimatedMinutes,
+      actionLabel: isReview ? '去复习' : '继续学习'
+    }
   })
 }

@@ -265,6 +265,8 @@ export struct TodayPage {
         .accessibilityRole(AccessibilityRoleType.BUTTON)
         .onClick((): void => {
           this.dismissedNoticeIds = this.dismissedNoticeIds.concat([active.notice.id])
+          // PR-D:服务端通知回写已读(本地 fixture 通知 id 不在服务端,POST 静默失败仅记日志)
+          this.appState.dismissNotice(active.notice.id, active.project.id)
         })
     }
     .width('100%')
@@ -435,6 +437,10 @@ export struct TodayPage {
         .onClick((): void => {
           const current: LociRecommendation | null = this.currentRecommendation()
           if (current !== null) {
+            // PR-C:服务端来源推荐先回写 completed(本地移除),再按原逻辑跳转
+            if (current.kind !== 'create') {
+              this.appState.completeRecommendation(current.id)
+            }
             this.execute(current)
           }
         })
@@ -446,7 +452,14 @@ export struct TodayPage {
         .padding({ left: LociTokens.SPACE_4, right: LociTokens.SPACE_4 })
         .textAlign(TextAlign.Center)
         .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => this.swapRecommendation())
+        .onClick((): void => {
+          // PR-C:换出的卡回写 dismissed(今日不再出现),再切下一张
+          const current: LociRecommendation | null = this.currentRecommendation()
+          if (current !== null) {
+            this.appState.dismissRecommendation(current.id)
+          }
+          this.swapRecommendation()
+        })
 
       Text('稍后')
         .fontSize(LociTokens.FONT_META)
@@ -455,7 +468,14 @@ export struct TodayPage {
         .padding({ left: LociTokens.SPACE_4, right: LociTokens.SPACE_4 })
         .textAlign(TextAlign.Center)
         .accessibilityRole(AccessibilityRoleType.BUTTON)
-        .onClick((): void => this.deferRecommendation())
+        .onClick((): void => {
+          // PR-C:服务端来源推荐回写 snoozed(默认 4h 后回来),本地沿用 deferredIds 移除
+          const current: LociRecommendation | null = this.currentRecommendation()
+          if (current !== null) {
+            this.appState.snoozeRecommendation(current.id)
+          }
+          this.deferRecommendation()
+        })
     }
     .width('100%')
     .margin({ top: LociTokens.SPACE_2 })

@@ -23,6 +23,7 @@ import { LociTokens } from '../theme/LociTokens'
 import {
   LociChapter,
   LociConcept,
+  LociConceptRelation,
   LociLearningBlock,
   LociProjectSummary,
   LociSourceAnchor,
@@ -303,6 +304,20 @@ export struct WorkspacePage {
     this.cancelChatSession()
   }
 
+  /** PR-B:概念关系纠正 → 服务端;成功后刷新详情(概念图重聚合,纠正即时生效)。 */
+  private correctRelation(relation: LociConceptRelation, action: string): void {
+    const bookId: string = this.detail.id
+    this.appState.correctRelation(bookId, relation.id, action)
+      .then((ok: boolean): void => {
+        if (ok) {
+          promptAction.showToast({ message: action === 'confirm' ? '已确认这条关系' : '已移除这条关系', duration: 1800 })
+          this.appState.refreshProject(bookId)
+        } else {
+          promptAction.showToast({ message: '纠正未保存,请稍后重试', duration: 1800 })
+        }
+      })
+  }
+
   private openSource(anchorId: string): void {
     const found: LociSourceAnchor | undefined = (this.detail.anchors ?? []).find(
       (anchor: LociSourceAnchor): boolean => anchor.id === anchorId)
@@ -523,7 +538,9 @@ export struct WorkspacePage {
                   },
                   onAskAgent: (concept: LociConcept): void =>
                     this.openChat('concept', `概念 · ${concept.label}`, concept.id),
-                  onOpenSource: (anchorId: string): void => this.openSource(anchorId)
+                  onOpenSource: (anchorId: string): void => this.openSource(anchorId),
+                  onCorrectRelation: (relation: LociConceptRelation, action: string): void =>
+                    this.correctRelation(relation, action)
                 })
               } else {
                 this.reader()
@@ -573,7 +590,9 @@ export struct WorkspacePage {
           onClose: (): void => this.closeChat(),
           onAnswer: (answer: string): void => this.answerChatQuestion(answer),
           onRetry: (): void => this.retryChat(),
-          onSwitchScope: (): void => this.switchChatScope()
+          onSwitchScope: (): void => this.switchChatScope(),
+          resolveOptionLabel: (option: string): string =>
+            this.detail.chapters.find((chapter: LociChapter): boolean => chapter.id === option)?.title ?? option
         })
       }
 
